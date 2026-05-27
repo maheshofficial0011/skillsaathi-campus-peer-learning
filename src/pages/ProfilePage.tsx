@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentProfile, upsertCurrentProfile } from '../lib/profiles';
+import { getReviewsReceived } from '../lib/profileStats';
 import type { Profile, YearOfStudy } from '../types';
+import type { ReviewItem } from '../lib/profileStats';
 import { DEPARTMENTS } from '../lib/departments';
 
 interface ProfilePageProps {
@@ -13,6 +15,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [profile, setProfile] = useState<Profile | null>(null);
   const [solvedRequestsCount, setSolvedRequestsCount] = useState<number>(0);
   const [feedbackAverage, setFeedbackAverage] = useState<number | null>(null);
+  const [reviewCount, setReviewCount] = useState<number>(0);
+  const [recentReviews, setRecentReviews] = useState<ReviewItem[]>([]);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -55,15 +59,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
           setSolvedRequestsCount(count);
         }
 
-        // 3. Fetch feedback average rating
-        const { data: feedbackData, error: feedbackError } = await supabase
-          .from('feedback')
-          .select('rating')
-          .eq('receiver_id', userId);
-
-        if (!feedbackError && feedbackData && feedbackData.length > 0) {
-          const total = feedbackData.reduce((acc, curr) => acc + curr.rating, 0);
-          setFeedbackAverage(Number((total / feedbackData.length).toFixed(1)));
+        // 3. Fetch feedback average rating + reviews
+        const reviews = await getReviewsReceived(userId);
+        setRecentReviews(reviews);
+        setReviewCount(reviews.length);
+        if (reviews.length > 0) {
+          const total = reviews.reduce((acc, r) => acc + r.rating, 0);
+          setFeedbackAverage(Number((total / reviews.length).toFixed(1)));
         } else {
           setFeedbackAverage(null);
         }
@@ -533,6 +535,119 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
               )}
             </div>
           </div>
+
+          {/* ========== PEER REPUTATION SECTION ========== */}
+          <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">🏅 Peer Reputation</h3>
+              <span className="text-xs text-slate-400 font-medium">Your public trust profile</span>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100 text-center">
+                <p className="text-2xl font-extrabold text-indigo-700">{profile.trust_score}%</p>
+                <p className="text-[11px] font-bold text-indigo-500 mt-1">Trust Score</p>
+              </div>
+              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-center">
+                <p className="text-2xl font-extrabold text-emerald-700">{solvedRequestsCount}</p>
+                <p className="text-[11px] font-bold text-emerald-500 mt-1">Solved</p>
+              </div>
+              <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 text-center">
+                {feedbackAverage !== null ? (
+                  <>
+                    <p className="text-2xl font-extrabold text-amber-700">{feedbackAverage}</p>
+                    <p className="text-[11px] font-bold text-amber-500 mt-1">Avg Rating</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xl font-extrabold text-slate-300">—</p>
+                    <p className="text-[11px] font-bold text-slate-400 mt-1">No Ratings</p>
+                  </>
+                )}
+              </div>
+              <div className="p-4 bg-purple-50 rounded-xl border border-purple-100 text-center">
+                <p className="text-2xl font-extrabold text-purple-700">{reviewCount}</p>
+                <p className="text-[11px] font-bold text-purple-500 mt-1">Reviews</p>
+              </div>
+            </div>
+
+            {/* Badge Explanation */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Badge Levels</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {[
+                  { emoji: '🌱', label: 'Newcomer', desc: 'Getting started' },
+                  { emoji: '🤝', label: 'Helpful Peer', desc: 'First few sessions' },
+                  { emoji: '🏅', label: 'Trusted Helper', desc: 'Consistently helpful' },
+                  { emoji: '🎓', label: 'Campus Mentor', desc: 'Highly trusted' },
+                  { emoji: '🏆', label: 'Skill Champion', desc: 'Top-rated helper' },
+                ].map((b) => (
+                  <div
+                    key={b.label}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${
+                      profile.badge_level === b.label
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-800 font-bold shadow-sm'
+                        : 'bg-slate-50 border-slate-100 text-slate-500'
+                    }`}
+                  >
+                    <span className="text-base">{b.emoji}</span>
+                    <span className="font-semibold">{b.label}</span>
+                    <span className="text-[10px] opacity-60">— {b.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Recent Reviews */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Recent Reviews Received</p>
+              {recentReviews.length === 0 ? (
+                <div className="p-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center space-y-2">
+                  <p className="text-2xl">⭐</p>
+                  <p className="text-sm font-semibold text-slate-600">No reviews yet</p>
+                  <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+                    No reviews yet. Help peers to build your trust score.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentReviews.slice(0, 5).map((rev) => (
+                    <div key={rev.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <span key={s} className={s <= rev.rating ? 'text-amber-400' : 'text-slate-200'}>
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                          rev.helpful
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-red-50 text-red-600 border-red-200'
+                        }`}>
+                          {rev.helpful ? '👍 Helpful' : '👎 Not Helpful'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 ml-auto">
+                          {new Date(rev.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+                      {rev.request_title && (
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          For: <span className="font-semibold">{rev.request_title}</span>
+                        </p>
+                      )}
+                      {rev.comment && (
+                        <p className="text-xs text-slate-700 mt-1 italic leading-relaxed">"{rev.comment}"</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          {/* ============================================ */}
         </>
       )}
     </div>

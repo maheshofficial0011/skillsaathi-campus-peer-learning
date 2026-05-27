@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { HelpRequestWithProfiles, Feedback } from '../../types';
+import { PublicProfileModal } from '../profile/PublicProfileModal';
 
 interface HelpRequestDetailsModalProps {
   request: HelpRequestWithProfiles;
@@ -77,6 +78,7 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
   onClose,
 }) => {
   const hasFeedback = !!existingFeedback;
+  const [viewProfileId, setViewProfileId] = useState<string | null>(null);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -175,6 +177,12 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
               {request.creator_profile?.year_of_study && (
                 <p className="text-xs text-slate-400">{request.creator_profile.year_of_study}</p>
               )}
+              <button
+                onClick={() => setViewProfileId(request.created_by)}
+                className="mt-2 text-[11px] font-bold text-indigo-600 hover:underline focus:outline-none"
+              >
+                View Profile →
+              </button>
             </div>
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Accepted By</p>
@@ -186,6 +194,12 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
                   {request.helper_profile?.department && (
                     <p className="text-xs text-slate-500">{request.helper_profile.department}</p>
                   )}
+                  <button
+                    onClick={() => setViewProfileId(request.accepted_by!)}
+                    className="mt-2 text-[11px] font-bold text-sky-600 hover:underline focus:outline-none"
+                  >
+                    View Profile →
+                  </button>
                 </>
               ) : (
                 <p className="text-sm text-slate-400 italic">Not accepted yet</p>
@@ -244,6 +258,11 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
           </button>
         </div>
       </div>
+
+      {/* Inline public profile modal */}
+      {viewProfileId && (
+        <PublicProfileModal userId={viewProfileId} onClose={() => setViewProfileId(null)} />
+      )}
     </div>
   );
 };

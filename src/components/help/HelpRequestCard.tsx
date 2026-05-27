@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { HelpRequestWithProfiles, Feedback } from '../../types';
+import { PublicProfileModal } from '../profile/PublicProfileModal';
 
 interface HelpRequestCardProps {
   request: HelpRequestWithProfiles;
@@ -103,6 +104,9 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
   const [accepting, setAccepting] = useState(false);
   const [solving, setSolving] = useState(false);
   const [closing, setClosing] = useState(false);
+
+  // Public profile modal trigger
+  const [viewProfileId, setViewProfileId] = useState<string | null>(null);
 
   const handleAccept = async () => {
     if (!window.confirm('Accept this help request?')) return;
@@ -210,13 +214,30 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
       {/* Metadata Footers */}
       <div className="pt-2 border-t border-slate-100 space-y-2">
         <div className="flex justify-between text-[11px] text-slate-500">
-          <span>By: <strong>{request.creator_profile?.full_name || 'Campus Student'}</strong> ({request.creator_profile?.year_of_study || 'Student'})</span>
+          <span>
+            By:{' '}
+            <button
+              onClick={() => setViewProfileId(request.created_by)}
+              className="font-bold text-indigo-700 hover:underline focus:outline-none"
+            >
+              {request.creator_profile?.full_name || 'Campus Student'}
+            </button>
+            {' '}({request.creator_profile?.year_of_study || 'Student'})
+          </span>
           <span>{formatDate(request.created_at)}</span>
         </div>
         
         {request.accepted_by && (
           <div className="text-[11px] text-sky-700 bg-sky-50 px-2 py-1 rounded border border-sky-100 flex items-center justify-between">
-            <span>Accepted By: <strong>{request.helper_profile?.full_name || 'Campus Helper'}</strong></span>
+            <span>
+              Accepted By:{' '}
+              <button
+                onClick={() => setViewProfileId(request.accepted_by!)}
+                className="font-bold hover:underline focus:outline-none"
+              >
+                {request.helper_profile?.full_name || 'Campus Helper'}
+              </button>
+            </span>
             {request.solved_at && (
               <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded font-semibold border border-purple-100">
                 Solved
@@ -232,6 +253,11 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
           </div>
         )}
       </div>
+
+      {/* Public Profile Modal triggered from card */}
+      {viewProfileId && (
+        <PublicProfileModal userId={viewProfileId} onClose={() => setViewProfileId(null)} />
+      )}
 
       {/* Match Percentage Display for Recommendations */}
       {matchPercentage !== undefined && matchPercentage > 0 && (
