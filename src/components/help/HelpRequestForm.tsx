@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createHelpRequest } from '../../lib/helpRequests';
+import { HELP_CATEGORIES } from '../../lib/helpCategories';
 import type { HelpRequestUrgency } from '../../types';
 
 interface HelpRequestFormProps {
@@ -17,6 +18,7 @@ export const HelpRequestForm: React.FC<HelpRequestFormProps> = ({
   const [description, setDescription] = useState('');
   const [skillsText, setSkillsText] = useState('');
   const [category, setCategory] = useState('General');
+  const [customCategory, setCustomCategory] = useState('');
   const [urgency, setUrgency] = useState<HelpRequestUrgency>('Medium');
   const [deadline, setDeadline] = useState('');
 
@@ -29,6 +31,17 @@ export const HelpRequestForm: React.FC<HelpRequestFormProps> = ({
     if (!title || !description) {
       setErrorMsg('Please enter both a title and description.');
       return;
+    }
+
+    // Validation: Custom category must not be empty if "Other" is selected
+    let finalCategory = category;
+    if (category === 'Other') {
+      const trimmedCustom = customCategory.trim();
+      if (!trimmedCustom) {
+        setErrorMsg('Please enter a custom category name when selecting "Other".');
+        return;
+      }
+      finalCategory = trimmedCustom;
     }
 
     setLoading(true);
@@ -45,7 +58,7 @@ export const HelpRequestForm: React.FC<HelpRequestFormProps> = ({
         title,
         description,
         required_skills,
-        category,
+        category: finalCategory,
         urgency,
         deadline: deadline ? new Date(deadline).toISOString() : null,
         created_by: currentUserId,
@@ -130,13 +143,11 @@ export const HelpRequestForm: React.FC<HelpRequestFormProps> = ({
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-4 py-2 border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 text-sm font-medium"
               >
-                <option value="General">General</option>
-                <option value="Computer Science">Computer Science</option>
-                <option value="Mathematics">Mathematics</option>
-                <option value="UI/UX Design">UI/UX Design</option>
-                <option value="Physics">Physics</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Business">Business</option>
+                {HELP_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -155,6 +166,23 @@ export const HelpRequestForm: React.FC<HelpRequestFormProps> = ({
               </select>
             </div>
           </div>
+
+          {/* Conditional Manual Category Input when "Other" is selected */}
+          {category === 'Other' && (
+            <div className="animate-in slide-in-from-top-2 duration-150">
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Specify Custom Category <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder="e.g. Advanced Deep Learning"
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 text-sm font-medium"
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

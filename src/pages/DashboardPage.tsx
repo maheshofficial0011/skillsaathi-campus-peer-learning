@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getHelpRequests, acceptHelpRequest, markHelpRequestSolved, closeHelpRequest } from '../lib/helpRequests';
+import { HELP_CATEGORIES } from '../lib/helpCategories';
 import { getCurrentProfile } from '../lib/profiles';
 import { HelpRequestCard } from '../components/help/HelpRequestCard';
 import { HelpRequestForm } from '../components/help/HelpRequestForm';
@@ -85,6 +86,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
     }
   };
 
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setCategoryFilter('All');
+    setUrgencyFilter('All');
+    setStatusFilter('All');
+  };
+
   // Filter computations
   const filteredRequests = requests.filter((req) => {
     const matchesSearch =
@@ -152,7 +160,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
 
       {/* Explore Filters Container */}
       <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4 shadow-sm">
-        <h3 className="text-sm font-bold text-slate-700">Filter Peer Help Board</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-700">Filter Peer Help Board</h3>
+          <button
+            onClick={handleResetFilters}
+            className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold rounded border border-slate-300 transition"
+          >
+            Reset Filters
+          </button>
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {/* Search bar */}
@@ -171,13 +187,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
             className="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="All">All Categories</option>
-            <option value="General">General</option>
-            <option value="Computer Science">Computer Science</option>
-            <option value="Mathematics">Mathematics</option>
-            <option value="UI/UX Design">UI/UX Design</option>
-            <option value="Physics">Physics</option>
-            <option value="Electronics">Electronics</option>
-            <option value="Business">Business</option>
+            {HELP_CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
           </select>
 
           {/* Urgency Filter */}
