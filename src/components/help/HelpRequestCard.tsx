@@ -1,18 +1,87 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { HelpRequestWithProfiles, Feedback } from '../../types';
 
 interface HelpRequestCardProps {
   request: HelpRequestWithProfiles;
   currentUserId: string;
-  onAccept: (requestId: string) => void;
-  onMarkSolved: (requestId: string) => void;
+  onAccept: (requestId: string) => Promise<void>;
+  onMarkSolved: (requestId: string) => Promise<void>;
   onGiveFeedback: (request: HelpRequestWithProfiles) => void;
-  onClose: (requestId: string) => void;
+  onClose: (requestId: string) => Promise<void>;
+  onViewDetails: (request: HelpRequestWithProfiles) => void;
   hasFeedback?: boolean;
   existingFeedback?: Feedback | null;
   matchPercentage?: number;
   matchedSkills?: string[];
 }
+
+// Format date helper
+const formatDate = (dateStr: string | null): string => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+// Format deadline to exact layout: "May 28, 2026, 03:30 PM"
+const formatDeadlineDate = (dateStr: string | null): string => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[d.getMonth()];
+  const day = d.getDate();
+  const year = d.getFullYear();
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  return `${month} ${day}, ${year}, ${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+};
+
+// Compact status timeline in card
+const CardTimeline: React.FC<{ status: string; hasFeedback: boolean }> = ({ status, hasFeedback }) => {
+  const steps = [
+    { label: 'Posted', active: true },
+    { label: 'Accepted', active: status === 'accepted' || status === 'solved' },
+    { label: 'Solved', active: status === 'solved' },
+    { label: 'Reviewed', active: hasFeedback },
+  ];
+
+  return (
+    <div className="flex items-center gap-0 w-full py-1">
+      {steps.map((step, idx) => (
+        <React.Fragment key={step.label}>
+          <div className="flex flex-col items-center flex-shrink-0">
+            <div
+              className={`w-2 h-2 rounded-full transition-all ${
+                step.active ? 'bg-indigo-500' : 'bg-slate-200'
+              }`}
+            />
+            <span
+              className={`text-[9px] font-bold mt-0.5 whitespace-nowrap ${
+                step.active ? 'text-indigo-600' : 'text-slate-300'
+              }`}
+            >
+              {step.label}
+            </span>
+          </div>
+          {idx < steps.length - 1 && (
+            <div
+              className={`flex-1 h-px mx-1 mb-3.5 ${
+                steps[idx + 1].active ? 'bg-indigo-300' : 'bg-slate-200'
+              }`}
+            />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
 
 export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
   request,
@@ -21,6 +90,7 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
   onMarkSolved,
   onGiveFeedback,
   onClose,
+  onViewDetails,
   hasFeedback = false,
   existingFeedback = null,
   matchPercentage,
@@ -29,71 +99,69 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
   const isCreator = request.created_by === currentUserId;
   const isHelper = request.accepted_by === currentUserId;
 
-  // Format date helper
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  // Per-action loading states
+  const [accepting, setAccepting] = useState(false);
+  const [solving, setSolving] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  const handleAccept = async () => {
+    if (!window.confirm('Accept this help request?')) return;
+    setAccepting(true);
+    try {
+      await onAccept(request.id);
+    } finally {
+      setAccepting(false);
+    }
   };
 
-  // Format deadline to exact layout: "May 28, 2026, 03:30 PM"
-  const formatDeadlineDate = (dateStr: string | null) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
+  const handleMarkSolved = async () => {
+    if (!window.confirm('Mark this request as solved?')) return;
+    setSolving(true);
+    try {
+      await onMarkSolved(request.id);
+    } finally {
+      setSolving(false);
+    }
+  };
 
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const month = months[d.getMonth()];
-    const day = d.getDate();
-    const year = d.getFullYear();
-    
-    let hours = d.getHours();
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    
-    hours = hours % 12;
-    hours = hours ? hours : 12; // the hour '0' should be '12'
-    const hoursStr = String(hours).padStart(2, '0');
+  const handleClose = async () => {
+    if (!window.confirm('Close this request?')) return;
+    setClosing(true);
+    try {
+      await onClose(request.id);
+    } finally {
+      setClosing(false);
+    }
+  };
 
-    return `${month} ${day}, ${year}, ${hoursStr}:${minutes} ${ampm}`;
+  const handleEditReview = () => {
+    if (!window.confirm('Update this review?')) return;
+    onGiveFeedback(request);
   };
 
   // Status Badge Colors
   const getStatusStyle = (status: string) => {
     switch (status) {
-      case 'open':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'accepted':
-        return 'bg-sky-50 text-sky-700 border-sky-200';
-      case 'solved':
-        return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'closed':
-        return 'bg-slate-100 text-slate-600 border-slate-200';
-      default:
-        return 'bg-slate-50 text-slate-600 border-slate-200';
+      case 'open': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'accepted': return 'bg-sky-50 text-sky-700 border-sky-200';
+      case 'solved': return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'closed': return 'bg-slate-100 text-slate-600 border-slate-200';
+      default: return 'bg-slate-50 text-slate-600 border-slate-200';
     }
   };
 
   // Urgency Badge Colors
   const getUrgencyStyle = (urgency: string) => {
     switch (urgency) {
-      case 'Urgent':
-        return 'bg-red-50 text-red-700 border-red-200 animate-pulse';
-      case 'High':
-        return 'bg-orange-50 text-orange-700 border-orange-200';
-      case 'Medium':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'Low':
-        return 'bg-slate-100 text-slate-700 border-slate-200';
-      default:
-        return 'bg-slate-50 text-slate-600 border-slate-200';
+      case 'Urgent': return 'bg-red-50 text-red-700 border-red-200 animate-pulse';
+      case 'High': return 'bg-orange-50 text-orange-700 border-orange-200';
+      case 'Medium': return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'Low': return 'bg-slate-100 text-slate-700 border-slate-200';
+      default: return 'bg-slate-50 text-slate-600 border-slate-200';
     }
   };
+
+  const feedbackExists = existingFeedback || hasFeedback;
 
   return (
     <div className={`p-6 bg-white rounded-2xl border transition-all duration-200 shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md ${
@@ -136,10 +204,13 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
         )}
       </div>
 
+      {/* Compact Status Timeline */}
+      <CardTimeline status={request.status} hasFeedback={!!feedbackExists} />
+
       {/* Metadata Footers */}
-      <div className="pt-4 border-t border-slate-100 space-y-2">
+      <div className="pt-2 border-t border-slate-100 space-y-2">
         <div className="flex justify-between text-[11px] text-slate-500">
-          <span>By: <strong>{request.creator_profile?.full_name || 'Anonymous Peer'}</strong> ({request.creator_profile?.year_of_study || 'Student'})</span>
+          <span>By: <strong>{request.creator_profile?.full_name || 'Campus Student'}</strong> ({request.creator_profile?.year_of_study || 'Student'})</span>
           <span>{formatDate(request.created_at)}</span>
         </div>
         
@@ -186,35 +257,45 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
 
       {/* Action triggers */}
       <div className="pt-2 flex flex-col gap-2">
+        {/* View Details button — always visible */}
+        <button
+          onClick={() => onViewDetails(request)}
+          className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold text-xs rounded-lg transition-colors duration-150"
+        >
+          View Details
+        </button>
+
         {/* Guest accepts a request */}
         {request.status === 'open' && !isCreator && (
           <button
-            onClick={() => onAccept(request.id)}
-            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors duration-150"
+            onClick={handleAccept}
+            disabled={accepting}
+            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors duration-150"
           >
-            Accept Request
+            {accepting ? 'Accepting...' : 'Accept Request'}
           </button>
         )}
 
         {/* Helper marks as solved */}
         {request.status === 'accepted' && isHelper && (
           <button
-            onClick={() => onMarkSolved(request.id)}
-            className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors duration-150"
+            onClick={handleMarkSolved}
+            disabled={solving}
+            className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors duration-150"
           >
-            Mark as Solved
+            {solving ? 'Marking solved...' : 'Mark as Solved'}
           </button>
         )}
 
         {/* Creator submits feedback once solved */}
         {request.status === 'solved' && isCreator && (
-          (existingFeedback || hasFeedback) ? (
+          feedbackExists ? (
             <div className="flex gap-2">
               <div className="flex-1 py-2 text-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg select-none flex items-center justify-center gap-1">
                 ✓ Reviewed
               </div>
               <button
-                onClick={() => onGiveFeedback(request)}
+                onClick={handleEditReview}
                 className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold text-xs rounded-lg shadow-sm transition duration-150"
               >
                 Edit Review
@@ -233,10 +314,11 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
         {/* Creator cancels/closes active open/accepted request */}
         {(request.status === 'open' || request.status === 'accepted') && isCreator && (
           <button
-            onClick={() => onClose(request.id)}
-            className="w-full py-2 border border-red-200 hover:bg-red-50 text-red-650 text-red-600 font-semibold text-xs rounded-lg transition-colors duration-150"
+            onClick={handleClose}
+            disabled={closing}
+            className="w-full py-2 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 font-semibold text-xs rounded-lg transition-colors duration-150"
           >
-            Close Request
+            {closing ? 'Closing...' : 'Close Request'}
           </button>
         )}
       </div>
