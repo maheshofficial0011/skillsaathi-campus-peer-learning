@@ -1,0 +1,18 @@
+export const DEPARTMENTS: string[] = [
+  'CSE',
+  'CY',
+  'IT',
+  'AI & ML',
+  'AI & DS',
+  'ECE',
+  'MECH',
+  'MECHATRONICS',
+  'AGRI',
+  'CIVIL',
+  'EEE',
+  'BCA',
+  'MCA',
+  'MBA',
+  'BBA',
+  'Other',
+];

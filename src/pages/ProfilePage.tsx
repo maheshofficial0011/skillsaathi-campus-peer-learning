@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentProfile, upsertCurrentProfile } from '../lib/profiles';
 import type { Profile, YearOfStudy } from '../types';
+import { DEPARTMENTS } from '../lib/departments';
 
 interface ProfilePageProps {
   userId?: string;
@@ -300,11 +301,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                 </label>
                 <input
                   type="text"
+                  list="profile-departments-list"
                   required
                   value={editDepartment}
                   onChange={(e) => setEditDepartment(e.target.value)}
+                  placeholder="Select or type department"
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
                 />
+                <datalist id="profile-departments-list">
+                  {DEPARTMENTS.map((dept) => (
+                    <option key={dept} value={dept} />
+                  ))}
+                </datalist>
               </div>
             </div>
 

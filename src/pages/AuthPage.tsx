@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { YearOfStudy } from '../types';
+import { DEPARTMENTS } from '../lib/departments';
 
 export const AuthPage: React.FC = () => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -51,6 +52,12 @@ export const AuthPage: React.FC = () => {
       return;
     }
 
+    const trimmedDept = department.trim();
+    if (!trimmedDept) {
+      setErrorMsg('Please enter a valid department.');
+      return;
+    }
+
     setLoading(true);
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -61,10 +68,10 @@ export const AuthPage: React.FC = () => {
         password,
         options: {
           data: {
-            full_name: fullName,
-            department: department,
+            full_name: fullName.trim(),
+            department: trimmedDept,
             year_of_study: yearOfStudy,
-            section: section || null,
+            section: section.trim() || null,
           },
         },
       });
@@ -211,12 +218,18 @@ export const AuthPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
+                  list="auth-departments-list"
                   required
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
-                  placeholder="Computer Science"
+                  placeholder="Select or type department"
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900"
                 />
+                <datalist id="auth-departments-list">
+                  {DEPARTMENTS.map((dept) => (
+                    <option key={dept} value={dept} />
+                  ))}
+                </datalist>
               </div>
             </div>
 
@@ -254,7 +267,7 @@ export const AuthPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 bg-indigo-650 bg-indigo-650 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium rounded-lg shadow-sm transition-colors duration-150 flex items-center justify-center gap-2"
+              className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold rounded-lg shadow-sm border border-transparent transition-colors duration-150 flex items-center justify-center gap-2"
             >
               {loading ? 'Creating Account...' : 'Register'}
             </button>

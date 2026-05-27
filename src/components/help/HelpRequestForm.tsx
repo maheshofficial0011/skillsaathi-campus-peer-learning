@@ -20,7 +20,12 @@ export const HelpRequestForm: React.FC<HelpRequestFormProps> = ({
   const [category, setCategory] = useState('General');
   const [customCategory, setCustomCategory] = useState('');
   const [urgency, setUrgency] = useState<HelpRequestUrgency>('Medium');
-  const [deadline, setDeadline] = useState('');
+  
+  // Separate deadline picker states
+  const [deadlineDate, setDeadlineDate] = useState('');
+  const [deadlineHour, setDeadlineHour] = useState('12');
+  const [deadlineMinute, setDeadlineMinute] = useState('00');
+  const [deadlineAmPm, setDeadlineAmPm] = useState('PM');
 
   // Status states
   const [loading, setLoading] = useState(false);
@@ -44,6 +49,40 @@ export const HelpRequestForm: React.FC<HelpRequestFormProps> = ({
       finalCategory = trimmedCustom;
     }
 
+    // Process and validate the optional deadline date/time inputs
+    let deadlineIso: string | null = null;
+    if (deadlineDate) {
+      let hours = parseInt(deadlineHour, 10);
+      const minutes = parseInt(deadlineMinute, 10);
+
+      // Convert 12h format to 24h format
+      if (deadlineAmPm === 'PM' && hours < 12) {
+        hours += 12;
+      } else if (deadlineAmPm === 'AM' && hours === 12) {
+        hours = 0;
+      }
+
+      const hoursStr = String(hours).padStart(2, '0');
+      const minutesStr = String(minutes).padStart(2, '0');
+
+      // Formulate ISO in local browser timezone: YYYY-MM-DDThh:mm:00
+      const localDateTimeStr = `${deadlineDate}T${hoursStr}:${minutesStr}:00`;
+      const combinedDate = new Date(localDateTimeStr);
+
+      if (isNaN(combinedDate.getTime())) {
+        setErrorMsg('Please select a valid deadline date and time.');
+        return;
+      }
+
+      // Check if deadline is in the future
+      if (combinedDate.getTime() <= Date.now()) {
+        setErrorMsg('The specified help deadline must be in the future.');
+        return;
+      }
+
+      deadlineIso = combinedDate.toISOString();
+    }
+
     setLoading(true);
     setErrorMsg(null);
 
@@ -60,7 +99,7 @@ export const HelpRequestForm: React.FC<HelpRequestFormProps> = ({
         required_skills,
         category: finalCategory,
         urgency,
-        deadline: deadline ? new Date(deadline).toISOString() : null,
+        deadline: deadlineIso,
         created_by: currentUserId,
       });
 
@@ -184,30 +223,67 @@ export const HelpRequestForm: React.FC<HelpRequestFormProps> = ({
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">
-                Skills Needed <span className="text-slate-400 font-normal">(Comma Separated)</span>
-              </label>
+          {/* Skills Needed */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Skills Needed <span className="text-slate-400 font-normal">(Comma Separated)</span>
+            </label>
+            <input
+              type="text"
+              value={skillsText}
+              onChange={(e) => setSkillsText(e.target.value)}
+              placeholder="e.g. React, C++, Calculus"
+              className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 text-sm font-medium"
+            />
+          </div>
+
+          {/* Improved Deadline Selection with Date + 12h Time dropdown + AM/PM selection */}
+          <div className="space-y-2 pt-2">
+            <label className="block text-sm font-semibold text-slate-700">
+              Help Deadline <span className="text-slate-400 font-normal">(Optional)</span>
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input
-                type="text"
-                value={skillsText}
-                onChange={(e) => setSkillsText(e.target.value)}
-                placeholder="e.g. React, C++, Calculus"
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 text-sm font-medium"
+                type="date"
+                value={deadlineDate}
+                onChange={(e) => setDeadlineDate(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
               />
+              
+              {/* Flex hours/minutes/AM-PM picker container */}
+              <div className="flex gap-2 items-center">
+                <select
+                  value={deadlineHour}
+                  onChange={(e) => setDeadlineHour(e.target.value)}
+                  className="flex-1 px-2.5 py-2 border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
+                >
+                  {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(h => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                <span className="text-slate-400 font-bold">:</span>
+                <select
+                  value={deadlineMinute}
+                  onChange={(e) => setDeadlineMinute(e.target.value)}
+                  className="flex-1 px-2.5 py-2 border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
+                >
+                  {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <select
+                  value={deadlineAmPm}
+                  onChange={(e) => setDeadlineAmPm(e.target.value)}
+                  className="w-20 px-2.5 py-2 border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
+                >
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">
-                Help Deadline <span className="text-slate-400 font-normal">(Optional)</span>
-              </label>
-              <input
-                type="datetime-local"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 text-sm font-medium"
-              />
-            </div>
+            <p className="text-[10px] text-slate-400">
+              💡 Note: Both date and time values are required for setting a deadline. This uses your browser's local time.
+            </p>
           </div>
 
           {/* Action buttons footer */}
