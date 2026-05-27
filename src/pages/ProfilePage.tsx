@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import { getCurrentProfile, upsertCurrentProfile } from '../lib/profiles';
 import type { Profile } from '../types';
 
@@ -9,6 +10,9 @@ interface ProfilePageProps {
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [solvedRequestsCount, setSolvedRequestsCount] = useState<number>(0);
+  const [feedbackAverage, setFeedbackAverage] = useState<number | null>(null);
+
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -20,10 +24,37 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
     setLoading(true);
     setErrorMsg(null);
     try {
+      // 1. Fetch public profile
       const data = await getCurrentProfile(userId);
       setProfile(data);
+
+      if (data) {
+        // 2. Fetch solved help requests count (using head: true to only get count)
+        const { count, error: countError } = await supabase
+          .from('help_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('accepted_by', userId)
+          .eq('status', 'solved');
+          
+        if (!countError && count !== null) {
+          setSolvedRequestsCount(count);
+        }
+
+        // 3. Fetch feedback average rating
+        const { data: feedbackData, error: feedbackError } = await supabase
+          .from('feedback')
+          .select('rating')
+          .eq('receiver_id', userId);
+
+        if (!feedbackError && feedbackData && feedbackData.length > 0) {
+          const total = feedbackData.reduce((acc, curr) => acc + curr.rating, 0);
+          setFeedbackAverage(Number((total / feedbackData.length).toFixed(1)));
+        } else {
+          setFeedbackAverage(null);
+        }
+      }
     } catch (err) {
-      console.error('Error loading profile:', err);
+      console.error('Error loading profile page data:', err);
       setErrorMsg('Failed to load profile from database.');
     } finally {
       setLoading(false);
@@ -77,10 +108,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
     return (
       <div className="max-w-md mx-auto p-6 bg-red-50 rounded-xl border border-red-200 text-center space-y-4">
         <h3 className="text-lg font-bold text-red-800">Error Loading Profile</h3>
-        <p className="text-sm text-red-650 text-red-700">{errorMsg}</p>
+        <p className="text-sm text-slate-655 text-slate-600">{errorMsg}</p>
         <button
           onClick={loadProfile}
-          className="px-4 py-2 bg-indigo-650 text-white font-semibold rounded-lg shadow hover:bg-indigo-750 transition bg-indigo-600 hover:bg-indigo-700 text-xs"
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow transition text-xs"
         >
           Retry
         </button>
@@ -97,7 +128,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
         </div>
         <div className="space-y-2">
           <h3 className="text-xl font-bold text-slate-900">No Profile Found</h3>
-          <p className="text-sm text-slate-600 max-w-sm mx-auto leading-relaxed">
+          <p className="text-sm text-slate-655 text-slate-600 max-w-sm mx-auto leading-relaxed">
             Your auth account is active, but we couldn't fetch a corresponding row in the public profiles table.
           </p>
         </div>
@@ -156,6 +187,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
           <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs text-slate-500 pt-2">
             <span>🏅 Badge: <strong>{profile.badge_level}</strong></span>
             <span>🤝 Trust Score: <strong>{profile.trust_score}%</strong></span>
+            <span>✅ Solved: <strong>{solvedRequestsCount}</strong> requests</span>
+            {feedbackAverage !== null && (
+              <span>⭐ Rating: <strong>{feedbackAverage}</strong> / 5</span>
+            )}
             {profile.is_senior_mentor && (
               <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                 ★ Senior Mentor

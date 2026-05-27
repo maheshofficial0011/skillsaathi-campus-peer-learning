@@ -49,7 +49,7 @@ function App() {
       case 'auth':
         return <AuthPage />;
       case 'dashboard':
-        return <DashboardPage />;
+        return <DashboardPage userId={user?.id} userEmail={user?.email} />;
       case 'profile':
         return <ProfilePage userId={user?.id} userEmail={user?.email} />;
       case 'doubts':
