@@ -8,6 +8,7 @@ interface HelpRequestCardProps {
   onMarkSolved: (requestId: string) => void;
   onGiveFeedback: (request: HelpRequestWithProfiles) => void;
   onClose: (requestId: string) => void;
+  hasFeedback?: boolean;
 }
 
 export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
@@ -17,6 +18,7 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
   onMarkSolved,
   onGiveFeedback,
   onClose,
+  hasFeedback = false,
 }) => {
   const isCreator = request.created_by === currentUserId;
   const isHelper = request.accepted_by === currentUserId;
@@ -178,12 +180,18 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
 
         {/* Creator submits feedback once solved */}
         {request.status === 'solved' && isCreator && (
-          <button
-            onClick={() => onGiveFeedback(request)}
-            className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors duration-150"
-          >
-            Give Tutor Feedback
-          </button>
+          hasFeedback ? (
+            <div className="w-full py-2 text-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-250 rounded-lg select-none">
+              ✓ Reviewed
+            </div>
+          ) : (
+            <button
+              onClick={() => onGiveFeedback(request)}
+              className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors duration-150"
+            >
+              Give Tutor Feedback
+            </button>
+          )
         )}
 
         {/* Creator cancels/closes active open/accepted request */}

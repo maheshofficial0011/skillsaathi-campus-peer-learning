@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getHelpRequests, acceptHelpRequest, markHelpRequestSolved, closeHelpRequest } from '../lib/helpRequests';
 import { HELP_CATEGORIES } from '../lib/helpCategories';
 import { getCurrentProfile } from '../lib/profiles';
+import { supabase } from '../lib/supabase';
 import { HelpRequestCard } from '../components/help/HelpRequestCard';
 import { HelpRequestForm } from '../components/help/HelpRequestForm';
 import { FeedbackModal } from '../components/help/FeedbackModal';
@@ -21,6 +22,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
   // Modal toggle states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [feedbackRequest, setFeedbackRequest] = useState<HelpRequestWithProfiles | null>(null);
+  const [submittedFeedbackIds, setSubmittedFeedbackIds] = useState<string[]>([]);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,6 +43,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
         const profile = await getCurrentProfile(userId);
         if (profile) {
           setTrustScore(profile.trust_score);
+        }
+
+        // 3. Fetch feedback status for requests
+        const { data: feedbackData, error: feedbackError } = await supabase
+          .from('feedback')
+          .select('request_id')
+          .eq('created_by', userId);
+        
+        if (!feedbackError && feedbackData) {
+          const submittedIds = feedbackData.map((f) => f.request_id);
+          setSubmittedFeedbackIds(submittedIds);
         }
       }
     } catch (err: any) {
@@ -259,8 +272,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
                   currentUserId={userId || ''}
                   onAccept={handleAccept}
                   onMarkSolved={handleMarkSolved}
-                  onGiveFeedback={setFeedbackRequest}
+                  onGiveFeedback={(r) => {
+                    if (submittedFeedbackIds.includes(r.id)) {
+                      alert('Feedback already submitted for this request.');
+                      return;
+                    }
+                    setFeedbackRequest(r);
+                  }}
                   onClose={handleClose}
+                  hasFeedback={submittedFeedbackIds.includes(req.id)}
                 />
               ))}
             </div>

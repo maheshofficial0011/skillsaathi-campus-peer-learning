@@ -50,7 +50,12 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
         setErrorMsg('Failed to record your feedback review.');
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'An error occurred during submission. Duplicate feedback might exist.');
+      const errMsg = err.message || '';
+      if (errMsg.includes('unique_feedback_request') || errMsg.includes('duplicate key value')) {
+        setErrorMsg('Feedback already submitted for this request.');
+      } else {
+        setErrorMsg(errMsg || 'An error occurred during submission.');
+      }
     } finally {
       setLoading(false);
     }
