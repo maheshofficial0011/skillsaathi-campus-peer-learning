@@ -71,3 +71,24 @@ If you have already loaded `schema.sql` and want to enable viewing and editing f
 2. Create a new query.
 3. Paste the contents of `supabase/phase2-feedback-edit-patch.sql` and click **Run**.
 4. This adds RLS Update policy support and changes the trust score trigger to execute on both insertion and modifications automatically.
+
+---
+
+## 🗑️ Step 7: Safe Delete Request Policy Patch
+
+> **Important**: The Delete Request button in the UI will fail until this patch is applied.
+
+To allow users to permanently delete their own **open** or **closed** requests:
+1. Open the [Supabase Dashboard](https://supabase.com/dashboard) SQL Editor.
+2. Create a new query.
+3. Paste the contents of `supabase/phase2-delete-request-patch.sql` and click **Run**.
+4. Verify success — navigate to **Authentication → Policies → help_requests** and confirm the new DELETE policy is listed.
+
+**What the patch does:**
+- Adds a `DELETE` RLS policy on `public.help_requests`.
+- Only the request creator (`auth.uid() = created_by`) can delete.
+- Deletion is only allowed when `status IN ('open', 'closed')`.
+- `accepted` and `solved` requests **cannot** be deleted from the UI.
+- Requests with existing feedback reviews are blocked from deletion in the UI (client-side guard on `existingFeedback`).
+- The patch is safe to re-run (`DROP POLICY IF EXISTS` before `CREATE POLICY`).
+- Does **not** drop tables, delete data, or remove any other policies.

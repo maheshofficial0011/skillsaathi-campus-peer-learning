@@ -4,8 +4,10 @@ import { PublicProfileModal } from '../profile/PublicProfileModal';
 
 interface HelpRequestDetailsModalProps {
   request: HelpRequestWithProfiles;
+  currentUserId: string;
   existingFeedback?: Feedback | null;
   onClose: () => void;
+  onDelete?: (requestId: string) => Promise<void>;
 }
 
 const formatFullDate = (dateStr: string | null): string => {
@@ -74,11 +76,37 @@ const StatusTimeline: React.FC<{ status: string; hasFeedback: boolean }> = ({ st
 
 export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = ({
   request,
+  currentUserId,
   existingFeedback,
   onClose,
+  onDelete,
 }) => {
   const hasFeedback = !!existingFeedback;
   const [viewProfileId, setViewProfileId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const isCreator = request.created_by === currentUserId;
+  const canDelete =
+    isCreator &&
+    (request.status === 'open' || request.status === 'closed') &&
+    !hasFeedback &&
+    !!onDelete;
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    if (!window.confirm('Delete this request permanently? This cannot be undone.')) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDelete(request.id);
+      onClose();
+    } catch (err: any) {
+      setDeleteError(err.message || 'Failed to delete request.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -102,10 +130,10 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto flex flex-col">
+      <div className="relative z-[1000] bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto flex flex-col">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
@@ -249,7 +277,21 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-6">
+        <div className="px-6 pb-6 flex flex-col gap-2">
+          {deleteError && (
+            <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 text-center">
+              {deleteError}
+            </div>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="w-full py-2.5 border border-rose-300 hover:bg-rose-50 disabled:opacity-60 text-rose-700 font-bold text-sm rounded-xl transition"
+            >
+              {deleting ? 'Deleting...' : '🗑 Delete Request Permanently'}
+            </button>
+          )}
           <button
             onClick={onClose}
             className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition"

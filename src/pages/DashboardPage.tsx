@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getHelpRequests, acceptHelpRequest, markHelpRequestSolved, closeHelpRequest } from '../lib/helpRequests';
+import { getHelpRequests, acceptHelpRequest, markHelpRequestSolved, closeHelpRequest, deleteHelpRequest } from '../lib/helpRequests';
 import { HELP_CATEGORIES } from '../lib/helpCategories';
 import { getCurrentProfile } from '../lib/profiles';
 import { supabase } from '../lib/supabase';
@@ -148,6 +148,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
     }
   };
 
+  const handleDelete = async (requestId: string): Promise<void> => {
+    if (!userId) return;
+    try {
+      await deleteHelpRequest(requestId);
+      await loadData();
+      // If the deleted request is currently shown in details modal, close it
+      setDetailsRequest(null);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete help request. Ensure the Supabase delete policy patch has been applied.');
+    }
+  };
+
   const handleResetFilters = () => {
     setSearchQuery('');
     setCategoryFilter('All');
@@ -246,6 +258,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
       onMarkSolved={handleMarkSolved}
       onGiveFeedback={setFeedbackRequest}
       onClose={handleClose}
+      onDelete={handleDelete}
       onViewDetails={setDetailsRequest}
       existingFeedback={feedbacks.find((f) => f.request_id === req.id)}
       matchPercentage={req.matchPercentage}
@@ -568,8 +581,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
       {detailsRequest && (
         <HelpRequestDetailsModal
           request={detailsRequest}
+          currentUserId={userId || ''}
           existingFeedback={feedbacks.find((f) => f.request_id === detailsRequest.id)}
           onClose={() => setDetailsRequest(null)}
+          onDelete={handleDelete}
         />
       )}
     </div>

@@ -117,8 +117,8 @@ export const HelpRequestForm: React.FC<HelpRequestFormProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="relative bg-white w-full max-w-xl rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-[999] overflow-y-auto flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="relative z-[1000] bg-white w-full max-w-2xl rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
         
         {/* Header Banner */}
         <div className="bg-slate-50 border-b border-slate-100 p-6 flex items-center justify-between">

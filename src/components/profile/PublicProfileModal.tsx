@@ -101,10 +101,10 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       onClick={handleBackdrop}
     >
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col">
+      <div className="relative z-[1000] bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-700 uppercase tracking-wider">Peer Profile</h2>

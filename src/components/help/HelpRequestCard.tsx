@@ -9,6 +9,7 @@ interface HelpRequestCardProps {
   onMarkSolved: (requestId: string) => Promise<void>;
   onGiveFeedback: (request: HelpRequestWithProfiles) => void;
   onClose: (requestId: string) => Promise<void>;
+  onDelete: (requestId: string) => Promise<void>;
   onViewDetails: (request: HelpRequestWithProfiles) => void;
   hasFeedback?: boolean;
   existingFeedback?: Feedback | null;
@@ -91,6 +92,7 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
   onMarkSolved,
   onGiveFeedback,
   onClose,
+  onDelete,
   onViewDetails,
   hasFeedback = false,
   existingFeedback = null,
@@ -104,6 +106,7 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
   const [accepting, setAccepting] = useState(false);
   const [solving, setSolving] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Public profile modal trigger
   const [viewProfileId, setViewProfileId] = useState<string | null>(null);
@@ -141,6 +144,16 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
   const handleEditReview = () => {
     if (!window.confirm('Update this review?')) return;
     onGiveFeedback(request);
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Delete this request permanently? This cannot be undone.')) return;
+    setDeleting(true);
+    try {
+      await onDelete(request.id);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // Status Badge Colors
@@ -345,6 +358,17 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
             className="w-full py-2 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 font-semibold text-xs rounded-lg transition-colors duration-150"
           >
             {closing ? 'Closing...' : 'Close Request'}
+          </button>
+        )}
+
+        {/* Creator permanently deletes open or closed request (no feedback) */}
+        {(request.status === 'open' || request.status === 'closed') && isCreator && !feedbackExists && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="w-full py-2 border border-rose-300 hover:bg-rose-50 disabled:opacity-60 text-rose-700 font-semibold text-xs rounded-lg transition-colors duration-150"
+          >
+            {deleting ? 'Deleting...' : '🗑 Delete Request'}
           </button>
         )}
       </div>

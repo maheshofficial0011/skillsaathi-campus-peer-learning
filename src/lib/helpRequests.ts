@@ -157,3 +157,24 @@ export const closeHelpRequest = async (requestId: string, userId: string): Promi
     throw err;
   }
 };
+
+/**
+ * Permanently delete a help request.
+ * Safe to call only when status is 'open' or 'closed' and there is no feedback.
+ * The RLS DELETE policy on help_requests enforces creator-only + open/closed restriction server-side.
+ */
+export const deleteHelpRequest = async (requestId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('help_requests')
+      .delete()
+      .eq('id', requestId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('Error deleting help request:', err);
+    throw err;
+  }
+};
+
