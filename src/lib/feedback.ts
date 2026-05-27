@@ -92,3 +92,89 @@ export const updateTrustScore = async (receiverId: string): Promise<number | nul
     return null;
   }
 };
+
+interface UpdateFeedbackInput {
+  rating: number;
+  helpful: boolean;
+  comment: string;
+}
+
+/**
+ * Update an existing feedback review.
+ * Restricts updates to rating, helpfulness, and comment only (UI is not allowed to update metadata IDs).
+ */
+export const updateFeedback = async (feedbackId: string, input: UpdateFeedbackInput): Promise<Feedback | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('feedback')
+      .update({
+        rating: input.rating,
+        helpful: input.helpful,
+        comment: input.comment || null,
+      })
+      .eq('id', feedbackId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as Feedback;
+  } catch (err) {
+    console.error('Error updating feedback:', err);
+    throw err;
+  }
+};
+
+/**
+ * Fetch feedback for a specific request and creator user.
+ */
+export const getFeedbackByRequestAndUser = async (requestId: string, userId: string): Promise<Feedback | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('feedback')
+      .select('*')
+      .eq('request_id', requestId)
+      .eq('created_by', userId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data as Feedback | null;
+  } catch (err) {
+    console.error('Error fetching feedback by request and user:', err);
+    return null;
+  }
+};
+
+interface UpsertFeedbackInput {
+  request_id: string;
+  created_by: string;
+  receiver_id: string;
+  rating: number;
+  helpful: boolean;
+  comment: string;
+}
+
+/**
+ * Upsert feedback: inserts if no feedback exists, otherwise updates the existing row.
+ * Guarantees that request_id, created_by, and receiver_id cannot be changed.
+ */
+export const upsertFeedbackForRequest = async (input: UpsertFeedbackInput): Promise<Feedback | null> => {
+  try {
+    const existing = await getFeedbackForRequest(input.request_id);
+    
+    if (existing) {
+      if (existing.created_by !== input.created_by || existing.receiver_id !== input.receiver_id) {
+        throw new Error('Invalid metadata changes in review update.');
+      }
+      return await updateFeedback(existing.id, {
+        rating: input.rating,
+        helpful: input.helpful,
+        comment: input.comment,
+      });
+    } else {
+      return await submitFeedback(input);
+    }
+  } catch (err) {
+    console.error('Error upserting feedback:', err);
+    throw err;
+  }
+};

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { HelpRequestWithProfiles } from '../../types';
+import type { HelpRequestWithProfiles, Feedback } from '../../types';
 
 interface HelpRequestCardProps {
   request: HelpRequestWithProfiles;
@@ -9,6 +9,7 @@ interface HelpRequestCardProps {
   onGiveFeedback: (request: HelpRequestWithProfiles) => void;
   onClose: (requestId: string) => void;
   hasFeedback?: boolean;
+  existingFeedback?: Feedback | null;
 }
 
 export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
@@ -19,6 +20,7 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
   onGiveFeedback,
   onClose,
   hasFeedback = false,
+  existingFeedback = null,
 }) => {
   const isCreator = request.created_by === currentUserId;
   const isHelper = request.accepted_by === currentUserId;
@@ -180,9 +182,17 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
 
         {/* Creator submits feedback once solved */}
         {request.status === 'solved' && isCreator && (
-          hasFeedback ? (
-            <div className="w-full py-2 text-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-250 rounded-lg select-none">
-              ✓ Reviewed
+          (existingFeedback || hasFeedback) ? (
+            <div className="flex gap-2">
+              <div className="flex-1 py-2 text-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg select-none flex items-center justify-center gap-1">
+                ✓ Reviewed
+              </div>
+              <button
+                onClick={() => onGiveFeedback(request)}
+                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold text-xs rounded-lg shadow-sm transition duration-150"
+              >
+                Edit Review
+              </button>
             </div>
           ) : (
             <button

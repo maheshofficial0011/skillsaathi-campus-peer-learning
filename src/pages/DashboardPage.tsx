@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { HelpRequestCard } from '../components/help/HelpRequestCard';
 import { HelpRequestForm } from '../components/help/HelpRequestForm';
 import { FeedbackModal } from '../components/help/FeedbackModal';
-import type { HelpRequestWithProfiles } from '../types';
+import type { HelpRequestWithProfiles, Feedback } from '../types';
 
 interface DashboardPageProps {
   userId?: string;
@@ -22,7 +22,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
   // Modal toggle states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [feedbackRequest, setFeedbackRequest] = useState<HelpRequestWithProfiles | null>(null);
-  const [submittedFeedbackIds, setSubmittedFeedbackIds] = useState<string[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,12 +48,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
         // 3. Fetch feedback status for requests
         const { data: feedbackData, error: feedbackError } = await supabase
           .from('feedback')
-          .select('request_id')
+          .select('*')
           .eq('created_by', userId);
         
         if (!feedbackError && feedbackData) {
-          const submittedIds = feedbackData.map((f) => f.request_id);
-          setSubmittedFeedbackIds(submittedIds);
+          setFeedbacks(feedbackData as Feedback[]);
         }
       }
     } catch (err: any) {
@@ -272,15 +271,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
                   currentUserId={userId || ''}
                   onAccept={handleAccept}
                   onMarkSolved={handleMarkSolved}
-                  onGiveFeedback={(r) => {
-                    if (submittedFeedbackIds.includes(r.id)) {
-                      alert('Feedback already submitted for this request.');
-                      return;
-                    }
-                    setFeedbackRequest(r);
-                  }}
+                  onGiveFeedback={setFeedbackRequest}
                   onClose={handleClose}
-                  hasFeedback={submittedFeedbackIds.includes(req.id)}
+                  existingFeedback={feedbacks.find((f) => f.request_id === req.id)}
                 />
               ))}
             </div>
@@ -322,6 +315,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
           currentUserId={userId}
           onClose={() => setFeedbackRequest(null)}
           onSuccess={loadData}
+          existingFeedback={feedbacks.find((f) => f.request_id === feedbackRequest.id)}
         />
       )}
     </div>

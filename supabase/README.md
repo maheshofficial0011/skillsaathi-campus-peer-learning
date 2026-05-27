@@ -62,3 +62,12 @@ To verify the peer help request workflow, register two distinct mock accounts (e
    - Submit a rating of `5` stars with positive comments.
 4. **Validation**:
    - Go to User B's profile. Verify that User B's **Trust Score** has updated automatically to `100%`!
+
+---
+
+## 🔄 Step 6: Feedback Editing & View Support Patch
+If you have already loaded `schema.sql` and want to enable viewing and editing feedback, you must run the safe SQL patch:
+1. Open the [Supabase Dashboard](https://supabase.com/dashboard) SQL Editor.
+2. Create a new query.
+3. Paste the contents of `supabase/phase2-feedback-edit-patch.sql` and click **Run**.
+4. This adds RLS Update policy support and changes the trust score trigger to execute on both insertion and modifications automatically.

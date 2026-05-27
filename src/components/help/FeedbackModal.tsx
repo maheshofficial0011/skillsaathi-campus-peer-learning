@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { submitFeedback } from '../../lib/feedback';
-import type { HelpRequestWithProfiles } from '../../types';
+import { upsertFeedbackForRequest } from '../../lib/feedback';
+import type { Feedback, HelpRequestWithProfiles } from '../../types';
 
 interface FeedbackModalProps {
   request: HelpRequestWithProfiles;
   currentUserId: string;
   onClose: () => void;
   onSuccess: () => void;
+  existingFeedback?: Feedback | null;
 }
 
 export const FeedbackModal: React.FC<FeedbackModalProps> = ({
@@ -14,10 +15,11 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
   currentUserId,
   onClose,
   onSuccess,
+  existingFeedback = null,
 }) => {
-  const [rating, setRating] = useState<number>(5);
-  const [helpful, setHelpful] = useState<boolean>(true);
-  const [comment, setComment] = useState('');
+  const [rating, setRating] = useState<number>(existingFeedback?.rating ?? 5);
+  const [helpful, setHelpful] = useState<boolean>(existingFeedback?.helpful ?? true);
+  const [comment, setComment] = useState(existingFeedback?.comment ?? '');
 
   // Status states
   const [loading, setLoading] = useState(false);
@@ -34,7 +36,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
     setErrorMsg(null);
 
     try {
-      const result = await submitFeedback({
+      const result = await upsertFeedbackForRequest({
         request_id: request.id,
         created_by: currentUserId,
         receiver_id: request.accepted_by,
@@ -68,7 +70,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
         {/* Header Section */}
         <div className="bg-slate-50 border-b border-slate-100 p-6 flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">Submit Tutor Feedback</h3>
+            <h3 className="text-lg font-bold text-slate-900">{existingFeedback ? 'Edit Tutor Feedback' : 'Submit Tutor Feedback'}</h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Review help provided by <strong>{request.helper_profile?.full_name || 'your peer'}</strong>
             </p>
@@ -175,7 +177,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
               disabled={loading}
               className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-semibold rounded-lg shadow-sm transition"
             >
-              {loading ? 'Submitting...' : 'Submit Feedback'}
+              {loading ? 'Submitting...' : (existingFeedback ? 'Update Review' : 'Submit Feedback')}
             </button>
           </div>
         </form>

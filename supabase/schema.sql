@@ -211,8 +211,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Apply after feedback insertion trigger
-CREATE OR REPLACE TRIGGER on_feedback_inserted
-  AFTER INSERT ON public.feedback
+-- Apply after feedback changes trigger (fires on both insert and update)
+CREATE TRIGGER on_feedback_changed
+  AFTER INSERT OR UPDATE ON public.feedback
   FOR EACH ROW
   EXECUTE FUNCTION public.update_receiver_trust_score();
+
+-- Allow feedback creators to update their feedback
+CREATE POLICY "Allow feedback creators to update their feedback"
+  ON public.feedback
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = created_by)
+  WITH CHECK (auth.uid() = created_by);
