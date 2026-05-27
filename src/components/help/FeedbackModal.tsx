@@ -64,8 +64,8 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[999] overflow-y-auto flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="relative z-[1000] bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-[900] overflow-y-auto flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md">
+      <div className="relative z-[910] bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
         
         {/* Header Section */}
         <div className="bg-slate-50 border-b border-slate-100 p-6 flex items-center justify-between">

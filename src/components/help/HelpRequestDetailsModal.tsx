@@ -6,6 +6,7 @@ interface HelpRequestDetailsModalProps {
   request: HelpRequestWithProfiles;
   currentUserId: string;
   existingFeedback?: Feedback | null;
+  hasAnyFeedback?: boolean;
   onClose: () => void;
   onDelete?: (requestId: string) => Promise<void>;
 }
@@ -78,10 +79,13 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
   request,
   currentUserId,
   existingFeedback,
+  hasAnyFeedback = false,
   onClose,
   onDelete,
 }) => {
-  const hasFeedback = !!existingFeedback;
+  // For timeline: Reviewed is active if ANY feedback exists for this request.
+  // For feedback section: only show current user's own review via existingFeedback.
+  const hasFeedback = hasAnyFeedback || !!existingFeedback;
   const [viewProfileId, setViewProfileId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -130,10 +134,10 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
 
   return (
     <div
-      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[900] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="relative z-[1000] bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto flex flex-col">
+      <div className="relative z-[910] bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto flex flex-col">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
@@ -301,9 +305,9 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
         </div>
       </div>
 
-      {/* Inline public profile modal */}
+      {/* Inline public profile modal — rendered at top layer to appear above this modal */}
       {viewProfileId && (
-        <PublicProfileModal userId={viewProfileId} onClose={() => setViewProfileId(null)} />
+        <PublicProfileModal userId={viewProfileId} layer="top" onClose={() => setViewProfileId(null)} />
       )}
     </div>
   );

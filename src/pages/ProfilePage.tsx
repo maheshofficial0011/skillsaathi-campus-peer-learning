@@ -5,6 +5,7 @@ import { getReviewsReceived } from '../lib/profileStats';
 import type { Profile, YearOfStudy } from '../types';
 import type { ReviewItem } from '../lib/profileStats';
 import { DEPARTMENTS } from '../lib/departments';
+import { PublicProfileModal } from '../components/profile/PublicProfileModal';
 
 interface ProfilePageProps {
   userId?: string;
@@ -17,6 +18,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [feedbackAverage, setFeedbackAverage] = useState<number | null>(null);
   const [reviewCount, setReviewCount] = useState<number>(0);
   const [recentReviews, setRecentReviews] = useState<ReviewItem[]>([]);
+  const [viewReviewerProfileId, setViewReviewerProfileId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -613,13 +615,33 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
               ) : (
                 <div className="space-y-3">
                   {recentReviews.slice(0, 5).map((rev) => (
-                    <div key={rev.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div key={rev.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5">
+                      {/* Reviewer info row */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {rev.reviewer_name ? (
+                          <button
+                            onClick={() => setViewReviewerProfileId(rev.reviewer_id)}
+                            className="text-[11px] font-bold text-indigo-700 hover:underline focus:outline-none"
+                          >
+                            {rev.reviewer_name}
+                          </button>
+                        ) : (
+                          <span className="text-[11px] font-bold text-slate-500">Campus Student</span>
+                        )}
+                        {(rev.reviewer_department || rev.reviewer_year) && (
+                          <span className="text-[10px] text-slate-400">
+                            {[rev.reviewer_department, rev.reviewer_year].filter(Boolean).join(' • ')}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-slate-400 ml-auto">
+                          {new Date(rev.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+                      {/* Rating + helpful */}
+                      <div className="flex items-center gap-2 flex-wrap">
                         <div className="flex gap-0.5">
                           {[1, 2, 3, 4, 5].map((s) => (
-                            <span key={s} className={s <= rev.rating ? 'text-amber-400' : 'text-slate-200'}>
-                              ★
-                            </span>
+                            <span key={s} className={s <= rev.rating ? 'text-amber-400' : 'text-slate-200'}>★</span>
                           ))}
                         </div>
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
@@ -629,17 +651,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                         }`}>
                           {rev.helpful ? '👍 Helpful' : '👎 Not Helpful'}
                         </span>
-                        <span className="text-[10px] text-slate-400 ml-auto">
-                          {new Date(rev.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
                       </div>
+                      {/* Request title */}
                       {rev.request_title && (
-                        <p className="text-[11px] text-slate-500 mt-1">
+                        <p className="text-[11px] text-slate-500">
                           For: <span className="font-semibold">{rev.request_title}</span>
                         </p>
                       )}
+                      {/* Comment */}
                       {rev.comment && (
-                        <p className="text-xs text-slate-700 mt-1 italic leading-relaxed">"{rev.comment}"</p>
+                        <p className="text-xs text-slate-700 italic leading-relaxed">"{rev.comment}"</p>
                       )}
                     </div>
                   ))}
@@ -648,6 +669,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
             </div>
           </div>
           {/* ============================================ */}
+
+          {/* Reviewer Public Profile Modal */}
+          {viewReviewerProfileId && (
+            <PublicProfileModal
+              userId={viewReviewerProfileId}
+              onClose={() => setViewReviewerProfileId(null)}
+            />
+          )}
         </>
       )}
     </div>

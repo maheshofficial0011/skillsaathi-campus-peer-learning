@@ -55,7 +55,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [feedbackRequest, setFeedbackRequest] = useState<HelpRequestWithProfiles | null>(null);
   const [detailsRequest, setDetailsRequest] = useState<HelpRequestWithProfiles | null>(null);
+  // feedbacks: only current user's own submitted reviews (for edit/re-submit logic)
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  // allFeedbackRequestIds: set of request IDs that have ANY feedback (for timeline Reviewed step)
+  const [allFeedbackRequestIds, setAllFeedbackRequestIds] = useState<Set<string>>(new Set());
   const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('recommended');
 
@@ -90,6 +93,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
           setTrustScore(profile.trust_score);
         }
 
+        // Current user's own submitted feedback (for edit/re-submit flow)
         const { data: feedbackData, error: feedbackError } = await supabase
           .from('feedback')
           .select('*')
@@ -97,6 +101,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
 
         if (!feedbackError && feedbackData) {
           setFeedbacks(feedbackData as Feedback[]);
+        }
+
+        // All feedback request IDs (for timeline Reviewed step — any feedback, not just current user's)
+        const solvedIds = data
+          .filter((r) => r.status === 'solved')
+          .map((r) => r.id);
+
+        if (solvedIds.length > 0) {
+          const { data: allFbData } = await supabase
+            .from('feedback')
+            .select('request_id')
+            .in('request_id', solvedIds);
+
+          if (allFbData) {
+            setAllFeedbackRequestIds(new Set(allFbData.map((f) => f.request_id)));
+          } else {
+            setAllFeedbackRequestIds(new Set());
+          }
+        } else {
+          setAllFeedbackRequestIds(new Set());
         }
       }
     } catch (err: any) {
@@ -583,6 +607,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
           request={detailsRequest}
           currentUserId={userId || ''}
           existingFeedback={feedbacks.find((f) => f.request_id === detailsRequest.id)}
+          hasAnyFeedback={allFeedbackRequestIds.has(detailsRequest.id)}
           onClose={() => setDetailsRequest(null)}
           onDelete={handleDelete}
         />

@@ -8,6 +8,11 @@ export interface ReviewItem {
   comment: string | null;
   created_at: string;
   request_title: string | null;
+  // Reviewer public info (no email/UUID shown directly in UI)
+  reviewer_id: string;
+  reviewer_name: string | null;
+  reviewer_department: string | null;
+  reviewer_year: string | null;
 }
 
 export interface PublicProfileStats {
@@ -43,21 +48,22 @@ export const getPublicProfile = async (userId: string): Promise<Profile | null> 
 
 /**
  * Returns reviews received by a userId.
- * Joins help_requests to include request title where possible.
+ * Includes reviewer public profile info (name, department, year) and request title.
+ * Reviewer email and UUID are never exposed in the UI.
  */
 export const getReviewsReceived = async (userId: string): Promise<ReviewItem[]> => {
   try {
-    // Fetch feedback rows where receiver_id = userId
+    // 1. Fetch feedback rows where receiver_id = userId
     const { data: feedbackRows, error: feedbackError } = await supabase
       .from('feedback')
-      .select('id, rating, helpful, comment, created_at, request_id')
+      .select('id, rating, helpful, comment, created_at, request_id, created_by')
       .eq('receiver_id', userId)
       .order('created_at', { ascending: false })
       .limit(20);
 
     if (feedbackError || !feedbackRows) return [];
 
-    // Collect unique request IDs to fetch titles
+    // 2. Collect unique request IDs to fetch titles
     const requestIds = [...new Set(feedbackRows.map((f) => f.request_id).filter(Boolean))];
     let titleMap: Record<string, string> = {};
 
@@ -74,14 +80,43 @@ export const getReviewsReceived = async (userId: string): Promise<ReviewItem[]> 
       }
     }
 
-    return feedbackRows.map((f) => ({
-      id: f.id,
-      rating: f.rating,
-      helpful: f.helpful,
-      comment: f.comment ?? null,
-      created_at: f.created_at,
-      request_title: f.request_id ? (titleMap[f.request_id] ?? null) : null,
-    }));
+    // 3. Collect unique reviewer IDs to fetch public profiles
+    const reviewerIds = [...new Set(feedbackRows.map((f) => f.created_by).filter(Boolean))];
+    let reviewerMap: Record<string, { full_name: string; department: string; year_of_study: string }> = {};
+
+    if (reviewerIds.length > 0) {
+      const { data: profileRows } = await supabase
+        .from('profiles')
+        .select('id, full_name, department, year_of_study')
+        .in('id', reviewerIds);
+
+      if (profileRows) {
+        profileRows.forEach((p) => {
+          reviewerMap[p.id] = {
+            full_name: p.full_name,
+            department: p.department,
+            year_of_study: p.year_of_study,
+          };
+        });
+      }
+    }
+
+    // 4. Merge and return
+    return feedbackRows.map((f) => {
+      const reviewer = reviewerMap[f.created_by] ?? null;
+      return {
+        id: f.id,
+        rating: f.rating,
+        helpful: f.helpful,
+        comment: f.comment ?? null,
+        created_at: f.created_at,
+        request_title: f.request_id ? (titleMap[f.request_id] ?? null) : null,
+        reviewer_id: f.created_by,
+        reviewer_name: reviewer?.full_name ?? null,
+        reviewer_department: reviewer?.department ?? null,
+        reviewer_year: reviewer?.year_of_study ?? null,
+      };
+    });
   } catch (err) {
     console.error('getReviewsReceived error:', err);
     return [];
