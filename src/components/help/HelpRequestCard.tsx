@@ -10,6 +10,8 @@ interface HelpRequestCardProps {
   onClose: (requestId: string) => void;
   hasFeedback?: boolean;
   existingFeedback?: Feedback | null;
+  matchPercentage?: number;
+  matchedSkills?: string[];
 }
 
 export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
@@ -21,6 +23,8 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
   onClose,
   hasFeedback = false,
   existingFeedback = null,
+  matchPercentage,
+  matchedSkills,
 }) => {
   const isCreator = request.created_by === currentUserId;
   const isHelper = request.accepted_by === currentUserId;
@@ -157,6 +161,28 @@ export const HelpRequestCard: React.FC<HelpRequestCardProps> = ({
           </div>
         )}
       </div>
+
+      {/* Match Percentage Display for Recommendations */}
+      {matchPercentage !== undefined && matchPercentage > 0 && (
+        <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50 space-y-1.5 animate-in fade-in duration-150">
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-slate-500 font-semibold">🎯 Recommended Match:</span>
+            <span className="font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+              {matchPercentage}% Match
+            </span>
+          </div>
+          {matchedSkills && matchedSkills.length > 0 && (
+            <div className="text-[11px] text-slate-600 flex flex-wrap gap-1 items-center">
+              <span>Matched Skills:</span>
+              {matchedSkills.map((s) => (
+                <span key={s} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded text-[10px] font-bold">
+                  {s}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Action triggers */}
       <div className="pt-2 flex flex-col gap-2">

@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { HelpRequestCard } from '../components/help/HelpRequestCard';
 import { HelpRequestForm } from '../components/help/HelpRequestForm';
 import { FeedbackModal } from '../components/help/FeedbackModal';
-import type { HelpRequestWithProfiles, Feedback } from '../types';
+import type { HelpRequestWithProfiles, Feedback, Profile } from '../types';
 
 interface DashboardPageProps {
   userId?: string;
@@ -23,6 +23,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [feedbackRequest, setFeedbackRequest] = useState<HelpRequestWithProfiles | null>(null);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null);
+  const [activeTab, setActiveTab] = useState<'recommended' | 'my-requests' | 'accepted-by-me' | 'all'>('recommended');
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,10 +40,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
       const data = await getHelpRequests();
       setRequests(data);
 
-      // 2. Fetch current user trust score
+      // 2. Fetch current user trust score & profile details
       if (userId) {
         const profile = await getCurrentProfile(userId);
         if (profile) {
+          setCurrentUserProfile(profile);
           setTrustScore(profile.trust_score);
         }
 
@@ -118,11 +121,73 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
     return matchesSearch && matchesCategory && matchesUrgency && matchesStatus;
   });
 
-  // Numeric Stats counts
-  const totalOpenCount = requests.filter((r) => r.status === 'open').length;
-  const myCreatedCount = userId ? requests.filter((r) => r.created_by === userId).length : 0;
-  const myAcceptedCount = userId ? requests.filter((r) => r.accepted_by === userId).length : 0;
-  const solvedCount = requests.filter((r) => r.status === 'solved').length;
+  // Segmented tab organization lists & counts
+  const myRequests = userId ? requests.filter((r) => r.created_by === userId) : [];
+  const myRequestsCount = myRequests.length;
+  const myActiveRequestsCount = myRequests.filter((r) => r.status === 'open' || r.status === 'accepted').length;
+
+  const acceptedByMe = userId ? requests.filter((r) => r.accepted_by === userId && (r.status === 'accepted' || r.status === 'solved')) : [];
+  const acceptedByMeCount = acceptedByMe.length;
+  const myActiveAcceptedCount = acceptedByMe.filter((r) => r.status === 'accepted').length;
+
+  // Sorting logic for recommendations
+  const urgencyWeight: Record<string, number> = { 'Urgent': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
+  
+  const sortRecommended = (a: any, b: any) => {
+    if (b.matchPercentage !== a.matchPercentage) {
+      return b.matchPercentage - a.matchPercentage;
+    }
+    const aUrgent = urgencyWeight[a.urgency] || 0;
+    const bUrgent = urgencyWeight[b.urgency] || 0;
+    if (bUrgent !== aUrgent) {
+      return bUrgent - aUrgent;
+    }
+    if (a.deadline && b.deadline) {
+      return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+    } else if (a.deadline) {
+      return -1;
+    } else if (b.deadline) {
+      return 1;
+    }
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  };
+
+  const recommendedRequests = requests
+    .filter((req) => req.status === 'open' && req.created_by !== userId)
+    .map((req) => {
+      if (!currentUserProfile) return { ...req, matchPercentage: 0, matchedSkills: [] as string[] };
+      const skillsKnown = currentUserProfile.skills_known.map((s) => s.toLowerCase());
+      const reqSkills = req.required_skills.map((s) => s.toLowerCase());
+      
+      const matched = req.required_skills.filter((s) => skillsKnown.includes(s.toLowerCase()));
+      
+      let pct = 0;
+      if (reqSkills.length > 0) {
+        pct = Math.round((matched.length / req.required_skills.length) * 100);
+      } else {
+        const catLower = req.category.toLowerCase();
+        if (skillsKnown.includes(catLower)) {
+          pct = 100;
+          matched.push(req.category);
+        } else {
+          const titleMatches = currentUserProfile.skills_known.filter(s => req.title.toLowerCase().includes(s.toLowerCase()));
+          if (titleMatches.length > 0) {
+            pct = 50;
+            matched.push(...titleMatches);
+          }
+        }
+      }
+      
+      return {
+        ...req,
+        matchPercentage: pct,
+        matchedSkills: matched,
+      };
+    })
+    .filter((req) => req.matchPercentage > 0)
+    .sort(sortRecommended);
+
+  const recommendedCount = recommendedRequests.length;
 
   return (
     <div className="space-y-8 px-4 py-6 max-w-7xl mx-auto">
@@ -153,20 +218,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
       {/* Stats Counter Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Campus Open Requests</p>
-          <p className="text-3xl font-extrabold text-slate-900 mt-1">{totalOpenCount}</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Recommended Matches</p>
+          <p className="text-3xl font-extrabold text-indigo-650 text-indigo-650 text-indigo-600 mt-1">{recommendedCount}</p>
         </div>
         <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">My Solved / Accepted</p>
-          <p className="text-3xl font-extrabold text-slate-900 mt-1">{solvedCount} solved / {myAcceptedCount} accepted</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">My Active Requests</p>
+          <p className="text-3xl font-extrabold text-slate-900 mt-1">{myActiveRequestsCount} <span className="text-xs text-slate-400 font-normal">/ {myRequestsCount} total</span></p>
+        </div>
+        <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Accepted / Solved by Me</p>
+          <p className="text-3xl font-extrabold text-slate-900 mt-1">{myActiveAcceptedCount} <span className="text-xs text-slate-400 font-normal">active / {acceptedByMe.filter(r => r.status === 'solved').length} solved</span></p>
         </div>
         <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">My Trust Score</p>
           <p className="text-3xl font-extrabold text-indigo-600 mt-1">{trustScore}%</p>
-        </div>
-        <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">My Total Created</p>
-          <p className="text-3xl font-extrabold text-slate-900 mt-1">{myCreatedCount}</p>
         </div>
       </div>
 
@@ -238,15 +303,37 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Help Requests Explorer List */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-900">Campus Peer Help Requests ({filteredRequests.length})</h3>
+        <div className="lg:col-span-2 space-y-5">
+          <div className="flex items-center justify-between pb-1">
+            <h3 className="text-lg font-bold text-slate-900">Campus Peer Help Requests</h3>
             <button
               onClick={loadData}
-              className="text-xs font-bold text-indigo-600 hover:text-indigo-700"
+              className="text-xs font-bold text-indigo-650 text-indigo-600 hover:text-indigo-750 hover:text-indigo-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md transition"
             >
               Refresh Board
             </button>
+          </div>
+
+          {/* Segmented Board Tabs */}
+          <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+            {[
+              { id: 'recommended', label: `Recommended (${recommendedCount})` },
+              { id: 'my-requests', label: `My Requests (${myRequestsCount})` },
+              { id: 'accepted-by-me', label: `Accepted by Me (${acceptedByMeCount})` },
+              { id: 'all', label: `All Requests (${filteredRequests.length})` },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-3.5 py-2 text-xs font-bold rounded-lg border transition-all duration-150 shadow-sm ${
+                  activeTab === tab.id
+                    ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           {loading ? (
@@ -254,29 +341,118 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
               <div className="w-10 h-10 rounded-full border-4 border-slate-200 border-t-indigo-600 animate-spin"></div>
               <p className="text-xs text-slate-400 font-medium">Refreshing Board...</p>
             </div>
-          ) : filteredRequests.length === 0 ? (
-            <div className="p-12 border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl text-center space-y-3">
-              <div className="text-2xl">📋</div>
-              <h4 className="font-bold text-slate-700">No matching requests found</h4>
-              <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
-                Try clearing search terms or create a new help request.
-              </p>
-            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredRequests.map((req) => (
-                <HelpRequestCard
-                  key={req.id}
-                  request={req}
-                  currentUserId={userId || ''}
-                  onAccept={handleAccept}
-                  onMarkSolved={handleMarkSolved}
-                  onGiveFeedback={setFeedbackRequest}
-                  onClose={handleClose}
-                  existingFeedback={feedbacks.find((f) => f.request_id === req.id)}
-                />
-              ))}
-            </div>
+            <>
+              {activeTab === 'recommended' && (
+                recommendedRequests.length === 0 ? (
+                  <div className="p-12 border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl text-center space-y-3">
+                    <div className="text-2xl">🎯</div>
+                    <h4 className="font-bold text-slate-700">No matching requests yet</h4>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                      Update your profile skills with technologies you know to see smart matching recommendations, or browse all campus requests.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {recommendedRequests.map((req) => (
+                      <HelpRequestCard
+                        key={req.id}
+                        request={req}
+                        currentUserId={userId || ''}
+                        onAccept={handleAccept}
+                        onMarkSolved={handleMarkSolved}
+                        onGiveFeedback={setFeedbackRequest}
+                        onClose={handleClose}
+                        existingFeedback={feedbacks.find((f) => f.request_id === req.id)}
+                        matchPercentage={req.matchPercentage}
+                        matchedSkills={req.matchedSkills}
+                      />
+                    ))}
+                  </div>
+                )
+              )}
+
+              {activeTab === 'my-requests' && (
+                myRequests.length === 0 ? (
+                  <div className="p-12 border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl text-center space-y-3">
+                    <div className="text-2xl">📋</div>
+                    <h4 className="font-bold text-slate-700">No requests posted yet</h4>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                      You haven't created any help requests yet. Need assistance with a concept or bug? Create one above!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {myRequests.map((req) => (
+                      <HelpRequestCard
+                        key={req.id}
+                        request={req}
+                        currentUserId={userId || ''}
+                        onAccept={handleAccept}
+                        onMarkSolved={handleMarkSolved}
+                        onGiveFeedback={setFeedbackRequest}
+                        onClose={handleClose}
+                        existingFeedback={feedbacks.find((f) => f.request_id === req.id)}
+                      />
+                    ))}
+                  </div>
+                )
+              )}
+
+              {activeTab === 'accepted-by-me' && (
+                acceptedByMe.length === 0 ? (
+                  <div className="p-12 border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl text-center space-y-3">
+                    <div className="text-2xl">🤝</div>
+                    <h4 className="font-bold text-slate-700">No accepted requests yet</h4>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                      You haven't accepted any peer requests yet. Browse the campus board and click 'Accept Request' to start tutoring!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {acceptedByMe.map((req) => (
+                      <HelpRequestCard
+                        key={req.id}
+                        request={req}
+                        currentUserId={userId || ''}
+                        onAccept={handleAccept}
+                        onMarkSolved={handleMarkSolved}
+                        onGiveFeedback={setFeedbackRequest}
+                        onClose={handleClose}
+                        existingFeedback={feedbacks.find((f) => f.request_id === req.id)}
+                      />
+                    ))}
+                  </div>
+                )
+              )}
+
+              {activeTab === 'all' && (
+                filteredRequests.length === 0 ? (
+                  <div className="p-12 border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl text-center space-y-3">
+                    <div className="text-2xl">🔍</div>
+                    <h4 className="font-bold text-slate-700">No matching requests found</h4>
+                    <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+                      Try clearing search terms, resetting filters, or browse other categories.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filteredRequests.map((req) => (
+                      <HelpRequestCard
+                        key={req.id}
+                        request={req}
+                        currentUserId={userId || ''}
+                        onAccept={handleAccept}
+                        onMarkSolved={handleMarkSolved}
+                        onGiveFeedback={setFeedbackRequest}
+                        onClose={handleClose}
+                        existingFeedback={feedbacks.find((f) => f.request_id === req.id)}
+                      />
+                    ))}
+                  </div>
+                )
+              )}
+            </>
           )}
         </div>
 
