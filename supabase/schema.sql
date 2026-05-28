@@ -224,3 +224,16 @@ CREATE POLICY "Allow feedback creators to update their feedback"
   TO authenticated
   USING (auth.uid() = created_by)
   WITH CHECK (auth.uid() = created_by);
+
+
+-- ==========================================
+-- PHASE 3: DOUBTS MODULE SCHEMA
+-- NOTE: The Phase 3 tables are applied separately via:
+--       supabase/phase3-doubts-patch.sql
+-- Run that patch in the Supabase SQL Editor to add:
+--   - public.doubt_posts
+--   - public.doubt_answers
+--   - RLS policies for both tables
+--   - updated_at triggers for both tables
+-- ==========================================
+

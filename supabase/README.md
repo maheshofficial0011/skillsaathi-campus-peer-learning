@@ -92,3 +92,81 @@ To allow users to permanently delete their own **open** or **closed** requests:
 - Requests with existing feedback reviews are blocked from deletion in the UI (client-side guard on `existingFeedback`).
 - The patch is safe to re-run (`DROP POLICY IF EXISTS` before `CREATE POLICY`).
 - Does **not** drop tables, delete data, or remove any other policies.
+
+---
+
+## 🤔 Step 8: Phase 3 — Doubts Module SQL Patch
+
+> **Important**: The Doubts page will show a loading error until this patch is applied in Supabase.
+
+To enable the Doubts Module (anonymous doubt posts and peer answers):
+
+1. Open the [Supabase Dashboard](https://supabase.com/dashboard) SQL Editor.
+2. Create a new query.
+3. Paste the contents of `supabase/phase3-doubts-patch.sql` and click **Run**.
+4. Confirm that the query finishes with `Success` or `Query returned no rows`.
+
+### ✅ Verify Phase 3 Tables
+
+Navigate to the **Table Editor** tab and confirm:
+
+| Table | Expected |
+|---|---|
+| `doubt_posts` | Created with `id`, `title`, `description`, `category`, `tags`, `is_anonymous`, `status`, `created_by`, `solved_answer_id`, timestamps |
+| `doubt_answers` | Created with `id`, `doubt_id`, `answer_text`, `created_by`, `is_accepted`, timestamps |
+
+### ✅ Verify Phase 3 RLS Policies
+
+Navigate to **Authentication → Policies** and confirm:
+
+**`doubt_posts`** — 3 policies:
+- `Authenticated users can read doubt posts`
+- `Authenticated users can create doubt posts`
+- `Doubt creator can update their own doubt`
+
+**`doubt_answers`** — 4 policies:
+- `Authenticated users can read doubt answers`
+- `Authenticated users can answer open doubts`
+- `Users can update their own answers`
+- `Doubt creator can accept an answer`
+
+### 📋 Phase 3 Manual Testing Checklist
+
+1. **Post a Doubt (named)**:
+   - Go to the **Doubts** tab.
+   - Click **Ask a Doubt**.
+   - Fill in title, description, category, tags. Toggle anonymous OFF.
+   - Submit and verify the card appears in the list with your name.
+
+2. **Post a Doubt (anonymous)**:
+   - Create another doubt, but toggle **Post Anonymously** ON.
+   - Verify the card shows `Anonymous Student` instead of your name.
+
+3. **Search & Filter**:
+   - Use the search bar to find doubts by keyword.
+   - Use Category / Status dropdowns to filter.
+   - Click Reset to clear filters.
+
+4. **Answer a Doubt** (with a different user):
+   - Log in as a second account.
+   - Open a doubt by clicking **Answer / View**.
+   - Write an answer and click **Post Answer**.
+   - Verify the answer appears in the modal.
+
+5. **Mark as Solved** (as doubt creator):
+   - Log back in as the creator.
+   - Open the doubt.
+   - Click **✅ Mark as Accepted** on an answer.
+   - Verify doubt status changes to `solved`, accepted answer shows the badge.
+   - Verify the answer form is hidden after solving.
+
+6. **Close a Doubt**:
+   - As creator, open an open doubt.
+   - Click **🔒 Close Doubt**.
+   - Verify status changes to `closed` and answer form disappears.
+
+7. **Long Answer Formatting**:
+   - Post an answer longer than 400 characters.
+   - Verify it truncates with `Show more ▼` button.
+   - Click to expand and verify full text appears.
+

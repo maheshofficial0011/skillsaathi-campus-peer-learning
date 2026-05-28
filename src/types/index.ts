@@ -74,3 +74,50 @@ export interface Feedback {
   comment: string | null;
   created_at: string;
 }
+
+// ==========================================
+// PHASE 3: DOUBTS MODULE TYPES
+// ==========================================
+
+export type DoubtStatus = 'open' | 'answered' | 'solved' | 'closed';
+
+export interface DoubtPost {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  tags: string[];
+  is_anonymous: boolean;
+  status: DoubtStatus;
+  created_by: string;
+  solved_answer_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DoubtPostWithProfile extends DoubtPost {
+  creator_profile?: {
+    full_name: string;
+    department: string;
+    year_of_study: string;
+  } | null;
+  answer_count?: number;
+}
+
+export interface DoubtAnswer {
+  id: string;
+  doubt_id: string;
+  answer_text: string;
+  created_by: string;
+  is_accepted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DoubtAnswerWithProfile extends DoubtAnswer {
+  answerer_profile?: {
+    full_name: string;
+    department: string;
+    year_of_study: string;
+  } | null;
+}

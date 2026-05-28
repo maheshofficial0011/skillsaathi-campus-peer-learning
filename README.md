@@ -107,3 +107,57 @@ To verify the peer help request workflow, register two distinct mock accounts (e
    - Submit a rating of `5` stars with positive comments.
 4. **Validation**:
    - Go to User B's profile. Verify that User B's **Trust Score** has updated automatically to `100%`!
+
+---
+
+## 🤔 Phase 3: Doubts Module
+
+> **Supabase patch required** before Phase 3 features are active. See [supabase/README.md](./supabase/README.md) Step 8.
+
+Phase 3 adds a full **Anonymous Doubts Board** where students can post questions, answer each other, and mark doubts as solved.
+
+### Features
+
+| Feature | Description |
+|---|---|
+| **Post Doubts** | Any authenticated student can post a doubt with title, description, category, and tags |
+| **Anonymous Option** | Poster can toggle anonymous mode — name is hidden from all other students in cards and modals |
+| **Answer Doubts** | Authenticated students can answer open or answered doubts |
+| **Mark Solved** | Doubt creator can mark one answer as the accepted answer, which marks the doubt as `solved` |
+| **Close Doubts** | Doubt creator can close their doubt to prevent new answers |
+| **Search & Filter** | Filter doubts by keyword, category, and status |
+| **Long Answer Support** | Long answers truncate with a Show more / Show less toggle |
+
+### Database Changes (Phase 3)
+
+Run `supabase/phase3-doubts-patch.sql` in your Supabase SQL Editor to apply:
+
+- `public.doubt_posts` — Doubt posts with anonymous flag, category, tags, and solved state
+- `public.doubt_answers` — Answers linked to doubt posts with accepted flag
+- Full RLS policies on both tables
+- `updated_at` triggers on both tables
+
+### Files Added / Modified (Phase 3)
+
+```text
+supabase/
+  └── phase3-doubts-patch.sql   [NEW] Safe SQL patch for Phase 3 tables
+src/
+  ├── types/index.ts            [MOD] Added DoubtStatus, DoubtPost, DoubtPostWithProfile, DoubtAnswer, DoubtAnswerWithProfile
+  ├── lib/doubts.ts             [NEW] Full API layer: getDoubts, createDoubt, closeDoubt, markDoubtSolved, getAnswersForDoubt, createAnswer, updateAnswer
+  └── pages/DoubtsPage.tsx      [MOD] Replaced stub with full Supabase-connected module
+```
+
+### Phase 3 Manual Testing Checklist
+
+1. Apply `supabase/phase3-doubts-patch.sql` in Supabase SQL Editor.
+2. Navigate to the **Doubts** tab.
+3. Click **Ask a Doubt** and post a named doubt — verify it appears on the board.
+4. Post another doubt with anonymous toggled ON — verify `Anonymous Student` is shown.
+5. As a second user, open a doubt and write an answer.
+6. As the creator, open the answered doubt and click **✅ Mark as Accepted** on the answer.
+7. Verify the doubt status changes to `solved` and the answer shows the **Accepted Answer** badge.
+8. Verify the answer form is hidden on solved/closed doubts.
+9. Test search and category/status filters — verify they work correctly.
+10. Click **🔒 Close Doubt** on an open doubt and verify it closes.
+
