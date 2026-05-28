@@ -7,6 +7,9 @@ interface DoubtCardProps {
   matchScore?: number;
   onView: (doubt: DoubtPostWithProfile) => void;
   onClose: (doubtId: string) => Promise<void>;
+  onReopen: (doubtId: string) => Promise<void>;
+  onDelete: (doubtId: string) => Promise<void>;
+  onViewProfile: (userId: string) => void;
 }
 
 const formatDate = (dateStr: string): string => {
@@ -45,29 +48,65 @@ export const DoubtCard: React.FC<DoubtCardProps> = ({
   matchScore,
   onView,
   onClose,
+  onReopen,
+  onDelete,
+  onViewProfile,
 }) => {
   const isCreator = doubt.created_by === currentUserId;
   const [closing, setClosing] = useState(false);
+  const [reopening, setReopening] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  // Visual status: if the doubt has answers but DB still shows 'open' (pre-trigger data), show as 'answered'
+  // Visual status: if the doubt has answers but DB still shows 'open', show as 'answered'
   const visualStatus: DoubtStatus | string =
     doubt.status === 'open' && (doubt.answer_count ?? 0) > 0 ? 'answered' : doubt.status;
 
   const canAnswer = visualStatus === 'open' || visualStatus === 'answered';
 
+  // Safe delete: only allowed for creator, when open/closed AND no answers
+  const canDelete =
+    isCreator &&
+    (doubt.status === 'open' || doubt.status === 'closed') &&
+    (doubt.answer_count ?? 0) === 0;
+
   const handleClose = async () => {
     if (!window.confirm('Close this doubt? Students will no longer be able to answer.')) return;
     setClosing(true);
-    try {
-      await onClose(doubt.id);
-    } finally {
-      setClosing(false);
-    }
+    try { await onClose(doubt.id); } finally { setClosing(false); }
+  };
+
+  const handleReopen = async () => {
+    if (!window.confirm('Reopen this doubt so students can answer again?')) return;
+    setReopening(true);
+    try { await onReopen(doubt.id); } finally { setReopening(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Delete this doubt permanently? This cannot be undone.')) return;
+    setDeleting(true);
+    try { await onDelete(doubt.id); } finally { setDeleting(false); }
   };
 
   const descPreview = doubt.description.length > 150
     ? doubt.description.slice(0, 150) + '…'
     : doubt.description;
+
+  // Asker name: clickable if not anonymous
+  const AskerName = () => {
+    if (doubt.is_anonymous) {
+      return <span className="font-semibold text-slate-700">Anonymous Student</span>;
+    }
+    const name = doubt.creator_profile?.full_name || 'Campus Student';
+    return (
+      <button
+        type="button"
+        onClick={() => onViewProfile(doubt.created_by)}
+        className="font-semibold text-indigo-700 hover:underline focus:outline-none"
+      >
+        {name}
+      </button>
+    );
+  };
 
   return (
     <div className={`p-5 bg-white rounded-2xl border transition-all duration-200 shadow-sm hover:shadow-md flex flex-col gap-3 ${
@@ -90,7 +129,7 @@ export const DoubtCard: React.FC<DoubtCardProps> = ({
         </span>
       </div>
 
-      {/* Recommended match score */}
+      {/* Match score */}
       {matchScore !== undefined && matchScore > 0 && (
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
@@ -121,7 +160,7 @@ export const DoubtCard: React.FC<DoubtCardProps> = ({
       {/* Footer meta */}
       <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 text-xs text-slate-500 flex-wrap">
         <span className="min-w-0">
-          By <span className="font-semibold text-slate-700">{getDisplayName(doubt)}</span>
+          By <AskerName />
           <span className="mx-1.5 text-slate-300">·</span>
           {formatDate(doubt.created_at)}
         </span>
@@ -145,6 +184,7 @@ export const DoubtCard: React.FC<DoubtCardProps> = ({
           {doubt.status === 'solved' ? '✅ View Solution' : canAnswer ? '💬 View / Answer' : '👁 View Answers'}
         </button>
 
+        {/* Close: creator, open or answered */}
         {isCreator && (doubt.status === 'open' || doubt.status === 'answered') && (
           <button
             onClick={handleClose}
@@ -152,6 +192,28 @@ export const DoubtCard: React.FC<DoubtCardProps> = ({
             className="w-full py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 font-semibold text-xs rounded-lg transition-colors"
           >
             {closing ? 'Closing…' : '🔒 Close Doubt'}
+          </button>
+        )}
+
+        {/* Reopen: creator, closed */}
+        {isCreator && doubt.status === 'closed' && (
+          <button
+            onClick={handleReopen}
+            disabled={reopening}
+            className="w-full py-1.5 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-60 text-emerald-700 font-semibold text-xs rounded-lg transition-colors"
+          >
+            {reopening ? 'Reopening…' : '🔓 Reopen Doubt'}
+          </button>
+        )}
+
+        {/* Delete: creator, open/closed, no answers */}
+        {canDelete && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="w-full py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-500 font-semibold text-xs rounded-lg transition-colors"
+          >
+            {deleting ? 'Deleting…' : '🗑 Delete Doubt'}
           </button>
         )}
       </div>

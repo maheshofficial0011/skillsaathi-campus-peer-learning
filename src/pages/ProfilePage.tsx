@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentProfile, upsertCurrentProfile } from '../lib/profiles';
-import { getReviewsReceived } from '../lib/profileStats';
+import { getReviewsReceived, getDoubtContributionStats } from '../lib/profileStats';
 import type { Profile, YearOfStudy } from '../types';
-import type { ReviewItem } from '../lib/profileStats';
+import type { ReviewItem, DoubtContributionStats } from '../lib/profileStats';
 import { DEPARTMENTS } from '../lib/departments';
 import { PublicProfileModal } from '../components/profile/PublicProfileModal';
 
@@ -19,6 +19,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [reviewCount, setReviewCount] = useState<number>(0);
   const [recentReviews, setRecentReviews] = useState<ReviewItem[]>([]);
   const [viewReviewerProfileId, setViewReviewerProfileId] = useState<string | null>(null);
+  const [doubtStats, setDoubtStats] = useState<DoubtContributionStats | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -38,30 +39,23 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
 
   const loadProfile = async () => {
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
+    if (!userId) { setLoading(false); return; }
     setLoading(true);
     setErrorMsg(null);
     try {
-      // 1. Fetch public profile
       const data = await getCurrentProfile(userId);
       setProfile(data);
 
       if (data) {
-        // 2. Fetch solved help requests count (using head: true to only get count)
+        // Solved help requests count
         const { count, error: countError } = await supabase
           .from('help_requests')
           .select('*', { count: 'exact', head: true })
           .eq('accepted_by', userId)
           .eq('status', 'solved');
-          
-        if (!countError && count !== null) {
-          setSolvedRequestsCount(count);
-        }
+        if (!countError && count !== null) setSolvedRequestsCount(count);
 
-        // 3. Fetch feedback average rating + reviews
+        // Feedback reviews
         const reviews = await getReviewsReceived(userId);
         setRecentReviews(reviews);
         setReviewCount(reviews.length);
@@ -71,6 +65,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
         } else {
           setFeedbackAverage(null);
         }
+
+        // Doubt contribution stats
+        const ds = await getDoubtContributionStats(userId);
+        setDoubtStats(ds);
       }
     } catch (err) {
       console.error('Error loading profile page data:', err);
@@ -80,9 +78,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
     }
   };
 
-  useEffect(() => {
-    loadProfile();
-  }, [userId]);
+  useEffect(() => { loadProfile(); }, [userId]);
 
   const handleStartEditing = () => {
     if (!profile) return;
@@ -94,7 +90,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
     setEditSkillsWanted(profile.skills_wanted.join(', '));
     setEditAvailability(profile.availability || '');
     setEditHelpMode(profile.help_mode || 'Online');
-    
     setEditError(null);
     setEditSuccess(null);
     setIsEditing(true);
@@ -103,27 +98,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const handleSaveChanges = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId || !profile) return;
-
     if (!editFullName.trim() || !editDepartment.trim()) {
       setEditError('Please fill in required fields: Full Name and Department.');
       return;
     }
-
     setEditLoading(true);
     setEditError(null);
     setEditSuccess(null);
-
-    // Split and clean skills tags
-    const skillsKnownArr = editSkillsKnown
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
-    const skillsWantedArr = editSkillsWanted
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
+    const skillsKnownArr = editSkillsKnown.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+    const skillsWantedArr = editSkillsWanted.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
     try {
       const updated = await upsertCurrentProfile({
         id: userId,
@@ -135,24 +118,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
         skills_wanted: skillsWantedArr,
         availability: editAvailability.trim() || null,
         help_mode: editHelpMode || null,
-        
-        // Preserve unedited Phase 1/2 fields
         trust_score: profile.trust_score,
         badge_level: profile.badge_level,
         is_senior_mentor: profile.is_senior_mentor,
         mentor_topics: profile.mentor_topics,
         mentor_bio: profile.mentor_bio,
       });
-
       if (updated) {
         setEditSuccess('Profile changes saved successfully!');
         setProfile(updated);
-        
-        // Delay exiting edit mode to let user see success alert
-        setTimeout(() => {
-          setIsEditing(false);
-          loadProfile();
-        }, 800);
+        setTimeout(() => { setIsEditing(false); loadProfile(); }, 800);
       } else {
         setEditError('Failed to save profile changes.');
       }
@@ -179,7 +154,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
         trust_score: 100,
         badge_level: 'Newcomer',
       };
-      
       const created = await upsertCurrentProfile(newProfile);
       if (created) {
         setProfile(created);
@@ -207,17 +181,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
       <div className="max-w-md mx-auto p-6 bg-red-50 rounded-xl border border-red-200 text-center space-y-4">
         <h3 className="text-lg font-bold text-red-800">Error Loading Profile</h3>
         <p className="text-sm text-slate-600">{errorMsg}</p>
-        <button
-          onClick={loadProfile}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow transition text-xs"
-        >
+        <button onClick={loadProfile}
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow transition text-xs">
           Retry
         </button>
       </div>
     );
   }
 
-  // Fallback if profile doesn't exist in DB yet
   if (!profile) {
     return (
       <div className="max-w-lg mx-auto p-8 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-5 shadow-sm">
@@ -226,21 +197,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
         </div>
         <div className="space-y-2">
           <h3 className="text-xl font-bold text-slate-900">No Profile Found</h3>
-          <p className="text-sm text-slate-655 text-slate-600 max-w-sm mx-auto leading-relaxed">
+          <p className="text-sm text-slate-600 max-w-sm mx-auto leading-relaxed">
             Your auth account is active, but we couldn't fetch a corresponding row in the public profiles table.
           </p>
         </div>
         <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
-          <button
-            onClick={loadProfile}
-            className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-lg text-sm transition"
-          >
+          <button onClick={loadProfile}
+            className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-lg text-sm transition">
             Refresh Profile
           </button>
-          <button
-            onClick={handleCreatePlaceholderProfile}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-sm shadow transition"
-          >
+          <button onClick={handleCreatePlaceholderProfile}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-sm shadow transition">
             Create Default Profile Row
           </button>
         </div>
@@ -248,21 +215,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
     );
   }
 
-  // Get user initials for display
   const getInitials = (name: string) => {
     if (!name) return 'SS';
-    return name
-      .split(' ')
-      .filter((n) => n.length > 0)
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase();
+    return name.split(' ').filter((n) => n.length > 0).map((n) => n[0]).slice(0, 2).join('').toUpperCase();
   };
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-8 animate-in fade-in duration-250">
-      
+
       {/* 1. EDIT MODE SCREEN */}
       {isEditing ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
@@ -271,13 +231,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
             <p className="text-xs text-slate-500 mt-0.5">Customize your learning identity and preferences visible to the campus.</p>
           </div>
 
-          {/* Form Alert Banners */}
           {editError && (
             <div className="p-4 text-xs text-red-800 bg-red-50 rounded-lg border border-red-200" role="alert">
               <span className="font-semibold">Error:</span> {editError}
             </div>
           )}
-
           {editSuccess && (
             <div className="p-4 text-xs text-emerald-800 bg-emerald-50 rounded-lg border border-emerald-200" role="alert">
               <span className="font-semibold">Success:</span> {editSuccess}
@@ -285,52 +243,28 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
           )}
 
           <form onSubmit={handleSaveChanges} className="space-y-4">
-            {/* Split Grid for Name and Department */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editFullName}
-                  onChange={(e) => setEditFullName(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
-                />
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+                <input type="text" required value={editFullName} onChange={(e) => setEditFullName(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Department <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  list="profile-departments-list"
-                  required
-                  value={editDepartment}
-                  onChange={(e) => setEditDepartment(e.target.value)}
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Department <span className="text-red-500">*</span></label>
+                <input type="text" list="profile-departments-list" required value={editDepartment} onChange={(e) => setEditDepartment(e.target.value)}
                   placeholder="Select or type department"
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
-                />
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium" />
                 <datalist id="profile-departments-list">
-                  {DEPARTMENTS.map((dept) => (
-                    <option key={dept} value={dept} />
-                  ))}
+                  {DEPARTMENTS.map((dept) => <option key={dept} value={dept} />)}
                 </datalist>
               </div>
             </div>
 
-            {/* Year of study and Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Year of Study <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={editYearOfStudy}
-                  onChange={(e) => setEditYearOfStudy(e.target.value as YearOfStudy)}
-                  className="w-full px-4 py-2 border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
-                >
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Year of Study <span className="text-red-500">*</span></label>
+                <select value={editYearOfStudy} onChange={(e) => setEditYearOfStudy(e.target.value as YearOfStudy)}
+                  className="w-full px-4 py-2 border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium">
                   <option value="1st Year">1st Year</option>
                   <option value="2nd Year">2nd Year</option>
                   <option value="3rd Year">3rd Year</option>
@@ -338,42 +272,24 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Section
-                </label>
-                <input
-                  type="text"
-                  value={editSection}
-                  onChange={(e) => setEditSection(e.target.value)}
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Section</label>
+                <input type="text" value={editSection} onChange={(e) => setEditSection(e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
-                  placeholder="e.g. Section B"
-                />
+                  placeholder="e.g. Section B" />
               </div>
             </div>
 
-            {/* Split Grid for Availability and Help Mode */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Availability Description
-                </label>
-                <input
-                  type="text"
-                  value={editAvailability}
-                  onChange={(e) => setEditAvailability(e.target.value)}
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Availability Description</label>
+                <input type="text" value={editAvailability} onChange={(e) => setEditAvailability(e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
-                  placeholder="e.g. Weekends, Weekdays after 5 PM"
-                />
+                  placeholder="e.g. Weekends, Weekdays after 5 PM" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Preferred Help Mode
-                </label>
-                <select
-                  value={editHelpMode}
-                  onChange={(e) => setEditHelpMode(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
-                >
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Preferred Help Mode</label>
+                <select value={editHelpMode} onChange={(e) => setEditHelpMode(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium">
                   <option value="Online">Online</option>
                   <option value="In-Person">In-Person</option>
                   <option value="Hybrid">Hybrid</option>
@@ -381,49 +297,32 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
               </div>
             </div>
 
-            {/* Textareas for skills tags */}
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">
                   Skills I Know & Can Help With <span className="text-slate-400 font-normal">(Comma Separated)</span>
                 </label>
-                <textarea
-                  rows={2}
-                  value={editSkillsKnown}
-                  onChange={(e) => setEditSkillsKnown(e.target.value)}
+                <textarea rows={2} value={editSkillsKnown} onChange={(e) => setEditSkillsKnown(e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
-                  placeholder="e.g. React, TypeScript, Java, C++"
-                />
+                  placeholder="e.g. React, TypeScript, Java, C++" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">
                   Skills I Want to Learn <span className="text-slate-400 font-normal">(Comma Separated)</span>
                 </label>
-                <textarea
-                  rows={2}
-                  value={editSkillsWanted}
-                  onChange={(e) => setEditSkillsWanted(e.target.value)}
+                <textarea rows={2} value={editSkillsWanted} onChange={(e) => setEditSkillsWanted(e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
-                  placeholder="e.g. Docker, Python, Machine Learning"
-                />
+                  placeholder="e.g. Docker, Python, Machine Learning" />
               </div>
             </div>
 
-            {/* Action buttons */}
             <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                disabled={editLoading}
-                className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg transition"
-              >
+              <button type="button" onClick={() => setIsEditing(false)} disabled={editLoading}
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg transition">
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={editLoading}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-semibold rounded-lg shadow-sm transition"
-              >
+              <button type="submit" disabled={editLoading}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-semibold rounded-lg shadow-sm transition">
                 {editLoading ? 'Saving Changes...' : 'Save Changes'}
               </button>
             </div>
@@ -437,12 +336,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
             <div className="w-24 h-24 rounded-full bg-indigo-50 flex items-center justify-center text-3xl font-extrabold text-indigo-600 border-2 border-indigo-200 shrink-0">
               {getInitials(profile.full_name)}
             </div>
-            
+
             <div className="text-center md:text-left space-y-1 flex-1 min-w-0">
               <div className="flex flex-col md:flex-row md:items-center gap-2">
-                <h2 className="text-2xl font-bold text-slate-900 truncate">
-                  {profile.full_name || 'Anonymous Student'}
-                </h2>
+                <h2 className="text-2xl font-bold text-slate-900 truncate">{profile.full_name || 'Anonymous Student'}</h2>
                 <span className="self-center md:self-auto px-2.5 py-0.5 text-xs font-semibold text-indigo-800 bg-indigo-50 rounded-full border border-indigo-200 shrink-0">
                   {profile.year_of_study || 'Year Unspecified'}
                 </span>
@@ -451,7 +348,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                 {profile.department || 'General Studies'} {profile.section ? `• Sec ${profile.section}` : ''}
               </p>
               <p className="text-xs text-slate-400 truncate">{userEmail || 'Email unavailable'}</p>
-              
+
               <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs text-slate-500 pt-2">
                 <span>🏅 Badge: <strong>{profile.badge_level}</strong></span>
                 <span>🤝 Trust Score: <strong>{profile.trust_score}%</strong></span>
@@ -466,18 +363,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                 )}
               </div>
             </div>
-            
+
             <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
-              <button
-                onClick={handleStartEditing}
-                className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-sm transition shadow-sm text-center"
-              >
+              <button onClick={handleStartEditing}
+                className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-sm transition shadow-sm text-center">
                 Edit Profile
               </button>
-              <button
-                onClick={loadProfile}
-                className="w-full px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-lg text-sm transition text-center"
-              >
+              <button onClick={loadProfile}
+                className="w-full px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-lg text-sm transition text-center">
                 Refresh Data
               </button>
             </div>
@@ -486,13 +379,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
           {/* Core Profile Parameters Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3">
-              <h4 className="text-sm font-bold text-slate-450 text-slate-400 uppercase tracking-wide">🏫 Availability Status</h4>
+              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wide">🏫 Availability Status</h4>
               <p className="text-sm font-semibold text-slate-800">
                 {profile.availability || 'No specific availability details posted yet.'}
               </p>
             </div>
             <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3">
-              <h4 className="text-sm font-bold text-slate-450 text-slate-400 uppercase tracking-wide">📍 Preferred Meeting Mode</h4>
+              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wide">📍 Preferred Meeting Mode</h4>
               <p className="text-sm font-semibold text-slate-800">
                 {profile.help_mode || 'No preference indicated yet.'}
               </p>
@@ -501,7 +394,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
 
           {/* Skills Matrix */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Skills I Know */}
             <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">
                 Skills I Know & Can Help With
@@ -519,7 +411,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
               )}
             </div>
 
-            {/* Skills I Want to Learn */}
             <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">
                 Skills I Want to Learn
@@ -538,11 +429,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
             </div>
           </div>
 
-          {/* ========== PEER REPUTATION SECTION ========== */}
+          {/* ========== PEER HELP REPUTATION SECTION ========== */}
           <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-6">
-            <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900">🏅 Peer Reputation</h3>
-              <span className="text-xs text-slate-400 font-medium">Your public trust profile</span>
+            <div className="border-b border-slate-100 pb-3 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">🤝 Peer Help Reputation</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Based on peer help requests solved and feedback received</p>
+              </div>
+              <span className="text-xs text-slate-400 font-medium shrink-0">Help requests &amp; feedback</span>
             </div>
 
             {/* Stats Grid */}
@@ -576,7 +470,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
 
             {/* Badge Explanation */}
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Badge Levels</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Badge Levels (Peer Help)</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {[
                   { emoji: '🌱', label: 'Newcomer', desc: 'Getting started' },
@@ -585,14 +479,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                   { emoji: '🎓', label: 'Campus Mentor', desc: 'Highly trusted' },
                   { emoji: '🏆', label: 'Skill Champion', desc: 'Top-rated helper' },
                 ].map((b) => (
-                  <div
-                    key={b.label}
+                  <div key={b.label}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${
                       profile.badge_level === b.label
                         ? 'bg-indigo-50 border-indigo-200 text-indigo-800 font-bold shadow-sm'
                         : 'bg-slate-50 border-slate-100 text-slate-500'
-                    }`}
-                  >
+                    }`}>
                     <span className="text-base">{b.emoji}</span>
                     <span className="font-semibold">{b.label}</span>
                     <span className="text-[10px] opacity-60">— {b.desc}</span>
@@ -603,26 +495,23 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
 
             {/* Recent Reviews */}
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Recent Reviews Received</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Recent Help Reviews Received</p>
               {recentReviews.length === 0 ? (
                 <div className="p-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center space-y-2">
                   <p className="text-2xl">⭐</p>
                   <p className="text-sm font-semibold text-slate-600">No reviews yet</p>
                   <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
-                    No reviews yet. Help peers to build your trust score.
+                    No peer help reviews yet. Help peers to build your trust score.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {recentReviews.slice(0, 5).map((rev) => (
                     <div key={rev.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5">
-                      {/* Reviewer info row */}
                       <div className="flex items-center gap-2 flex-wrap">
                         {rev.reviewer_name ? (
-                          <button
-                            onClick={() => setViewReviewerProfileId(rev.reviewer_id)}
-                            className="text-[11px] font-bold text-indigo-700 hover:underline focus:outline-none"
-                          >
+                          <button onClick={() => setViewReviewerProfileId(rev.reviewer_id)}
+                            className="text-[11px] font-bold text-indigo-700 hover:underline focus:outline-none">
                             {rev.reviewer_name}
                           </button>
                         ) : (
@@ -637,7 +526,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                           {new Date(rev.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                         </span>
                       </div>
-                      {/* Rating + helpful */}
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="flex gap-0.5">
                           {[1, 2, 3, 4, 5].map((s) => (
@@ -652,13 +540,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                           {rev.helpful ? '👍 Helpful' : '👎 Not Helpful'}
                         </span>
                       </div>
-                      {/* Request title */}
                       {rev.request_title && (
-                        <p className="text-[11px] text-slate-500">
-                          For: <span className="font-semibold">{rev.request_title}</span>
-                        </p>
+                        <p className="text-[11px] text-slate-500">For: <span className="font-semibold">{rev.request_title}</span></p>
                       )}
-                      {/* Comment */}
                       {rev.comment && (
                         <p className="text-xs text-slate-700 italic leading-relaxed">"{rev.comment}"</p>
                       )}
@@ -669,6 +553,67 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
             </div>
           </div>
           {/* ============================================ */}
+
+          {/* ========== DOUBT CONTRIBUTION SECTION ========== */}
+          <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div className="border-b border-slate-100 pb-3 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">❓ Doubt Contribution</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Your activity in the Doubts Module — separate from peer help</p>
+              </div>
+              <span className="text-xs text-slate-400 font-medium shrink-0">Answers, ratings &amp; acceptance</span>
+            </div>
+
+            {!doubtStats || (doubtStats.doubtsAsked === 0 && doubtStats.doubtsAnswered === 0) ? (
+              <div className="p-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center space-y-2">
+                <p className="text-2xl">❓</p>
+                <p className="text-sm font-semibold text-slate-600">No doubt activity yet</p>
+                <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+                  Ask doubts or answer peers' doubts to build your doubt profile.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100 text-center">
+                    <p className="text-2xl font-extrabold text-indigo-700">{doubtStats.doubtsAsked}</p>
+                    <p className="text-[11px] font-bold text-indigo-500 mt-1">Doubts Asked</p>
+                  </div>
+                  <div className="p-4 bg-violet-50 rounded-xl border border-violet-100 text-center">
+                    <p className="text-2xl font-extrabold text-violet-700">{doubtStats.doubtsAnswered}</p>
+                    <p className="text-[11px] font-bold text-violet-500 mt-1">Doubts Answered</p>
+                  </div>
+                  <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-center">
+                    <p className="text-2xl font-extrabold text-emerald-700">{doubtStats.acceptedAnswers}</p>
+                    <p className="text-[11px] font-bold text-emerald-500 mt-1">Accepted Answers</p>
+                  </div>
+                  <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 text-center">
+                    {doubtStats.averageDoubtAnswerRating !== null ? (
+                      <>
+                        <p className="text-2xl font-extrabold text-amber-700">
+                          {doubtStats.averageDoubtAnswerRating}<span className="text-sm font-bold">/10</span>
+                        </p>
+                        <p className="text-[11px] font-bold text-amber-500 mt-1">Avg Answer Rating</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xl font-extrabold text-slate-300">—</p>
+                        <p className="text-[11px] font-bold text-slate-400 mt-1">No Ratings Yet</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="p-4 bg-sky-50 rounded-xl border border-sky-100 text-center">
+                    <p className="text-2xl font-extrabold text-sky-700">{doubtStats.answerRatingsReceived}</p>
+                    <p className="text-[11px] font-bold text-sky-500 mt-1">Ratings Received</p>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 text-center">
+                  💡 Doubt answer ratings use a <strong>1–10</strong> scale — separate from peer help ratings (1–5 stars)
+                </p>
+              </>
+            )}
+          </div>
+          {/* ================================================ */}
 
           {/* Reviewer Public Profile Modal */}
           {viewReviewerProfileId && (

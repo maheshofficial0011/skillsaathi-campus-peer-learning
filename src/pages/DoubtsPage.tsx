@@ -6,11 +6,14 @@ import {
   getDoubts,
   getDoubtIdsAnsweredByUser,
   closeDoubt,
+  reopenDoubt,
+  deleteDoubt,
   DOUBT_CATEGORIES,
 } from '../lib/doubts';
 import { CreateDoubtModal } from '../components/doubts/CreateDoubtModal';
 import { DoubtDetailsModal } from '../components/doubts/DoubtDetailsModal';
 import { DoubtCard } from '../components/doubts/DoubtCard';
+import { PublicProfileModal } from '../components/profile/PublicProfileModal';
 
 // ──────────────────────────────────────────
 // TABS
@@ -73,6 +76,7 @@ const DoubtsPage: React.FC = () => {
   const [selectedDoubt, setSelectedDoubt] = useState<DoubtPostWithProfile | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('recommended');
+  const [viewProfileUserId, setViewProfileUserId] = useState<string | null>(null);
 
   // All Doubts tab filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -175,6 +179,22 @@ const DoubtsPage: React.FC = () => {
     const existing = doubts.find((d) => d.id === doubtId);
     if (existing) handleDoubtUpdated({ ...existing, status: 'closed' });
   };
+
+  const handleReopenDoubt = async (doubtId: string) => {
+    const existing = doubts.find((d) => d.id === doubtId);
+    if (!existing) return;
+    const nextStatus: 'open' | 'answered' = (existing.answer_count ?? 0) > 0 ? 'answered' : 'open';
+    await reopenDoubt(doubtId, nextStatus);
+    handleDoubtUpdated({ ...existing, status: nextStatus });
+  };
+
+  const handleDeleteDoubt = async (doubtId: string) => {
+    await deleteDoubt(doubtId);
+    setDoubts((prev) => prev.filter((d) => d.id !== doubtId));
+    if (selectedDoubt?.id === doubtId) setSelectedDoubt(null);
+  };
+
+  const handleViewProfile = (userId: string) => setViewProfileUserId(userId);
 
   const handleViewDoubt = (doubt: DoubtPostWithProfile) => setSelectedDoubt(doubt);
 
@@ -287,6 +307,9 @@ const DoubtsPage: React.FC = () => {
               matchScore={score}
               onView={handleViewDoubt}
               onClose={handleCloseDoubt}
+              onReopen={handleReopenDoubt}
+              onDelete={handleDeleteDoubt}
+              onViewProfile={handleViewProfile}
             />
           ))}
         </TabSection>
@@ -307,6 +330,9 @@ const DoubtsPage: React.FC = () => {
               currentUserId={currentUserId}
               onView={handleViewDoubt}
               onClose={handleCloseDoubt}
+              onReopen={handleReopenDoubt}
+              onDelete={handleDeleteDoubt}
+              onViewProfile={handleViewProfile}
             />
           ))}
         </TabSection>
@@ -327,6 +353,9 @@ const DoubtsPage: React.FC = () => {
               currentUserId={currentUserId}
               onView={handleViewDoubt}
               onClose={handleCloseDoubt}
+              onReopen={handleReopenDoubt}
+              onDelete={handleDeleteDoubt}
+              onViewProfile={handleViewProfile}
             />
           ))}
         </TabSection>
@@ -396,6 +425,9 @@ const DoubtsPage: React.FC = () => {
                   currentUserId={currentUserId}
                   onView={handleViewDoubt}
                   onClose={handleCloseDoubt}
+                  onReopen={handleReopenDoubt}
+                  onDelete={handleDeleteDoubt}
+                  onViewProfile={handleViewProfile}
                 />
               ))}
             </div>
@@ -418,6 +450,15 @@ const DoubtsPage: React.FC = () => {
           currentUserId={currentUserId}
           onClose={() => setSelectedDoubt(null)}
           onDoubtUpdated={handleDoubtUpdated}
+          onDoubtDeleted={handleDeleteDoubt}
+        />
+      )}
+
+      {/* Public Profile Modal from board */}
+      {viewProfileUserId && (
+        <PublicProfileModal
+          userId={viewProfileUserId}
+          onClose={() => setViewProfileUserId(null)}
         />
       )}
     </div>

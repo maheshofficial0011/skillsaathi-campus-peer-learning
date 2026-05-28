@@ -170,3 +170,52 @@ Navigate to **Authentication → Policies** and confirm:
    - Verify it truncates with `Show more ▼` button.
    - Click to expand and verify full text appears.
 
+---
+
+## 🔧 Phase 3 Polish: SQL Patches
+
+### Required Patches (in order)
+
+Run these in the Supabase SQL Editor one at a time:
+
+| File | What it does |
+|---|---|
+| `supabase/phase3-doubt-answer-ratings-patch.sql` | Creates `doubt_answer_ratings` table (1–10 ratings) and `doubt_answer_replies` table (cross-questions/replies). Also installs `handle_doubt_first_answer()` DB trigger to auto-update doubt status to `answered` on first answer insert. |
+| `supabase/phase3-doubt-reopen-delete-patch.sql` | Adds DELETE policy for `doubt_posts` (creator can delete own doubt only when status is `open` or `closed`). Refreshes UPDATE policy to allow reopening closed doubts. |
+
+### Reopen Closed Doubts
+- Creators can reopen their own closed doubts.
+- Status reverts to `answered` if answer_count > 0, otherwise back to `open`.
+- Answer form and reply forms become available again after reopen.
+- Reopen button visible on card and in modal.
+- **Requires**: `phase3-doubt-reopen-delete-patch.sql`
+
+### Safe Delete Rules
+- Creators can permanently delete their own doubts.
+- Delete is blocked if:
+  - `status = answered` or `status = solved`
+  - `answer_count > 0`
+- Only allowed when `status = open` or `status = closed` AND no answers.
+- DB-level RLS also enforces `status IN ('open','closed')` for DELETE.
+- **Requires**: `phase3-doubt-reopen-delete-patch.sql`
+
+### Multiple Accepted Answers
+- Doubt creators can accept multiple helpful answers per doubt.
+- Each accepted answer shows `✅ Accepted Answer` badge.
+- Doubt status changes to `solved` when first answer is accepted.
+- `solved_answer_id` is set to the first accepted answer and preserved.
+- Accepting additional answers after solved is allowed.
+- Ratings and replies still work independently of accepted status.
+
+### Separate Help vs Doubt Stats
+- **Peer Help Reputation** (ProfilePage and PublicProfileModal):
+  - Trust score, solved requests, avg help rating (1–5 stars), help reviews received
+- **Doubt Contribution** (ProfilePage and PublicProfileModal):
+  - Doubts asked, doubts answered, accepted answers, avg doubt rating (1–10), ratings received
+- These two systems use different rating scales (1–5 vs 1–10) and are never combined.
+
+### Asker Profile Links
+- Non-anonymous doubt askers' names are clickable links in DoubtCard and DoubtDetailsModal.
+- Clicking opens PublicProfileModal for the asker.
+- Anonymous doubts show "Anonymous Student" (non-clickable).
+- PublicProfileModal opens with `layer="top"` when opened from inside DoubtDetailsModal.

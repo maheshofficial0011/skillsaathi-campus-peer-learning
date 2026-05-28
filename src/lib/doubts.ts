@@ -208,10 +208,12 @@ export const closeDoubt = async (doubtId: string): Promise<boolean> => {
 
 /**
  * Mark a doubt as solved by accepting a specific answer.
- * Two-step: mark answer accepted, then mark doubt solved + set solved_answer_id.
+ * Supports multiple accepted answers — does NOT unset other answers.
+ * Sets solved_answer_id only if not already set (preserves the first accepted answer).
  */
 export const markDoubtSolved = async (doubtId: string, answerId: string): Promise<boolean> => {
   try {
+    // Step 1: mark this specific answer as accepted (others untouched)
     const { error: answerError } = await supabase
       .from('doubt_answers')
       .update({ is_accepted: true })
@@ -220,15 +222,66 @@ export const markDoubtSolved = async (doubtId: string, answerId: string): Promis
 
     if (answerError) throw answerError;
 
+    // Step 2: set doubt to solved. Only update solved_answer_id if currently null.
+    const { data: existingDoubt } = await supabase
+      .from('doubt_posts')
+      .select('solved_answer_id')
+      .eq('id', doubtId)
+      .single();
+
+    const updatePayload: Record<string, unknown> = { status: 'solved' };
+    if (!existingDoubt?.solved_answer_id) {
+      updatePayload.solved_answer_id = answerId;
+    }
+
     const { error: doubtError } = await supabase
       .from('doubt_posts')
-      .update({ status: 'solved', solved_answer_id: answerId })
+      .update(updatePayload)
       .eq('id', doubtId);
 
     if (doubtError) throw doubtError;
     return true;
   } catch (err) {
     console.error('Error marking doubt solved:', err);
+    throw err;
+  }
+};
+
+/**
+ * Reopen a closed doubt so students can answer again.
+ * nextStatus should be 'answered' if answer_count > 0, otherwise 'open'.
+ */
+export const reopenDoubt = async (doubtId: string, nextStatus: 'open' | 'answered'): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('doubt_posts')
+      .update({ status: nextStatus })
+      .eq('id', doubtId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('Error reopening doubt:', err);
+    throw err;
+  }
+};
+
+/**
+ * Permanently delete a doubt.
+ * UI must guard: only allow when status is 'open' or 'closed' and answer_count === 0.
+ * DB DELETE policy also enforces status IN ('open','closed').
+ */
+export const deleteDoubt = async (doubtId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('doubt_posts')
+      .delete()
+      .eq('id', doubtId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('Error deleting doubt:', err);
     throw err;
   }
 };

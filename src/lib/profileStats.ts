@@ -15,12 +15,100 @@ export interface ReviewItem {
   reviewer_year: string | null;
 }
 
+// ──────────────────────────────────────────
+// DOUBT CONTRIBUTION STATS
+// ──────────────────────────────────────────
+
+export interface DoubtContributionStats {
+  doubtsAsked: number;
+  doubtsAnswered: number;
+  acceptedAnswers: number;
+  answerRatingsReceived: number;
+  averageDoubtAnswerRating: number | null;
+}
+
+/**
+ * Calculates doubt contribution stats for a userId:
+ * - doubtsAsked: doubts they created
+ * - doubtsAnswered: distinct doubts they answered
+ * - acceptedAnswers: answers they gave that were accepted
+ * - answerRatingsReceived / averageDoubtAnswerRating: from doubt_answer_ratings
+ */
+export const getDoubtContributionStats = async (userId: string): Promise<DoubtContributionStats> => {
+  try {
+    const [
+      askedResult,
+      answeredResult,
+      acceptedResult,
+      ratingsResult,
+    ] = await Promise.all([
+      // doubtsAsked
+      supabase
+        .from('doubt_posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('created_by', userId),
+
+      // doubtsAnswered: distinct doubt_ids from answers they gave
+      supabase
+        .from('doubt_answers')
+        .select('doubt_id')
+        .eq('created_by', userId),
+
+      // acceptedAnswers
+      supabase
+        .from('doubt_answers')
+        .select('*', { count: 'exact', head: true })
+        .eq('created_by', userId)
+        .eq('is_accepted', true),
+
+      // ratings received
+      supabase
+        .from('doubt_answer_ratings')
+        .select('rating')
+        .eq('receiver_id', userId),
+    ]);
+
+    // Distinct doubt IDs answered
+    const distinctDoubtIds = new Set(
+      (answeredResult.data || []).map((r: { doubt_id: string }) => r.doubt_id)
+    );
+
+    const ratingValues = (ratingsResult.data || []).map((r: { rating: number }) => r.rating);
+    const averageDoubtAnswerRating =
+      ratingValues.length > 0
+        ? Number((ratingValues.reduce((a: number, b: number) => a + b, 0) / ratingValues.length).toFixed(1))
+        : null;
+
+    return {
+      doubtsAsked: askedResult.count ?? 0,
+      doubtsAnswered: distinctDoubtIds.size,
+      acceptedAnswers: acceptedResult.count ?? 0,
+      answerRatingsReceived: ratingValues.length,
+      averageDoubtAnswerRating,
+    };
+  } catch (err) {
+    console.error('getDoubtContributionStats error:', err);
+    return {
+      doubtsAsked: 0,
+      doubtsAnswered: 0,
+      acceptedAnswers: 0,
+      answerRatingsReceived: 0,
+      averageDoubtAnswerRating: null,
+    };
+  }
+};
+
+// ──────────────────────────────────────────
+// HELP REPUTATION STATS (existing)
+// ──────────────────────────────────────────
+
 export interface PublicProfileStats {
   profile: Profile;
   solvedCount: number;
   averageRating: number | null;
   reviewCount: number;
   recentReviews: ReviewItem[];
+  doubtStats: DoubtContributionStats;
 }
 
 /**
@@ -125,21 +213,23 @@ export const getReviewsReceived = async (userId: string): Promise<ReviewItem[]> 
 
 /**
  * Aggregates all public reputation stats for a userId.
+ * Includes both peer help reputation and doubt contribution stats.
  */
 export const getPublicProfileStats = async (userId: string): Promise<PublicProfileStats | null> => {
   try {
     const profile = await getPublicProfile(userId);
     if (!profile) return null;
 
-    // Solved count
-    const { count: solvedCount, error: countError } = await supabase
-      .from('help_requests')
-      .select('*', { count: 'exact', head: true })
-      .eq('accepted_by', userId)
-      .eq('status', 'solved');
-
-    // Reviews
-    const reviews = await getReviewsReceived(userId);
+    // Run help stats + doubt stats in parallel
+    const [solvedResult, reviews, doubtStats] = await Promise.all([
+      supabase
+        .from('help_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('accepted_by', userId)
+        .eq('status', 'solved'),
+      getReviewsReceived(userId),
+      getDoubtContributionStats(userId),
+    ]);
 
     const reviewCount = reviews.length;
     const averageRating =
@@ -149,10 +239,11 @@ export const getPublicProfileStats = async (userId: string): Promise<PublicProfi
 
     return {
       profile,
-      solvedCount: countError ? 0 : (solvedCount ?? 0),
+      solvedCount: solvedResult.error ? 0 : (solvedResult.count ?? 0),
       averageRating,
       reviewCount,
       recentReviews: reviews.slice(0, 5),
+      doubtStats,
     };
   } catch (err) {
     console.error('getPublicProfileStats error:', err);
