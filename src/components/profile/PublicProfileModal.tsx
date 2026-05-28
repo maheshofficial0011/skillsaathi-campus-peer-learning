@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { getPublicProfileStats } from '../../lib/profileStats';
 import type { PublicProfileStats, ReviewItem } from '../../lib/profileStats';
-import { getSeniorMentorStats } from '../../lib/seniorConnect';
+import { getSeniorMentorStats, getSeniorFeedbackReceived } from '../../lib/seniorConnect';
 import type { SeniorMentorStats } from '../../lib/seniorConnect';
+import type { SeniorGuidanceFeedback } from '../../types';
 
 interface PublicProfileModalProps {
   userId: string;
@@ -96,6 +97,7 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
   const [history, setHistory] = useState<string[]>([]);
   const [stats, setStats] = useState<PublicProfileStats | null>(null);
   const [mentorStats, setMentorStats] = useState<SeniorMentorStats | null>(null);
+  const [seniorFeedback, setSeniorFeedback] = useState<SeniorGuidanceFeedback[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,17 +110,20 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
     setError(null);
     setStats(null);
     setMentorStats(null);
+    setSeniorFeedback([]);
 
     Promise.all([
       getPublicProfileStats(activeUserId),
       getSeniorMentorStats(activeUserId),
-    ]).then(([profileResult, mentorResult]) => {
+      getSeniorFeedbackReceived(activeUserId),
+    ]).then(([profileResult, mentorResult, feedbackResult]) => {
       if (cancelled) return;
       if (!profileResult) {
         setError('Could not load this profile.');
       } else {
         setStats(profileResult);
         setMentorStats(mentorResult);
+        setSeniorFeedback(feedbackResult);
       }
       setLoading(false);
     });
@@ -146,9 +151,32 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
   const badgeMeta = stats ? getBadgeMeta(stats.profile.badge_level, stats.profile.trust_score, stats.solvedCount) : null;
   const ds = stats?.doubtStats;
 
-  // Determine if there are any doubt contributions
+  const avgGuidanceRating = seniorFeedback.length > 0
+    ? Number((seniorFeedback.reduce((acc, f) => acc + f.rating, 0) / seniorFeedback.length).toFixed(1))
+    : null;
+
   const hasDoubtContributions = ds && (ds.doubtsAnswered > 0 || ds.acceptedAnswers > 0 || ds.answerRatingsReceived > 0);
   const hasHelpReputation = stats && (stats.reviewCount > 0 || stats.solvedCount > 0);
+
+  const SeniorReviewCard: React.FC<{ rev: SeniorGuidanceFeedback }> = ({ rev }) => (
+    <div className="p-3 bg-violet-50/50 rounded-xl border border-violet-100 space-y-1.5 text-xs text-left">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-bold text-violet-850">Anonymous Junior</span>
+        <span className="text-[10px] text-slate-400">{formatDate(rev.created_at)}</span>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <StarRow rating={rev.rating} />
+        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+          rev.helpful ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'
+        }`}>
+          {rev.helpful ? '👍 Helpful Session' : '👎 Not Helpful'}
+        </span>
+      </div>
+      {rev.comment && (
+        <p className="text-xs text-slate-700 italic leading-relaxed">"{rev.comment}"</p>
+      )}
+    </div>
+  );
 
   return (
     <div
@@ -228,9 +256,26 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
               {/* ─── Senior Mentor Info ─── */}
               {stats.profile.is_senior_mentor && (
                 <div className="space-y-2.5 p-4 bg-violet-50 border border-violet-200 rounded-xl">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🎓</span>
-                    <span className="text-sm font-bold text-violet-800">Senior Mentor</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🎓</span>
+                      <span className="text-sm font-bold text-violet-800">Senior Mentor</span>
+                    </div>
+                    {stats.profile.mentor_status && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        stats.profile.mentor_status === 'accepting'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : stats.profile.mentor_status === 'busy'
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-red-50 text-red-600 border-red-200'
+                      }`}>
+                        {stats.profile.mentor_status === 'accepting'
+                          ? '● Accepting'
+                          : stats.profile.mentor_status === 'busy'
+                          ? '● Busy'
+                          : '● Unavailable'}
+                      </span>
+                    )}
                   </div>
                   {stats.profile.mentor_bio && (
                     <p className="text-xs text-violet-800 leading-relaxed">{stats.profile.mentor_bio}</p>
@@ -263,6 +308,20 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
                     </div>
                   )}
 
+                  {/* Rating Stats Grid */}
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="p-1 bg-white rounded-lg border border-violet-100 shadow-sm">
+                      <p className="text-xs font-extrabold text-amber-600">
+                        {avgGuidanceRating !== null ? `⭐ ${avgGuidanceRating}` : '—'}
+                      </p>
+                      <p className="text-[9px] font-bold text-violet-500 mt-0.5">Mentor Rating</p>
+                    </div>
+                    <div className="p-1 bg-white rounded-lg border border-violet-100 shadow-sm">
+                      <p className="text-xs font-extrabold text-violet-900">{seniorFeedback.length}</p>
+                      <p className="text-[9px] font-bold text-violet-500 mt-0.5">Guidance Reviews</p>
+                    </div>
+                  </div>
+
                   {/* Availability details */}
                   <div className="mt-3 pt-3 border-t border-violet-100 flex flex-col gap-1 text-[11px] text-violet-800 font-medium">
                     {stats.profile.availability && (
@@ -276,6 +335,20 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
                       </p>
                     )}
                   </div>
+
+                  {/* Recent Mentor Reviews up to 3 */}
+                  {seniorFeedback.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-violet-100 space-y-2">
+                      <p className="text-[10px] font-bold text-violet-800 uppercase tracking-wider text-left">
+                        Recent Guidance Reviews
+                      </p>
+                      <div className="space-y-2">
+                        {seniorFeedback.slice(0, 3).map((rev) => (
+                          <SeniorReviewCard key={rev.id} rev={rev} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

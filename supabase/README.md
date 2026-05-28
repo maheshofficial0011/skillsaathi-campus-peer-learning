@@ -268,9 +268,14 @@ A fresh database setup requires executing the SQL files in the following order:
 3. `supabase/phase2-delete-request-patch.sql` (DELETE RLS policy for `help_requests`)
 4. `supabase/phase3-doubts-patch.sql` (Core Doubts tables: `doubt_posts`, `doubt_answers`)
 5. `supabase/phase3-doubt-answer-ratings-patch.sql` (Ratings and replies tables + first answer auto-trigger)
-6. `supabase/phase3-doubt-reopen-delete-patch.sql` (DELETE RLS policy for `doubt_posts`)
-7. `supabase/phase4-senior-connect-patch.sql` (Senior Connect columns and requests table + trigger + RLS)
-8. `supabase/phase4-senior-connect-contact-patch.sql` (Session coordination contact fields and mode validation constraint)
+6. `supabase/phase3-doubt-likes-pins-patch.sql` (Doubt answers/replies like and pin columns + policies + functions)
+7. `supabase/phase3-doubt-reopen-delete-patch.sql` (DELETE RLS policy for `doubt_posts` + reopen status reset)
+8. `supabase/phase3-answer-reply-edit-delete-patch.sql` (Edit/delete answers and replies + pin replies)
+9. `supabase/phase3-accept-answer-fix.sql` (Multiple accepted answers RLS fix)
+10. `supabase/phase4-senior-connect-patch.sql` (Senior Connect columns and requests table + trigger + RLS)
+11. `supabase/phase4-senior-connect-contact-patch.sql` (Session coordination contact fields and mode validation constraint)
+12. `supabase/phase4-contact-privacy-patch.sql` (Secure contact privacy fields and get_shared_contact / get_shared_help_contact DEFINER RPC functions)
+13. `supabase/phase4-senior-reviews-safety-patch.sql` (Senior connect reviews rating and helpfulness table `senior_guidance_feedback` + RLS policies + trigger + partial request indexing)
 
 ---
 

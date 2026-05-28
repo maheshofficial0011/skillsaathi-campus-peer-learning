@@ -4,6 +4,7 @@ import type {
   SeniorGuidanceRequestWithProfiles,
   SeniorGuidanceStatus,
   GuidanceMode,
+  SeniorGuidanceFeedback,
 } from '../types';
 
 // ──────────────────────────────────────────
@@ -38,7 +39,7 @@ export const getSeniorMentors = async (): Promise<SeniorMentorProfile[]> => {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, department, year_of_study, section, mentor_topics, mentor_bio, availability, help_mode, trust_score, badge_level, skills_known')
+      .select('id, full_name, department, year_of_study, section, mentor_topics, mentor_bio, availability, help_mode, trust_score, badge_level, skills_known, mentor_status')
       .eq('is_senior_mentor', true)
       .order('trust_score', { ascending: false });
 
@@ -57,7 +58,7 @@ export const getSeniorMentorById = async (userId: string): Promise<SeniorMentorP
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, department, year_of_study, section, mentor_topics, mentor_bio, availability, help_mode, trust_score, badge_level, skills_known')
+      .select('id, full_name, department, year_of_study, section, mentor_topics, mentor_bio, availability, help_mode, trust_score, badge_level, skills_known, mentor_status')
       .eq('id', userId)
       .eq('is_senior_mentor', true)
       .single();
@@ -82,18 +83,24 @@ export const updateSeniorMentorProfile = async (
     mentor_bio: string;
     availability: string;
     help_mode: string;
+    mentor_status?: 'accepting' | 'busy' | 'unavailable';
   }
 ): Promise<void> => {
   try {
+    const payload: Record<string, unknown> = {
+      is_senior_mentor: input.is_senior_mentor,
+      mentor_topics: input.mentor_topics,
+      mentor_bio: input.mentor_bio.trim() || null,
+      availability: input.availability.trim() || null,
+      help_mode: input.help_mode || 'Hybrid',
+    };
+    if (input.mentor_status !== undefined) {
+      payload.mentor_status = input.mentor_status;
+    }
+
     const { error } = await supabase
       .from('profiles')
-      .update({
-        is_senior_mentor: input.is_senior_mentor,
-        mentor_topics: input.mentor_topics,
-        mentor_bio: input.mentor_bio.trim() || null,
-        availability: input.availability.trim() || null,
-        help_mode: input.help_mode || 'Hybrid',
-      })
+      .update(payload)
       .eq('id', userId);
 
     if (error) throw error;
@@ -114,7 +121,7 @@ const GUIDANCE_SELECT = `
   ),
   senior_profile:profiles!senior_guidance_requests_senior_id_fkey(
     full_name, department, year_of_study, is_senior_mentor,
-    mentor_topics, mentor_bio, availability, help_mode, trust_score, badge_level
+    mentor_topics, mentor_bio, availability, help_mode, trust_score, badge_level, mentor_status
   )
 `;
 
@@ -130,6 +137,21 @@ export const createGuidanceRequest = async (input: {
   preferred_time?: string;
 }): Promise<SeniorGuidanceRequestWithProfiles> => {
   try {
+    // 1. Check for existing active requests with same senior
+    const { data: existingActive, error: checkError } = await supabase
+      .from('senior_guidance_requests')
+      .select('id')
+      .eq('requester_id', input.requester_id)
+      .eq('senior_id', input.senior_id)
+      .in('status', ['pending', 'accepted'])
+      .limit(1);
+
+    if (checkError) throw checkError;
+    if (existingActive && existingActive.length > 0) {
+      throw new Error('You already have an active guidance request with this senior.');
+    }
+
+    // 2. Perform insert
     const { data, error } = await supabase
       .from('senior_guidance_requests')
       .insert({
@@ -392,5 +414,84 @@ export const getSeniorMentorStats = async (userId: string): Promise<SeniorMentor
       cancelledCount: 0,
       completionRate: 0,
     };
+  }
+};
+
+/**
+ * Fetch feedback review for a specific guidance request.
+ */
+export const getSeniorFeedbackForRequest = async (
+  requestId: string
+): Promise<SeniorGuidanceFeedback | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('senior_guidance_feedback')
+      .select('*')
+      .eq('request_id', requestId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data as SeniorGuidanceFeedback | null;
+  } catch (err) {
+    console.error('getSeniorFeedbackForRequest error:', err);
+    return null;
+  }
+};
+
+/**
+ * Fetch all feedback reviews received by a senior mentor.
+ */
+export const getSeniorFeedbackReceived = async (
+  seniorId: string
+): Promise<SeniorGuidanceFeedback[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('senior_guidance_feedback')
+      .select('*')
+      .eq('senior_id', seniorId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []) as SeniorGuidanceFeedback[];
+  } catch (err) {
+    console.error('getSeniorFeedbackReceived error:', err);
+    return [];
+  }
+};
+
+/**
+ * Inserts or updates guidance feedback for a completed session.
+ */
+export const upsertSeniorGuidanceFeedbackForRequest = async (input: {
+  request_id: string;
+  senior_id: string;
+  created_by: string;
+  rating: number;
+  helpful: boolean;
+  comment: string | null;
+}): Promise<void> => {
+  try {
+    if (input.created_by === input.senior_id) {
+      throw new Error('Seniors cannot submit feedback on their own guidance session.');
+    }
+
+    const { error } = await supabase
+      .from('senior_guidance_feedback')
+      .upsert({
+        request_id: input.request_id,
+        senior_id: input.senior_id,
+        created_by: input.created_by,
+        rating: input.rating,
+        helpful: input.helpful,
+        comment: input.comment?.trim() || null,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'request_id,created_by'
+      });
+
+    if (error) throw error;
+  } catch (err) {
+    console.error('upsertSeniorGuidanceFeedbackForRequest error:', err);
+    throw err;
   }
 };

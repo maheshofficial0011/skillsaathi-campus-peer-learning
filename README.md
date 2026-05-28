@@ -191,21 +191,23 @@ Phase 3.5 brings the application to full production-grade readiness, focusing on
 
 ---
 
-## 🎓 Completed Phase 4: Senior Connect Module & Polishes
+## 🎓 Completed Phase 4: Senior Connect Module
 
-Phase 4 bridges junior students seeking academic and career guidance with experienced senior student mentors, while refining crucial platform profile capabilities:
+Phase 4 bridges junior students seeking academic and career guidance with experienced senior student mentors:
 
 1. **Find Seniors Directory**:
    - Advanced discovery tab allowing juniors to search seniors by name, filter by shared departments, or filter by specific expertise topics (Resume Review, Interview Guidance, Placement Prep, Higher Studies, etc.).
    - Displays detailed cards with Trust Scores, peer badges, skills known, bio, availability hours, and preferred guidance modes.
 
-2. **Session Coordination & Contact Fields**:
+2. **Session Coordination & Trusted Meeting Links**:
    - Upgraded requests with coordination details: `meeting_mode` (Online, In-Person, Hybrid), `scheduled_time`, and `meeting_details` (links, location instructions, or contact handles).
-   - Seniors specify these fields upon accepting requests. Both juniors and seniors view this session block directly on their request cards to coordinate securely without publicizing private data.
+   - Enforces link validation: only trusted platforms (Google Meet, Zoom, MS Teams, Cisco Webex) starting with `https://` are allowed.
+   - Dynamic platform detection displays dedicated platform badges in the UI.
 
-3. **Senior Mentor Impact Stats**:
-   - Dedicated **Senior Mentor Impact** metrics block on `PublicProfileModal`, `ProfilePage`, and `SeniorConnectPage` Mentor Dashboard.
-   - Shows guidance requests received, accepted, completed, declined, and completion rate (%) alongside topics and hours.
+3. **Secure Contact Privacy (Per-Field Gating)**:
+   - Extends student profiles with explicit private contact fields (`contact_phone`, `contact_whatsapp`, `contact_email`, `contact_other`).
+   - Introduces independent granular sharing controls for each field (e.g. `share_whatsapp_after_accept`).
+   - Highly secure definer RPC functions (`get_shared_contact` and `get_shared_help_contact`) ensure contact details are only returned for accepted/completed sessions to authorized participants, completely hiding them from public pages and profiles.
 
 4. **Shared Consistent Departments & Custom "Other" Input**:
    - Integrated a single central department dictionary `src/lib/departments.ts` across the entire application (registration, profiles, filters).
@@ -213,6 +215,32 @@ Phase 4 bridges junior students seeking academic and career guidance with experi
 
 5. **Help Request Coordination Note**:
    - Lightweight UI coordination guidance card rendered in the help request details modal once a peer request is accepted, helping students coordinate meeting locations or links.
+
+---
+
+## 🎓 Completed Phase 4.5: Senior Connect Reputation & Safety Polish
+
+Phase 4.5 refines the Senior Connect quality assurance, request safety, and availability management:
+
+1. **Senior Guidance Feedback (Reviews & Ratings)**:
+   - Juniors submit anonymous reviews for completed guidance sessions (1-5 star rating, helpfulness toggle, and comment), which are saved in the `senior_guidance_feedback` table.
+   - Built an interactive feedback star modal in the requests tab allowing easy rating entry or edits.
+   - Displays dynamic cumulative rating averages, total reviews, and Completed stats on the user dashboard.
+   - Seniors are strictly blocked from reviewing their own sessions.
+
+2. **Public Profile Ratings & Private Reviews Feed**:
+   - Displays mentor cumulative rating averages, total reviews count, and up to the 3 most recent feedback reviews in the public profile card.
+   - Keeps reviewer identity strictly private: reviews are displayed anonymously as `"Anonymous Junior"`, with no email or UUID exposure in the UI.
+   - Separation of stats: Mentor guidance ratings remain completely separate from Peer Help trust scores and Doubt ratings.
+
+3. **Mentor Availability Status Settings**:
+   - Mentors can specify their current status (`Accepting Requests`, `Busy`, or `Unavailable`) inside the profile editor.
+   - **Unavailable** mentors display an unavailable badge, an inline warning, and have their **Request Guidance** button completely disabled.
+   - **Busy** mentors display a busy status badge and a warning banner in the UI but allow requests (warning juniors of potential delays).
+
+4. **Duplicate Active Request Prevention**:
+   - Implements both API-level duplicate validation and database-level partial unique index constraints (`pending`/`accepted` status only).
+   - Disables request triggers and informs juniors if they already have a pending or accepted request with the selected senior.
 
 *Note: Fully featured real-time in-app chat and push notifications are planned as part of the future learning circles module.*
 

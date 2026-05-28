@@ -14,6 +14,9 @@ import {
   getSeniorIncomingRequests,
   updateGuidanceRequestStatus,
   getSharedContactDetails,
+  getSeniorFeedbackForRequest,
+  getSeniorFeedbackReceived,
+  upsertSeniorGuidanceFeedbackForRequest,
   MENTOR_TOPICS,
   GUIDANCE_MODES,
 } from '../lib/seniorConnect';
@@ -24,6 +27,7 @@ import type {
   SeniorGuidanceRequestWithProfiles,
   SeniorGuidanceStatus,
   GuidanceMode,
+  SeniorGuidanceFeedback,
 } from '../types';
 
 // ──────────────────────────────────────────
@@ -471,6 +475,175 @@ const ResponseModal: React.FC<ResponseModalProps> = ({ action, initialCoordinati
 };
 
 // ──────────────────────────────────────────
+// GUIDANCE FEEDBACK MODAL (for juniors to rate seniors)
+// ──────────────────────────────────────────
+interface GuidanceFeedbackModalProps {
+  req: SeniorGuidanceRequestWithProfiles;
+  existingFeedback: SeniorGuidanceFeedback | null;
+  currentUserId: string;
+  onConfirm: (rating: number, helpful: boolean, comment: string) => Promise<void>;
+  onClose: () => void;
+}
+
+const GuidanceFeedbackModal: React.FC<GuidanceFeedbackModalProps> = ({
+  req,
+  existingFeedback,
+  currentUserId: _uid,
+  onConfirm,
+  onClose,
+}) => {
+  const [rating, setRating] = useState<number>(existingFeedback?.rating ?? 0);
+  const [helpful, setHelpful] = useState<boolean>(existingFeedback?.helpful ?? true);
+  const [comment, setComment] = useState<string>(existingFeedback?.comment ?? '');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const seniorName = req.senior_profile?.full_name || 'Senior Mentor';
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (rating <= 0) {
+      setErrorMsg('Please select a star rating (1–5).');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await onConfirm(rating, helpful, comment.trim());
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Could not save feedback.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 animate-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 className="font-extrabold text-slate-900 text-lg">
+            {existingFeedback ? '✏️ Edit Guidance Review' : '⭐ Rate Guidance Session'}
+          </h3>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 flex items-center justify-center transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        {errorMsg && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 text-center font-bold">
+            ⚠️ {errorMsg}
+          </div>
+        )}
+
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Your feedback is anonymous and helps other juniors find high-quality mentors on campus.
+          Your name, email, and ID will not be shown in the public reviews list.
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Star selector */}
+          <div className="space-y-2 text-center">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+              How would you rate {seniorName}'s guidance? *
+            </label>
+            <div className="flex justify-center gap-1.5 text-3xl">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => {
+                    setRating(star);
+                    setErrorMsg(null);
+                  }}
+                  className={`transition-transform active:scale-90 ${
+                    star <= rating ? 'text-amber-400 font-bold' : 'text-slate-200 hover:text-amber-200 font-bold'
+                  }`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Helpfulness toggle */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+              Was this guidance session helpful? *
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setHelpful(true)}
+                className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  helpful
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                👍 Yes, helpful
+              </button>
+              <button
+                type="button"
+                onClick={() => setHelpful(false)}
+                className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  !helpful
+                    ? 'bg-red-50 border-red-500 text-red-650 text-red-650 shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                👎 No, not helpful
+              </button>
+            </div>
+          </div>
+
+          {/* Comment textbox */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+              Review Comments <span className="text-slate-400 font-normal normal-case">(optional)</span>
+            </label>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              rows={3}
+              placeholder="What did you learn? Was the senior helpful? Share your thoughts..."
+              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors text-slate-900 leading-relaxed"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl shadow-sm transition-colors"
+            >
+              {submitting ? 'Submitting...' : existingFeedback ? '💾 Update Review' : '📤 Submit Review'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ──────────────────────────────────────────
 // MENTOR CARD (Find Seniors tab)
 // ──────────────────────────────────────────
 interface MentorCardProps {
@@ -492,6 +665,21 @@ const MentorCard: React.FC<MentorCardProps> = ({ mentor, currentUserId, onReques
             <span className="text-[10px] font-bold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-full shrink-0">
               🎓 Senior Mentor
             </span>
+            {mentor.mentor_status && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                mentor.mentor_status === 'accepting'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : mentor.mentor_status === 'busy'
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-red-50 text-red-600 border-red-200'
+              }`}>
+                {mentor.mentor_status === 'accepting'
+                  ? 'Accepting'
+                  : mentor.mentor_status === 'busy'
+                  ? 'Busy'
+                  : 'Unavailable'}
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             {mentor.department} · {mentor.year_of_study}
@@ -528,6 +716,14 @@ const MentorCard: React.FC<MentorCardProps> = ({ mentor, currentUserId, onReques
         </div>
       )}
 
+      {/* Availability warning message */}
+      {!isSelf && mentor.mentor_status === 'busy' && (
+        <p className="text-[10px] text-amber-600 font-semibold italic leading-snug">⚠️ Mentor is busy; response may be delayed.</p>
+      )}
+      {!isSelf && mentor.mentor_status === 'unavailable' && (
+        <p className="text-[10px] text-red-600 font-semibold italic leading-snug">⚠️ This mentor is not accepting requests right now.</p>
+      )}
+
       {/* Actions */}
       <div className="flex gap-2 pt-1">
         <button
@@ -538,10 +734,16 @@ const MentorCard: React.FC<MentorCardProps> = ({ mentor, currentUserId, onReques
         </button>
         {!isSelf && (
           <button
-            type="button" onClick={() => onRequest(mentor)}
-            className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+            type="button"
+            disabled={mentor.mentor_status === 'unavailable'}
+            onClick={() => onRequest(mentor)}
+            className={`flex-1 py-2 text-white text-xs font-bold rounded-lg shadow-sm transition-colors ${
+              mentor.mentor_status === 'unavailable'
+                ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200'
+                : 'bg-indigo-600 hover:bg-indigo-700'
+            }`}
           >
-            Request Guidance
+            {mentor.mentor_status === 'unavailable' ? 'Unavailable' : 'Request Guidance'}
           </button>
         )}
       </div>
@@ -556,11 +758,14 @@ interface MyRequestCardProps {
   req: SeniorGuidanceRequestWithProfiles;
   onCancel: (req: SeniorGuidanceRequestWithProfiles) => Promise<void>;
   onViewProfile: (userId: string) => void;
+  onGiveFeedback: (req: SeniorGuidanceRequestWithProfiles, existingFeedback: SeniorGuidanceFeedback | null) => void;
 }
-const MyRequestCard: React.FC<MyRequestCardProps> = ({ req, onCancel, onViewProfile }) => {
+const MyRequestCard: React.FC<MyRequestCardProps> = ({ req, onCancel, onViewProfile, onGiveFeedback }) => {
   const [cancelling, setCancelling] = useState(false);
   const [contactDetails, setContactDetails] = useState<SecureContactInfo | null>(null);
   const [loadingContact, setLoadingContact] = useState(false);
+  const [feedback, setFeedback] = useState<SeniorGuidanceFeedback | null>(null);
+  const [loadingFeedback, setLoadingFeedback] = useState(false);
 
   const canCancel = req.status === 'pending' || req.status === 'accepted';
   const seniorName = req.senior_profile?.full_name || 'Senior Mentor';
@@ -580,6 +785,22 @@ const MyRequestCard: React.FC<MyRequestCardProps> = ({ req, onCancel, onViewProf
     };
     fetchContact();
   }, [req.status, req.id, req.senior_id]);
+
+  useEffect(() => {
+    const fetchFeedback = async () => {
+      if (req.status !== 'completed') return;
+      setLoadingFeedback(true);
+      try {
+        const fb = await getSeniorFeedbackForRequest(req.id);
+        setFeedback(fb);
+      } catch (err) {
+        console.error('Error fetching feedback for request:', err);
+      } finally {
+        setLoadingFeedback(false);
+      }
+    };
+    fetchFeedback();
+  }, [req.id, req.status]);
 
   const handleCancel = async () => {
     if (!window.confirm('Cancel this guidance request?')) return;
@@ -738,6 +959,36 @@ const MyRequestCard: React.FC<MyRequestCardProps> = ({ req, onCancel, onViewProf
           <span>Sent {formatDate(req.created_at)}</span>
           {req.completed_at && <span>· Completed {formatDate(req.completed_at)}</span>}
         </div>
+
+        {/* Give Mentor Feedback Button Section */}
+        {req.status === 'completed' && (
+          <div className="pt-2 flex items-center gap-2">
+            {loadingFeedback ? (
+              <span className="text-[10px] text-slate-400 italic">Checking review status...</span>
+            ) : feedback ? (
+              <>
+                <span className="px-2 py-0.5 bg-purple-50 border border-purple-100 text-purple-700 text-[10px] font-bold rounded-full">
+                  ✓ Reviewed
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onGiveFeedback(req, feedback)}
+                  className="px-3 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold rounded-lg transition-colors"
+                >
+                  ✏️ Edit Review
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onGiveFeedback(req, null)}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+              >
+                ⭐ Give Mentor Feedback
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Actions */}
@@ -1002,7 +1253,17 @@ export const SeniorConnectPage: React.FC = () => {
   const [mentorFormBio, setMentorFormBio] = useState('');
   const [mentorFormAvailability, setMentorFormAvailability] = useState('');
   const [mentorFormMode, setMentorFormMode] = useState<GuidanceMode>('Hybrid');
+  const [mentorFormStatus, setMentorFormStatus] = useState<'accepting' | 'busy' | 'unavailable'>('accepting');
   const [savingMentorProfile, setSavingMentorProfile] = useState(false);
+
+  // Feedback Modal state
+  const [feedbackModal, setFeedbackModal] = useState<{
+    req: SeniorGuidanceRequestWithProfiles;
+    existingFeedback: SeniorGuidanceFeedback | null;
+  } | null>(null);
+
+  // Mentor dashboard reviews state
+  const [receivedReviews, setReceivedReviews] = useState<SeniorGuidanceFeedback[]>([]);
 
   // ── Data loading ──
   const loadMentors = useCallback(async () => {
@@ -1022,12 +1283,17 @@ export const SeniorConnectPage: React.FC = () => {
     try { setIncomingRequests(await getSeniorIncomingRequests(userId)); } finally { setLoadingIncoming(false); }
   }, [userId]);
 
+  const loadFeedback = useCallback(async () => {
+    if (!userId) return;
+    try { setReceivedReviews(await getSeniorFeedbackReceived(userId)); } catch (err) { console.error('Error loading feedback:', err); }
+  }, [userId]);
+
   // Determine if current user is a mentor — fetch own profile
   useEffect(() => {
     if (!userId) return;
     supabase
       .from('profiles')
-      .select('is_senior_mentor, mentor_topics, mentor_bio, availability, help_mode')
+      .select('is_senior_mentor, mentor_topics, mentor_bio, availability, help_mode, mentor_status')
       .eq('id', userId)
       .single()
       .then(({ data }) => {
@@ -1037,6 +1303,7 @@ export const SeniorConnectPage: React.FC = () => {
           setMentorFormBio(data.mentor_bio || '');
           setMentorFormAvailability(data.availability || '');
           setMentorFormMode((data.help_mode as GuidanceMode) || 'Hybrid');
+          setMentorFormStatus((data.mentor_status as any) || 'accepting');
         }
       });
   }, [userId]);
@@ -1044,6 +1311,7 @@ export const SeniorConnectPage: React.FC = () => {
   useEffect(() => { loadMentors(); }, [loadMentors]);
   useEffect(() => { loadMyRequests(); }, [loadMyRequests]);
   useEffect(() => { loadIncoming(); }, [loadIncoming]);
+  useEffect(() => { loadFeedback(); }, [loadFeedback]);
 
   // ── Filtered mentors ──
   const filteredMentors = useMemo(() => {
@@ -1157,6 +1425,7 @@ export const SeniorConnectPage: React.FC = () => {
         mentor_bio: mentorFormBio,
         availability: mentorFormAvailability,
         help_mode: mentorFormMode,
+        mentor_status: mentorFormStatus,
       });
       setIsMentor(true);
       setEditingMentorProfile(false);
@@ -1168,6 +1437,30 @@ export const SeniorConnectPage: React.FC = () => {
       toast.error('Save Failed', msg || 'Could not save mentor profile.');
     } finally {
       setSavingMentorProfile(false);
+    }
+  };
+
+  const handleFeedbackSubmit = async (rating: number, helpful: boolean, comment: string) => {
+    if (!feedbackModal || !userId) return;
+    try {
+      await upsertSeniorGuidanceFeedbackForRequest({
+        request_id: feedbackModal.req.id,
+        senior_id: feedbackModal.req.senior_id,
+        created_by: userId,
+        rating,
+        helpful,
+        comment,
+      });
+      setFeedbackModal(null);
+      await loadMyRequests();
+      toast.success(
+        feedbackModal.existingFeedback ? 'Review Updated! ✏️' : 'Review Submitted! ⭐',
+        'Thank you! Your feedback helps the community.'
+      );
+    } catch (err: any) {
+      console.error('Error submitting feedback:', err);
+      toast.error('Feedback Failed', err.message || 'Could not submit guidance feedback.');
+      throw err;
     }
   };
 
@@ -1341,6 +1634,7 @@ export const SeniorConnectPage: React.FC = () => {
                   key={req.id} req={req}
                   onCancel={handleCancelRequest}
                   onViewProfile={(uid) => setViewProfileUserId(uid)}
+                  onGiveFeedback={(r, fb) => setFeedbackModal({ req: r, existingFeedback: fb })}
                 />
               ))}
             </div>
@@ -1395,8 +1689,8 @@ export const SeniorConnectPage: React.FC = () => {
                 />
               </div>
 
-              {/* Availability + Mode */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Availability + Mode + Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Availability</label>
                   <input
@@ -1408,10 +1702,10 @@ export const SeniorConnectPage: React.FC = () => {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Preferred Mode</label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1">
                     {GUIDANCE_MODES.map((m) => (
                       <button key={m} type="button" onClick={() => setMentorFormMode(m)}
-                        className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition-colors ${
+                        className={`flex-1 py-2 rounded-lg border text-[11px] font-semibold transition-colors ${
                           mentorFormMode === m
                             ? 'bg-indigo-600 border-indigo-600 text-white'
                             : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'
@@ -1421,6 +1715,18 @@ export const SeniorConnectPage: React.FC = () => {
                       </button>
                     ))}
                   </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Mentor Status</label>
+                  <select
+                    value={mentorFormStatus}
+                    onChange={(e) => setMentorFormStatus(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors"
+                  >
+                    <option value="accepting">Accepting Requests</option>
+                    <option value="busy">Busy</option>
+                    <option value="unavailable">Unavailable</option>
+                  </select>
                 </div>
               </div>
 
@@ -1473,6 +1779,24 @@ export const SeniorConnectPage: React.FC = () => {
                   ))}
                 </div>
               )}
+
+              {/* Cumulative stats and reviews strip */}
+              {(() => {
+                const avgRating = receivedReviews.length > 0
+                  ? Number((receivedReviews.reduce((acc, r) => acc + r.rating, 0) / receivedReviews.length).toFixed(1))
+                  : null;
+                return (
+                  <div className="flex items-center gap-4 pt-2.5 border-t border-slate-100 text-xs font-semibold">
+                    <span className="text-slate-500">
+                      ⭐ Avg Rating: <strong className="text-amber-600">{avgRating !== null ? `${avgRating} / 5` : 'No reviews yet'}</strong>
+                    </span>
+                    <span className="text-slate-300">·</span>
+                    <span className="text-slate-500">
+                      💬 Guidance Reviews: <strong className="text-violet-700">{receivedReviews.length}</strong>
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -1565,6 +1889,16 @@ export const SeniorConnectPage: React.FC = () => {
           userId={viewProfileUserId}
           onClose={() => setViewProfileUserId(null)}
           layer="base"
+        />
+      )}
+
+      {feedbackModal && (
+        <GuidanceFeedbackModal
+          req={feedbackModal.req}
+          existingFeedback={feedbackModal.existingFeedback}
+          currentUserId={userId}
+          onConfirm={handleFeedbackSubmit}
+          onClose={() => setFeedbackModal(null)}
         />
       )}
     </div>

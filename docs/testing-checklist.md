@@ -186,3 +186,44 @@ Use this checklist to perform regression testing and ensure full readiness of al
   - Open the **Peer Help Request** details modal for an accepted help request.
   - If you are either the request creator or the helper, verify that a clean **Next Step: Coordinate Session** guidance tip box is shown right below the people details block, instructing you on how to share links or locations based on the chosen mode.
 
+---
+
+## 🎓 10. Phase 4.5 - Senior Connect Reputation & Safety Polish
+
+> **Requires Supabase patches**: Run `supabase/phase4-contact-privacy-patch.sql` and `supabase/phase4-senior-reviews-safety-patch.sql` in the SQL Editor.
+
+- [ ] **Mentor Status Availability Settings**:
+  - Log in as a Senior Mentor. Go to the **Mentor Dashboard**, click **Edit**.
+  - Locate the **Mentor Status** select dropdown (Accepting / Busy / Unavailable).
+  - Select `Unavailable` and click **Save**.
+  - Log in as a different student. Browse the mentor in **Find Seniors**.
+  - Verify that the card displays a clear `Unavailable` badge, a warning message `"⚠️ This mentor is not accepting requests right now"`, and the **Request Guidance** button is completely disabled.
+  - Log back in as the mentor, change status to `Busy`, and save.
+  - Log in as the student, verify the card displays a `Busy` badge, shows a warning `"⚠️ Mentor is busy; response may be delayed"`, but the **Request Guidance** button is ENABLED and allows requests.
+  - Set status to `Accepting`. Verify normal behavior.
+
+- [ ] **Guidance Feedback (Ratings & Reviews)**:
+  - Log in as Student A. Once a guidance session with Senior B is marked as `completed`, locate the request in **My Requests**.
+  - Verify a **⭐ Give Mentor Feedback** button is visible.
+  - Click it. The **Rate Guidance Session** modal should open, showing:
+    * 1–5 star selectors (rating > 0 validation constraint).
+    * Helpfulness Yes / No toggle buttons.
+    * Comments textbox.
+  - Select 5 stars, click "Yes, helpful", write a comment, and submit. Verify success toast.
+  - The button should now change to **✏️ Edit Review** and show a `✓ Reviewed` badge.
+  - Click **✏️ Edit Review**, change rating or comment, and save. Verify success toast.
+  - Try logging in as the senior (Senior B). Try to review your own session. Verify RLS and UI prevent seniors from reviewing their own sessions.
+
+- [ ] **Public Profile Reviews Grid**:
+  - Open Senior B's **Public Profile Modal** from a post or card.
+  - Verify that the profile displays the cumulative **Average Mentor Rating** (e.g. `⭐ 5.0`) and the **Guidance Reviews** count.
+  - Verify that a list of **Recent Guidance Reviews** is rendered.
+  - Verify that each review item is strictly anonymous, showing `"Anonymous Junior"` instead of student name/email/UUID.
+  - Verify that the recent reviews list is capped at a maximum of the 3 most recent records.
+  - Verify that these mentor guidance stats remain completely segregated from Peer Help trust scores and Doubt ratings.
+
+- [ ] **Duplicate Active Request Prevention**:
+  - Log in as Student A. Send a guidance request to Senior B.
+  - While that request is still `pending` or `accepted`, try to send another guidance request to Senior B.
+  - Verify that both the API check and the database index constraint block the duplicate request, showing a clear warning toast `"You already have an active guidance request with this senior"`.
+

@@ -26,6 +26,7 @@ export interface Profile {
   share_email_after_accept: boolean;
   share_other_contact_after_accept: boolean;
   share_contact_after_accept: boolean;
+  mentor_status?: 'accepting' | 'busy' | 'unavailable';
   created_at: string;
   updated_at: string;
 }
@@ -256,4 +257,17 @@ export interface SeniorMentorProfile {
   trust_score: number;
   badge_level: string;
   skills_known: string[];
+  mentor_status?: 'accepting' | 'busy' | 'unavailable';
+}
+
+export interface SeniorGuidanceFeedback {
+  id: string;
+  request_id: string;
+  senior_id: string;
+  created_by: string;
+  rating: number;
+  helpful: boolean;
+  comment: string | null;
+  created_at: string;
+  updated_at: string;
 }

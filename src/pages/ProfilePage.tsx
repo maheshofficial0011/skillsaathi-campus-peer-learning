@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentProfile, upsertCurrentProfile } from '../lib/profiles';
 import { getReviewsReceived, getDoubtContributionStats } from '../lib/profileStats';
-import { getSeniorMentorStats } from '../lib/seniorConnect';
+import { getSeniorMentorStats, getSeniorFeedbackReceived } from '../lib/seniorConnect';
 import type { SeniorMentorStats } from '../lib/seniorConnect';
-import type { Profile, YearOfStudy } from '../types';
+import type { Profile, YearOfStudy, SeniorGuidanceFeedback } from '../types';
 import type { ReviewItem, DoubtContributionStats } from '../lib/profileStats';
 import { DEPARTMENTS } from '../lib/departments';
 import { PublicProfileModal } from '../components/profile/PublicProfileModal';
@@ -55,6 +55,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
   const [mentorStats, setMentorStats] = useState<SeniorMentorStats | null>(null);
+  const [seniorFeedback, setSeniorFeedback] = useState<SeniorGuidanceFeedback[]>([]);
 
   const completeness = useMemo(() => {
     if (!profile) return { percent: 0, missing: [] as { name: string; label: string }[] };
@@ -149,6 +150,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
         if (data.is_senior_mentor) {
           const ms = await getSeniorMentorStats(userId);
           setMentorStats(ms);
+          const fb = await getSeniorFeedbackReceived(userId);
+          setSeniorFeedback(fb);
         }
       }
     } catch (err) {
@@ -851,45 +854,82 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
           {/* ============================================ */}
 
           {/* ========== SENIOR MENTOR IMPACT SECTION ========== */}
-          {profile.is_senior_mentor && (
-            <div className="p-6 bg-violet-50/50 rounded-2xl border border-violet-200 shadow-sm space-y-6">
-              <div className="border-b border-violet-200 pb-3 flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-bold text-violet-900 flex items-center gap-2">
-                    <span>🎓</span> Senior Mentor Impact
-                  </h3>
-                  <p className="text-xs text-violet-600 mt-0.5">Based on professional guidance requests received and completed</p>
+          {profile.is_senior_mentor && (() => {
+            const avgGuidanceRating = seniorFeedback.length > 0
+              ? Number((seniorFeedback.reduce((acc, f) => acc + f.rating, 0) / seniorFeedback.length).toFixed(1))
+              : null;
+            return (
+              <div className="p-6 bg-violet-50/50 rounded-2xl border border-violet-200 shadow-sm space-y-6">
+                <div className="border-b border-violet-200 pb-3 flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-violet-900 flex items-center gap-2">
+                      <span>🎓</span> Senior Mentor Impact
+                    </h3>
+                    <p className="text-xs text-violet-600 mt-0.5">Based on professional guidance requests received and completed</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap shrink-0">
+                    {profile.mentor_status && (
+                      <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                        profile.mentor_status === 'accepting'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : profile.mentor_status === 'busy'
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-red-50 text-red-600 border-red-200'
+                      }`}>
+                        {profile.mentor_status === 'accepting'
+                          ? '● Accepting'
+                          : profile.mentor_status === 'busy'
+                          ? '● Busy'
+                          : '● Unavailable'}
+                      </span>
+                    )}
+                    <span className="text-xs text-violet-500 font-medium bg-violet-100 px-2 py-0.5 rounded-full border border-violet-200">Active Mentor</span>
+                  </div>
                 </div>
-                <span className="text-xs text-violet-500 font-medium shrink-0 bg-violet-100 px-2 py-0.5 rounded-full border border-violet-200">Active Mentor</span>
-              </div>
 
-              {/* Stats Grid */}
-              {mentorStats ? (
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
-                    <p className="text-2xl font-extrabold text-violet-700">{mentorStats.completedCount}</p>
-                    <p className="text-[11px] font-bold text-violet-500 mt-1">Completed</p>
+                {/* Stats Grid */}
+                {mentorStats ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
+                        <p className="text-2xl font-extrabold text-violet-700">{mentorStats.completedCount}</p>
+                        <p className="text-[11px] font-bold text-violet-500 mt-1">Completed</p>
+                      </div>
+                      <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
+                        <p className="text-2xl font-extrabold text-violet-700">{mentorStats.acceptedCount}</p>
+                        <p className="text-[11px] font-bold text-violet-500 mt-1">Accepted</p>
+                      </div>
+                      <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
+                        <p className="text-2xl font-extrabold text-violet-700">{mentorStats.pendingCount}</p>
+                        <p className="text-[11px] font-bold text-violet-500 mt-1">Pending</p>
+                      </div>
+                      <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
+                        <p className="text-2xl font-extrabold text-violet-700">{mentorStats.declinedCount}</p>
+                        <p className="text-[11px] font-bold text-violet-500 mt-1">Declined</p>
+                      </div>
+                      <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm col-span-2 md:col-span-1">
+                        <p className="text-2xl font-extrabold text-violet-700">{mentorStats.completionRate}%</p>
+                        <p className="text-[11px] font-bold text-violet-500 mt-1">Completion Rate</p>
+                      </div>
+                    </div>
+
+                    {/* Ratings Stats Grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
+                        <p className="text-2xl font-extrabold text-amber-600">
+                          {avgGuidanceRating !== null ? `⭐ ${avgGuidanceRating}` : '—'}
+                        </p>
+                        <p className="text-[11px] font-bold text-violet-500 mt-1">Average Mentor Rating</p>
+                      </div>
+                      <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
+                        <p className="text-2xl font-extrabold text-violet-700">{seniorFeedback.length}</p>
+                        <p className="text-[11px] font-bold text-violet-500 mt-1">Guidance Reviews Received</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
-                    <p className="text-2xl font-extrabold text-violet-700">{mentorStats.acceptedCount}</p>
-                    <p className="text-[11px] font-bold text-violet-500 mt-1">Accepted</p>
-                  </div>
-                  <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
-                    <p className="text-2xl font-extrabold text-violet-700">{mentorStats.pendingCount}</p>
-                    <p className="text-[11px] font-bold text-violet-500 mt-1">Pending</p>
-                  </div>
-                  <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
-                    <p className="text-2xl font-extrabold text-violet-700">{mentorStats.declinedCount}</p>
-                    <p className="text-[11px] font-bold text-violet-500 mt-1">Declined</p>
-                  </div>
-                  <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm col-span-2 md:col-span-1">
-                    <p className="text-2xl font-extrabold text-violet-700">{mentorStats.completionRate}%</p>
-                    <p className="text-[11px] font-bold text-violet-500 mt-1">Completion Rate</p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-violet-500 italic">Loading mentor impact statistics…</p>
-              )}
+                ) : (
+                  <p className="text-xs text-violet-500 italic">Loading mentor impact statistics…</p>
+                )}
 
               {/* Bio & Details */}
               <div className="space-y-4 pt-2">
@@ -931,7 +971,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                 </div>
               </div>
             </div>
-          )}
+          );
+        })()}
 
           {/* ========== DOUBT CONTRIBUTION SECTION ========== */}
           <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-6">
