@@ -28,7 +28,7 @@ export const LearningCirclesPage: React.FC = () => {
               For campus peers building web projects. We meet weekly on Discord to review each other's code, share styling tips, and talk about React performance.
             </p>
           </div>
-          <button className="w-full mt-4 py-2 px-4 bg-indigo-550 hover:bg-indigo-50 text-indigo-700 font-semibold text-sm rounded-lg border border-indigo-200 transition-colors">
+          <button className="w-full mt-4 py-2 px-4 bg-indigo-50/40 hover:bg-indigo-50 text-indigo-700 font-semibold text-sm rounded-lg border border-indigo-200 transition-colors">
             Join Circle
           </button>
         </div>
@@ -46,7 +46,7 @@ export const LearningCirclesPage: React.FC = () => {
               A cohort studying deep learning basics using PyTorch. Currently working through neural network fundamentals, backpropagation, and CNNs.
             </p>
           </div>
-          <button className="w-full mt-4 py-2 px-4 bg-indigo-550 hover:bg-indigo-50 text-indigo-700 font-semibold text-sm rounded-lg border border-indigo-200 transition-colors">
+          <button className="w-full mt-4 py-2 px-4 bg-indigo-50/40 hover:bg-indigo-50 text-indigo-700 font-semibold text-sm rounded-lg border border-indigo-200 transition-colors">
             Join Circle
           </button>
         </div>
@@ -64,7 +64,7 @@ export const LearningCirclesPage: React.FC = () => {
               A large campus circle focused on solving competitive coding questions, sharing interview experiences, and peer-reviewing resumes.
             </p>
           </div>
-          <button className="w-full mt-4 py-2 px-4 bg-indigo-550 hover:bg-indigo-50 text-indigo-700 font-semibold text-sm rounded-lg border border-indigo-200 transition-colors">
+          <button className="w-full mt-4 py-2 px-4 bg-indigo-50/40 hover:bg-indigo-50 text-indigo-700 font-semibold text-sm rounded-lg border border-indigo-200 transition-colors">
             Join Circle
           </button>
         </div>

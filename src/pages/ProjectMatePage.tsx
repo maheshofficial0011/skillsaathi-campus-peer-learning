@@ -27,7 +27,7 @@ export const ProjectMatePage: React.FC = () => {
           </p>
           <div className="flex items-center justify-between pt-2 border-t border-slate-150">
             <span className="text-xs text-slate-500">Project Leader: Ankit Joshi • 3 weeks remaining</span>
-            <button className="px-4 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">
+            <button className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">
               Contact Leader
             </button>
           </div>
@@ -45,7 +45,7 @@ export const ProjectMatePage: React.FC = () => {
           </p>
           <div className="flex items-center justify-between pt-2 border-t border-slate-150">
             <span className="text-xs text-slate-500">Project Leader: Sneha Roy • Starts in 4 days</span>
-            <button className="px-4 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">
+            <button className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">
               Contact Leader
             </button>
           </div>
