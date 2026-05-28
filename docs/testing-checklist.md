@@ -90,3 +90,49 @@ Use this checklist to perform regression testing and ensure full readiness of al
 - [ ] **Modals**:
   - Open the **Doubt Details Modal** or **Public Profile Modal** on mobile.
   - Verify that the card fits cleanly within the screen boundaries with a 16px border padding (`p-4`), and that you can scroll within the modal if the text is long.
+
+---
+
+## ✍️ 6. Doubt Answer & Reply Edit / Delete
+
+> **Requires Supabase patch**: Run `supabase/phase3-answer-reply-edit-delete-patch.sql` in the SQL Editor before testing.
+
+- [ ] **Edit own answer**: Post an answer. Click **Edit** → modify text → **Save Answer**. Verify success toast and `(edited)` label appears.
+- [ ] **Cancel edit**: Click **Cancel**. Verify original text restored with no API call.
+- [ ] **Delete own unaccepted answer**: Delete an unaccepted/unpinned answer. Confirm dialog. Verify it disappears, counters update, toast fires.
+- [ ] **Delete blocked for accepted answer**: Verify no **Delete** button; hint `"Accepted — cannot delete"` shown.
+- [ ] **Delete blocked for pinned answer**: Verify no **Delete** button; hint `"Pinned — cannot delete"` shown.
+- [ ] **Edit own reply**: Click **Edit** on own reply → modify → **Save**. Verify toast and `(edited)` label.
+- [ ] **Delete own reply (not pinned)**: Confirm dialog. Verify reply removed, count decremented, toast fires.
+- [ ] **Delete blocked for pinned reply**: Reply author sees `"Pinned — cannot delete"` instead of Delete button.
+- [ ] **Other users cannot edit/delete**: Log in as a different user — no Edit/Delete buttons on others' answers or replies.
+
+---
+
+## 📌 7. Reply Pinning
+
+> **Requires Supabase patch**: Run `supabase/phase3-answer-reply-edit-delete-patch.sql`.
+
+- [ ] **Doubt creator can pin a reply**: Click **📌 Pin** on a reply → success toast → `📌 Pinned` amber badge appears.
+- [ ] **Pinned reply floats to top**: Pinned reply appears before all un-pinned replies in the thread.
+- [ ] **Multiple pinned replies allowed**: Pin two replies. Both appear at the top with amber badges.
+- [ ] **Doubt creator can unpin**: Click **📌 Unpin** → badge disappears, reply sorts normally.
+- [ ] **Non-creator cannot pin**: Log in as non-creator — no Pin button in reply action rows.
+- [ ] **Closed doubt — no pinning**: Close the doubt. Pin button disappears even for creator.
+- [ ] **Sort respects pinned first**: Toggle 🔥 Top / 🕒 Newest. Pinned replies always stay at the top.
+- [ ] **Reply author can edit pinned reply**: **Edit** button still visible; text saves; `(edited)` label appears.
+
+---
+
+## 🛡️ 8. Self-Answer Safety
+
+> **Product rule**: Self-answering is allowed. Students can share their own solutions. But it is labelled and does not inflate stats.
+
+- [ ] **Doubt creator can post own answer**: While status is `open` or `answered`, creator submits an answer. Success toast fires.
+- [ ] **Own answer shows badge**: Creator's answer shows grey `🙋 Answered by asker` badge. Other users' answers do NOT show this badge.
+- [ ] **Doubt creator cannot rate own answer**: No **⭐ Rate** button on the creator's own answer. Rating form is inaccessible.
+- [ ] **Doubt creator CAN rate other users' answers**: ⭐ Rate button appears on others' answers when status is `answered`/`solved`.
+- [ ] **Doubt creator can accept own answer**: ✅ Accept visible on own answer. After accepting: `✅ Accepted Answer` badge appears, status → `solved`.
+- [ ] **Own accepted answer does NOT inflate stat**: Go to **My Profile → Doubt Contribution**. Accepting own answer should NOT increment `Accepted Answers` count.
+- [ ] **External accepted answer DOES increment stat**: The answerer's profile `Accepted Answers` count increases after creator accepts their answer.
+- [ ] **Like button hidden for own content**: 👍 Like button not shown on own answers or replies. Count is still displayed as read-only text if others liked it.

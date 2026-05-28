@@ -31,7 +31,8 @@ export interface DoubtContributionStats {
  * Calculates doubt contribution stats for a userId:
  * - doubtsAsked: doubts they created
  * - doubtsAnswered: distinct doubts they answered
- * - acceptedAnswers: answers they gave that were accepted
+ * - acceptedAnswers: answers they gave that were accepted, EXCLUDING self-accepted
+ *   (i.e. doubt.created_by != userId — answering your own doubt doesn't count)
  * - answerRatingsReceived / averageDoubtAnswerRating: from doubt_answer_ratings
  */
 export const getDoubtContributionStats = async (userId: string): Promise<DoubtContributionStats> => {
@@ -39,7 +40,7 @@ export const getDoubtContributionStats = async (userId: string): Promise<DoubtCo
     const [
       askedResult,
       answeredResult,
-      acceptedResult,
+      acceptedRawResult,
       ratingsResult,
     ] = await Promise.all([
       // doubtsAsked
@@ -54,10 +55,13 @@ export const getDoubtContributionStats = async (userId: string): Promise<DoubtCo
         .select('doubt_id')
         .eq('created_by', userId),
 
-      // acceptedAnswers
+      // acceptedAnswers (raw): fetch doubt_id alongside so we can filter self-doubts
+      // We intentionally avoid neq(doubt_created_by) in a single query because
+      // Supabase JS client doesn't support cross-table conditions on .select().
+      // Instead we fetch the list and filter in JS.
       supabase
         .from('doubt_answers')
-        .select('*', { count: 'exact', head: true })
+        .select('id, doubt_id')
         .eq('created_by', userId)
         .eq('is_accepted', true),
 
@@ -67,6 +71,24 @@ export const getDoubtContributionStats = async (userId: string): Promise<DoubtCo
         .select('rating')
         .eq('receiver_id', userId),
     ]);
+
+    // Filter self-accepted answers:
+    // An accepted answer only counts toward reputation if the doubt was asked by SOMEONE ELSE.
+    const acceptedRows = (acceptedRawResult.data || []) as { id: string; doubt_id: string }[];
+    let acceptedAnswers = 0;
+    if (acceptedRows.length > 0) {
+      // Fetch the doubt_posts for those doubt_ids to check their creator
+      const doubtIds = [...new Set(acceptedRows.map((r) => r.doubt_id))];
+      const { data: doubtCreators } = await supabase
+        .from('doubt_posts')
+        .select('id, created_by')
+        .in('id', doubtIds);
+      const selfDoubtIds = new Set(
+        (doubtCreators || []).filter((d) => d.created_by === userId).map((d) => d.id)
+      );
+      // Count only accepted answers where the doubt was NOT created by userId
+      acceptedAnswers = acceptedRows.filter((r) => !selfDoubtIds.has(r.doubt_id)).length;
+    }
 
     // Distinct doubt IDs answered
     const distinctDoubtIds = new Set(
@@ -82,7 +104,7 @@ export const getDoubtContributionStats = async (userId: string): Promise<DoubtCo
     return {
       doubtsAsked: askedResult.count ?? 0,
       doubtsAnswered: distinctDoubtIds.size,
-      acceptedAnswers: acceptedResult.count ?? 0,
+      acceptedAnswers,
       answerRatingsReceived: ratingValues.length,
       averageDoubtAnswerRating,
     };

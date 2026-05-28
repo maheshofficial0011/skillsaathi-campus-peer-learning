@@ -321,10 +321,16 @@ const ReplyCard: React.FC<ReplyCardProps> = ({
             <p className="text-xs text-slate-700 whitespace-pre-wrap break-words leading-relaxed">{reply.reply_text}</p>
             {/* Action row */}
             <div className="flex items-center gap-3 mt-1 flex-wrap">
-              <button type="button" disabled={liking} onClick={handleLike}
-                className={`flex items-center gap-1 text-[11px] font-semibold transition-colors ${isLiked ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-500'}`}>
-                👍 {likeCount > 0 ? likeCount : ''}
-              </button>
+              {/* Like — hidden for own reply */}
+              {!isOwner && (
+                <button type="button" disabled={liking} onClick={handleLike}
+                  className={`flex items-center gap-1 text-[11px] font-semibold transition-colors ${isLiked ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-500'}`}>
+                  👍 {likeCount > 0 ? likeCount : ''}
+                </button>
+              )}
+              {isOwner && likeCount > 0 && (
+                <span className="flex items-center gap-1 text-[11px] text-slate-400">👍 {likeCount}</span>
+              )}
               {canReply && (
                 <button type="button" onClick={() => onReplyToThis(authorName)}
                   className="text-[11px] font-semibold text-slate-400 hover:text-indigo-500 transition-colors">Reply</button>
@@ -558,6 +564,8 @@ const AnswerCard: React.FC<AnswerCardProps> = ({
   const isPinned = !!answer.is_pinned;
   const answererName = answer.answerer_profile?.full_name || 'Campus Student';
   const isOwner = answer.created_by === currentUserId;
+  /** True when the person who answered is the same person who asked */
+  const isSelfAnswer = answer.created_by === doubt.created_by;
   const canDeleteAnswer = isOwner && !answer.is_accepted && !isPinned;
   const edited = wasEdited(answer.created_at, answer.updated_at);
   const isTruncated = answer.answer_text.length > TRUNCATE_AT;
@@ -657,8 +665,13 @@ const AnswerCard: React.FC<AnswerCardProps> = ({
             {edited && <span className="text-slate-400 italic text-[10px]">(edited)</span>}
           </div>
           {/* Badges */}
-          {(isPinned || answer.is_accepted || avgRatingValue !== null) && (
+          {(isPinned || answer.is_accepted || avgRatingValue !== null || isSelfAnswer) && (
             <div className="flex flex-wrap gap-1.5 mt-1">
+              {isSelfAnswer && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                  🙋 Answered by asker
+                </span>
+              )}
               {isPinned && (
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                   📌 Pinned by asker
@@ -750,11 +763,19 @@ const AnswerCard: React.FC<AnswerCardProps> = ({
 
             {/* Action row */}
             <div className="flex items-center gap-3 flex-wrap mt-2 text-[12px]">
-              {/* Like */}
-              <button type="button" disabled={liking} onClick={handleToggleLike}
-                className={`flex items-center gap-1 font-semibold transition-colors ${isLiked ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-500'} disabled:opacity-60`}>
-                <span>👍</span><span>{likeCount > 0 ? likeCount : ''}</span>
-              </button>
+              {/* Like — hidden for own answer to discourage self-like */}
+              {!isOwner && (
+                <button type="button" disabled={liking} onClick={handleToggleLike}
+                  className={`flex items-center gap-1 font-semibold transition-colors ${isLiked ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-500'} disabled:opacity-60`}>
+                  <span>👍</span><span>{likeCount > 0 ? likeCount : ''}</span>
+                </button>
+              )}
+              {/* Like count visible even for owner (read-only), no toggle */}
+              {isOwner && likeCount > 0 && (
+                <span className="flex items-center gap-1 text-[12px] text-slate-400">
+                  <span>👍</span><span>{likeCount}</span>
+                </span>
+              )}
               {/* Reply */}
               {canReply && (
                 <button type="button" onClick={() => setOpenComposer(true)}
