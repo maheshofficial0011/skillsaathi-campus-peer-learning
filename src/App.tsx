@@ -4,7 +4,7 @@ import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProfilePage } from './pages/ProfilePage';
-import { DoubtsPage } from './pages/DoubtsPage';
+import DoubtsPage from './pages/DoubtsPage';
 import { LearningCirclesPage } from './pages/LearningCirclesPage';
 import { ProjectMatePage } from './pages/ProjectMatePage';
 import { SeniorConnectPage } from './pages/SeniorConnectPage';

@@ -2,6 +2,8 @@ import { supabase } from './supabase';
 import type {
   DoubtPostWithProfile,
   DoubtAnswerWithProfile,
+  DoubtAnswerRating,
+  DoubtAnswerReplyWithProfile,
 } from '../types';
 
 // ──────────────────────────────────────────
@@ -59,14 +61,31 @@ export interface UpdateAnswerInput {
   answer_text: string;
 }
 
+export interface RateAnswerInput {
+  answer_id: string;
+  doubt_id: string;
+  created_by: string;
+  receiver_id: string;
+  rating: number;
+  comment?: string;
+}
+
+export interface CreateReplyInput {
+  answer_id: string;
+  doubt_id: string;
+  reply_text: string;
+  created_by: string;
+  is_anonymous: boolean;
+}
+
 // ──────────────────────────────────────────
 // DOUBT POST FUNCTIONS
 // ──────────────────────────────────────────
 
 /**
  * Fetch all doubt posts with creator profile.
- * Returns most-recent first. Anonymous posts have creator_profile intact
- * in the DB, but the UI is responsible for hiding the name.
+ * Returns most-recent first. Anonymous posts have creator_profile intact in DB
+ * but the UI hides the name.
  */
 export const getDoubts = async (): Promise<DoubtPostWithProfile[]> => {
   try {
@@ -139,7 +158,7 @@ export const createDoubt = async (input: CreateDoubtInput): Promise<DoubtPostWit
 };
 
 /**
- * Update a doubt post's editable fields (title, description, category, tags).
+ * Update a doubt post's editable fields.
  */
 export const updateDoubt = async (
   doubtId: string,
@@ -189,14 +208,10 @@ export const closeDoubt = async (doubtId: string): Promise<boolean> => {
 
 /**
  * Mark a doubt as solved by accepting a specific answer.
- * Sets doubt status to 'solved', sets solved_answer_id, and sets is_accepted on the answer.
- * This is a two-step process to stay within RLS policies:
- *   1. Update the answer row to is_accepted = true (allowed by "Doubt creator can accept an answer").
- *   2. Update the doubt post to status='solved' and solved_answer_id (allowed by "Doubt creator can update their own doubt").
+ * Two-step: mark answer accepted, then mark doubt solved + set solved_answer_id.
  */
 export const markDoubtSolved = async (doubtId: string, answerId: string): Promise<boolean> => {
   try {
-    // Step 1: Mark the answer as accepted
     const { error: answerError } = await supabase
       .from('doubt_answers')
       .update({ is_accepted: true })
@@ -205,18 +220,35 @@ export const markDoubtSolved = async (doubtId: string, answerId: string): Promis
 
     if (answerError) throw answerError;
 
-    // Step 2: Mark the doubt as solved with the accepted answer reference
     const { error: doubtError } = await supabase
       .from('doubt_posts')
       .update({ status: 'solved', solved_answer_id: answerId })
       .eq('id', doubtId);
 
     if (doubtError) throw doubtError;
-
     return true;
   } catch (err) {
     console.error('Error marking doubt solved:', err);
     throw err;
+  }
+};
+
+/**
+ * Returns the set of doubt_ids that the given user has answered.
+ * Used to populate the "Answered by Me" tab.
+ */
+export const getDoubtIdsAnsweredByUser = async (userId: string): Promise<Set<string>> => {
+  try {
+    const { data, error } = await supabase
+      .from('doubt_answers')
+      .select('doubt_id')
+      .eq('created_by', userId);
+
+    if (error) throw error;
+    return new Set((data || []).map((r: { doubt_id: string }) => r.doubt_id));
+  } catch (err) {
+    console.error('Error fetching answered doubt ids:', err);
+    return new Set();
   }
 };
 
@@ -226,7 +258,7 @@ export const markDoubtSolved = async (doubtId: string, answerId: string): Promis
 
 /**
  * Fetch all answers for a given doubt, with answerer profile.
- * Accepted answer always sorts first, then chronologically.
+ * Accepted answer sorts first, then chronologically.
  */
 export const getAnswersForDoubt = async (doubtId: string): Promise<DoubtAnswerWithProfile[]> => {
   try {
@@ -250,6 +282,8 @@ export const getAnswersForDoubt = async (doubtId: string): Promise<DoubtAnswerWi
 
 /**
  * Post a new answer to a doubt.
+ * NOTE: DB trigger handle_doubt_first_answer() auto-updates doubt status to 'answered'
+ * when status was 'open'. No client-side status update needed.
  */
 export const createAnswer = async (input: CreateAnswerInput): Promise<DoubtAnswerWithProfile | null> => {
   try {
@@ -267,14 +301,6 @@ export const createAnswer = async (input: CreateAnswerInput): Promise<DoubtAnswe
       .single();
 
     if (error) throw error;
-
-    // After first answer, bump doubt status to 'answered' (if still open)
-    await supabase
-      .from('doubt_posts')
-      .update({ status: 'answered' })
-      .eq('id', input.doubt_id)
-      .eq('status', 'open');
-
     return data as DoubtAnswerWithProfile;
   } catch (err) {
     console.error('Error creating answer:', err);
@@ -283,7 +309,7 @@ export const createAnswer = async (input: CreateAnswerInput): Promise<DoubtAnswe
 };
 
 /**
- * Update the text of an existing answer (owner only, doubt must be open/answered).
+ * Update the text of an existing answer.
  */
 export const updateAnswer = async (
   answerId: string,
@@ -304,6 +330,161 @@ export const updateAnswer = async (
     return data as DoubtAnswerWithProfile;
   } catch (err) {
     console.error('Error updating answer:', err);
+    throw err;
+  }
+};
+
+// ──────────────────────────────────────────
+// ANSWER RATING FUNCTIONS (Phase 3 Improvement)
+// ──────────────────────────────────────────
+
+/**
+ * Fetch all ratings for all answers belonging to a doubt.
+ */
+export const getRatingsForDoubt = async (doubtId: string): Promise<DoubtAnswerRating[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('doubt_answer_ratings')
+      .select('*')
+      .eq('doubt_id', doubtId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return (data || []) as DoubtAnswerRating[];
+  } catch (err) {
+    console.error('Error fetching answer ratings:', err);
+    return [];
+  }
+};
+
+/**
+ * Submit a 1–10 rating from the doubt creator for one answer.
+ */
+export const rateDoubtAnswer = async (input: RateAnswerInput): Promise<DoubtAnswerRating | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('doubt_answer_ratings')
+      .insert({
+        answer_id: input.answer_id,
+        doubt_id: input.doubt_id,
+        created_by: input.created_by,
+        receiver_id: input.receiver_id,
+        rating: input.rating,
+        comment: input.comment?.trim() || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as DoubtAnswerRating;
+  } catch (err) {
+    console.error('Error rating answer:', err);
+    throw err;
+  }
+};
+
+/**
+ * Update an existing rating.
+ */
+export const updateDoubtAnswerRating = async (
+  ratingId: string,
+  input: { rating: number; comment?: string }
+): Promise<DoubtAnswerRating | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('doubt_answer_ratings')
+      .update({
+        rating: input.rating,
+        comment: input.comment?.trim() || null,
+      })
+      .eq('id', ratingId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as DoubtAnswerRating;
+  } catch (err) {
+    console.error('Error updating answer rating:', err);
+    throw err;
+  }
+};
+
+// ──────────────────────────────────────────
+// ANSWER REPLY FUNCTIONS (Phase 3 Improvement)
+// ──────────────────────────────────────────
+
+/**
+ * Fetch all replies for all answers in a doubt (batched, not per-answer).
+ */
+export const getRepliesForDoubt = async (doubtId: string): Promise<DoubtAnswerReplyWithProfile[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('doubt_answer_replies')
+      .select(`
+        *,
+        author_profile:profiles!doubt_answer_replies_created_by_fkey(full_name)
+      `)
+      .eq('doubt_id', doubtId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return (data || []) as DoubtAnswerReplyWithProfile[];
+  } catch (err) {
+    console.error('Error fetching replies for doubt:', err);
+    return [];
+  }
+};
+
+/**
+ * Post a follow-up / cross-question reply under an answer.
+ */
+export const createAnswerReply = async (input: CreateReplyInput): Promise<DoubtAnswerReplyWithProfile | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('doubt_answer_replies')
+      .insert({
+        answer_id: input.answer_id,
+        doubt_id: input.doubt_id,
+        reply_text: input.reply_text.trim(),
+        created_by: input.created_by,
+        is_anonymous: input.is_anonymous,
+      })
+      .select(`
+        *,
+        author_profile:profiles!doubt_answer_replies_created_by_fkey(full_name)
+      `)
+      .single();
+
+    if (error) throw error;
+    return data as DoubtAnswerReplyWithProfile;
+  } catch (err) {
+    console.error('Error creating reply:', err);
+    throw err;
+  }
+};
+
+/**
+ * Update the text of an existing reply (owner only).
+ */
+export const updateAnswerReply = async (
+  replyId: string,
+  input: { reply_text: string }
+): Promise<DoubtAnswerReplyWithProfile | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('doubt_answer_replies')
+      .update({ reply_text: input.reply_text.trim() })
+      .eq('id', replyId)
+      .select(`
+        *,
+        author_profile:profiles!doubt_answer_replies_created_by_fkey(full_name)
+      `)
+      .single();
+
+    if (error) throw error;
+    return data as DoubtAnswerReplyWithProfile;
+  } catch (err) {
+    console.error('Error updating reply:', err);
     throw err;
   }
 };

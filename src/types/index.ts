@@ -121,3 +121,34 @@ export interface DoubtAnswerWithProfile extends DoubtAnswer {
     year_of_study: string;
   } | null;
 }
+
+// Phase 3 improvement: answer ratings (1–10) by doubt creator
+export interface DoubtAnswerRating {
+  id: string;
+  answer_id: string;
+  doubt_id: string;
+  created_by: string;
+  receiver_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Phase 3 improvement: per-answer follow-up replies / cross-questions
+export interface DoubtAnswerReply {
+  id: string;
+  answer_id: string;
+  doubt_id: string;
+  reply_text: string;
+  created_by: string;
+  is_anonymous: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DoubtAnswerReplyWithProfile extends DoubtAnswerReply {
+  author_profile?: {
+    full_name: string;
+  } | null;
+}
