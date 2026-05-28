@@ -193,6 +193,8 @@ const AnswerCard: React.FC<{
   doubt: DoubtPostWithProfile;
   currentUserId: string;
   existingRating?: DoubtAnswerRating;
+  avgRatingValue: number | null;
+  ratingCount: number;
   replies: DoubtAnswerReplyWithProfile[];
   canRate: boolean;
   canMark: boolean;
@@ -201,7 +203,7 @@ const AnswerCard: React.FC<{
   onRated: (rating: DoubtAnswerRating) => void;
   onReplyAdded: (reply: DoubtAnswerReplyWithProfile) => void;
 }> = ({
-  answer, doubt, currentUserId, existingRating, replies,
+  answer, doubt, currentUserId, existingRating, avgRatingValue, ratingCount, replies,
   canRate, canMark, canReply, onMarkAccepted, onRated, onReplyAdded,
 }) => {
   const toast = useToast();
@@ -213,6 +215,12 @@ const AnswerCard: React.FC<{
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratingError, setRatingError] = useState('');
   const [showRatingForm, setShowRatingForm] = useState(false);
+
+  // Sync rating inputs if existingRating changes (e.g. after modal re-loads)
+  useEffect(() => {
+    setRatingValue(existingRating?.rating ?? 5);
+    setRatingComment(existingRating?.comment ?? '');
+  }, [existingRating?.id, existingRating?.rating, existingRating?.comment]);
 
   const answererName = answer.answerer_profile?.full_name || 'Campus Student';
   const isTruncated = answer.answer_text.length > TRUNCATE_AT;
@@ -257,11 +265,23 @@ const AnswerCard: React.FC<{
   };
 
   return (
-    <div className={`p-4 rounded-xl border space-y-3 ${answer.is_accepted ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
+    <div className={`p-4 rounded-xl border space-y-3 transition-colors ${answer.is_accepted ? 'bg-emerald-50 border-emerald-300 shadow-sm' : 'bg-white border-slate-200'}`}>
       {/* Accepted badge */}
       {answer.is_accepted && (
-        <div className="flex items-center gap-1.5 text-emerald-700">
+        <div className="flex items-center gap-1.5 text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 w-fit">
           <span className="text-sm font-bold">✅ Accepted Answer</span>
+        </div>
+      )}
+
+      {/* Avg rating pill (above answerer info) */}
+      {avgRatingValue !== null && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+            Avg rating: {avgRatingValue}/10
+          </span>
+          <span className="text-[10px] text-slate-400">
+            ({ratingCount} rating{ratingCount !== 1 ? 's' : ''})
+          </span>
         </div>
       )}
 
@@ -328,7 +348,7 @@ const AnswerCard: React.FC<{
         </div>
       )}
 
-      {/* Rate button (no existing rating) */}
+      {/* Rate button (no existing rating, no form showing) */}
       {canRate && !showRatingForm && !existingRating && (
         <button type="button" onClick={() => setShowRatingForm(true)}
           className="text-xs text-amber-600 hover:text-amber-800 font-semibold transition-colors">
@@ -336,7 +356,7 @@ const AnswerCard: React.FC<{
         </button>
       )}
 
-      {/* Mark as accepted (not yet accepted; creator; open or answered or solved) */}
+      {/* Accept button: only shown when not yet accepted + creator + not closed */}
       {canMark && !answer.is_accepted && (
         <button type="button" disabled={marking} onClick={handleMarkAccepted}
           className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">
@@ -379,7 +399,7 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
   const [viewProfileUserId, setViewProfileUserId] = useState<string | null>(null);
 
   const isCreator = doubt.created_by === currentUserId;
-  // New answer form: only shown for open or answered doubts (NOT solved)
+  // New answer form: only shown for open or answered doubts (NOT solved or closed)
   const canAnswer = doubt.status === 'open' || doubt.status === 'answered';
   // Replies allowed on open/answered only
   const canReply = doubt.status === 'open' || doubt.status === 'answered';
@@ -394,6 +414,11 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     (doubt.status === 'open' || doubt.status === 'closed') &&
     !loadingAnswers &&
     answers.length === 0;
+
+  // ── Derived counters ──
+  const totalAnswers = answers.length;
+  const acceptedAnswersCount = answers.filter((a) => a.is_accepted).length;
+  const totalReplies = replies.length;
 
   const loadData = useCallback(async () => {
     setLoadingAnswers(true);
@@ -412,7 +437,16 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
   }, [doubt.id]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  useEffect(() => { setDoubt(initialDoubt); }, [initialDoubt]);
+
+  // Sync doubt state when parent updates it (e.g. board-level status change)
+  // But do NOT overwrite local doubt state mid-action — use functional update
+  useEffect(() => {
+    setDoubt((prev) => {
+      // Only update if the incoming initialDoubt has a newer/different status
+      if (prev.id !== initialDoubt.id) return initialDoubt;
+      return prev;
+    });
+  }, [initialDoubt]);
 
   const applyDoubtUpdate = (updated: DoubtPostWithProfile) => {
     setDoubt(updated);
@@ -426,16 +460,18 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     try {
       const newAnswer = await createAnswer({ doubt_id: doubt.id, answer_text: answerText, created_by: currentUserId });
       if (newAnswer) {
-        setAnswers((prev) => [...prev, newAnswer]);
         setAnswerText('');
+        // Refresh all answers to ensure fresh state (DB trigger may have updated status too)
+        await loadData();
         if (doubt.status === 'open') {
           applyDoubtUpdate({ ...doubt, status: 'answered' as const });
         }
         toast.success('Answer Submitted', 'Your answer has been posted successfully.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       setAnswerError('Failed to post answer. Please try again.');
-      toast.error('Submission Failed', err.message || 'Could not post answer.');
+      toast.error('Submission Failed', msg || 'Could not post answer.');
     } finally {
       setSubmittingAnswer(false);
     }
@@ -444,14 +480,17 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
   const handleMarkAccepted = async (answerId: string) => {
     try {
       await markDoubtSolved(doubt.id, answerId);
-      // Update this answer's is_accepted = true; leave others untouched
-      setAnswers((prev) => prev.map((a) => a.id === answerId ? { ...a, is_accepted: true } : a));
+      // Re-fetch answers from Supabase to get authoritative is_accepted values
+      // This ensures accepted badges persist correctly across any re-render
+      const freshAnswers = await getAnswersForDoubt(doubt.id);
+      setAnswers(freshAnswers);
       // Update doubt status to solved if not already
       const updated = { ...doubt, status: 'solved' as const };
       applyDoubtUpdate(updated);
       toast.success('Answer Accepted', 'You marked this answer as accepted! Doubt is now solved.');
-    } catch (err: any) {
-      toast.error('Operation Failed', err.message || 'Could not accept answer.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error('Operation Failed', msg || 'Could not accept answer.');
     }
   };
 
@@ -462,8 +501,9 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
       await closeDoubt(doubt.id);
       applyDoubtUpdate({ ...doubt, status: 'closed' as const });
       toast.success('Doubt Closed', 'The doubt post has been closed.');
-    } catch (err: any) {
-      toast.error('Close Failed', err.message || 'Could not close doubt.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error('Close Failed', msg || 'Could not close doubt.');
     } finally { setClosing(false); }
   };
 
@@ -474,12 +514,14 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
       // Use locally loaded answers.length for status determination
       const nextStatus: 'open' | 'answered' = answers.length > 0 ? 'answered' : 'open';
       await reopenDoubt(doubt.id, nextStatus);
-      applyDoubtUpdate({ ...doubt, status: nextStatus });
-      // Refresh answers to ensure the modal shows fresh state
+      const updatedDoubt = { ...doubt, status: nextStatus };
+      applyDoubtUpdate(updatedDoubt);
+      // Refresh all data to ensure the modal shows fresh state
       await loadData();
       toast.success('Doubt Reopened', 'The doubt is open for answers again.');
-    } catch (err: any) {
-      toast.error('Reopen Failed', err.message || 'Could not reopen doubt.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error('Reopen Failed', msg || 'Could not reopen doubt.');
     } finally { setReopening(false); }
   };
 
@@ -511,16 +553,32 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     } finally { setDeleting(false); }
   };
 
-  const handleRated = (newRating: DoubtAnswerRating) => {
+  const handleRated = async (newRating: DoubtAnswerRating) => {
+    // Optimistically update ratings state then re-fetch for consistency
     setRatings((prev) => {
       const idx = prev.findIndex((r) => r.id === newRating.id);
       if (idx >= 0) { const u = [...prev]; u[idx] = newRating; return u; }
       return [...prev, newRating];
     });
+    // Refresh ratings from DB for accuracy
+    try {
+      const freshRatings = await getRatingsForDoubt(doubt.id);
+      setRatings(freshRatings);
+    } catch {
+      // Keep optimistic update if refresh fails
+    }
   };
 
-  const handleReplyAdded = (reply: DoubtAnswerReplyWithProfile) => {
+  const handleReplyAdded = async (reply: DoubtAnswerReplyWithProfile) => {
+    // Optimistically add the reply then re-fetch for accuracy
     setReplies((prev) => [...prev, reply]);
+    // Refresh replies from DB for accuracy
+    try {
+      const freshReplies = await getRepliesForDoubt(doubt.id);
+      setReplies(freshReplies);
+    } catch {
+      // Keep optimistic update if refresh fails
+    }
   };
 
   const avgRating = (answerId: string): number | null => {
@@ -563,6 +621,11 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
                 <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded uppercase tracking-wider">
                   {doubt.category}
                 </span>
+                {doubt.is_anonymous && (
+                  <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded uppercase tracking-wider">
+                    Anonymous
+                  </span>
+                )}
               </div>
               <h3 className="font-bold text-lg text-slate-900 leading-snug break-words">{doubt.title}</h3>
               <p className="text-xs text-slate-500">
@@ -594,6 +657,25 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Answer counters */}
+            {!loadingAnswers && (
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 text-[11px] font-bold rounded-full">
+                  💬 {totalAnswers} Answer{totalAnswers !== 1 ? 's' : ''}
+                </span>
+                {acceptedAnswersCount > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold rounded-full">
+                    ✅ {acceptedAnswersCount} Accepted
+                  </span>
+                )}
+                {totalReplies > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-600 text-[11px] font-bold rounded-full">
+                    🗨️ {totalReplies} Repl{totalReplies !== 1 ? 'ies' : 'y'}
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Creator action buttons */}
             {isCreator && (
@@ -633,7 +715,7 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
               </div>
             )}
             {doubt.status === 'solved' && (
-              <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-700 font-semibold text-center">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-semibold text-center">
                 ✅ This doubt has been solved!{' '}
                 {isCreator
                   ? 'New answers are closed, but you can still accept any existing answer below.'
@@ -641,54 +723,45 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
               </div>
             )}
 
-            {/* Answers */}
+            {/* Answers section */}
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                {answers.length === 0 ? 'No answers yet' : `${answers.length} Answer${answers.length !== 1 ? 's' : ''}`}
+                {loadingAnswers ? 'Loading answers...' : totalAnswers === 0 ? 'No answers yet' : `${totalAnswers} Answer${totalAnswers !== 1 ? 's' : ''}`}
               </h4>
 
               {loadingAnswers ? (
                 <div className="text-center py-6 text-slate-400 text-sm">Loading answers...</div>
-              ) : answers.length === 0 ? (
+              ) : totalAnswers === 0 ? (
                 <div className="text-center py-6 text-slate-400 text-sm">Be the first to help!</div>
               ) : (
                 <div className="space-y-4">
                   {answers.map((answer) => {
                     const myRating = ratings.find((r) => r.answer_id === answer.id && r.created_by === currentUserId);
-                    const avg = avgRating(answer.id);
+                    const avgVal = avgRating(answer.id);
                     const answerReplies = replies.filter((r) => r.answer_id === answer.id);
                     const ratingCount = ratings.filter((r) => r.answer_id === answer.id).length;
 
                     return (
-                      <div key={answer.id}>
-                        {avg !== null && (
-                          <div className="mb-1 flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-                              Avg rating: {avg}/10
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              ({ratingCount} rating{ratingCount !== 1 ? 's' : ''})
-                            </span>
-                          </div>
-                        )}
-                        <AnswerCard
-                          answer={answer}
-                          doubt={doubt}
-                          currentUserId={currentUserId}
-                          existingRating={myRating}
-                          replies={answerReplies}
-                          canRate={
-                            isCreator &&
-                            answer.created_by !== currentUserId &&
-                            (doubt.status === 'answered' || doubt.status === 'solved')
-                          }
-                          canMark={canMarkAnswers && !answer.is_accepted}
-                          canReply={canReply}
-                          onMarkAccepted={handleMarkAccepted}
-                          onRated={handleRated}
-                          onReplyAdded={handleReplyAdded}
-                        />
-                      </div>
+                      <AnswerCard
+                        key={answer.id}
+                        answer={answer}
+                        doubt={doubt}
+                        currentUserId={currentUserId}
+                        existingRating={myRating}
+                        avgRatingValue={avgVal}
+                        ratingCount={ratingCount}
+                        replies={answerReplies}
+                        canRate={
+                          isCreator &&
+                          answer.created_by !== currentUserId &&
+                          (doubt.status === 'answered' || doubt.status === 'solved')
+                        }
+                        canMark={canMarkAnswers && !answer.is_accepted}
+                        canReply={canReply}
+                        onMarkAccepted={handleMarkAccepted}
+                        onRated={handleRated}
+                        onReplyAdded={handleReplyAdded}
+                      />
                     );
                   })}
                 </div>
