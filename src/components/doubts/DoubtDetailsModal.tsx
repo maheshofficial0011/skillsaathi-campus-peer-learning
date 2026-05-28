@@ -20,6 +20,7 @@ import {
 } from '../../lib/doubts';
 import { getStatusStyle, getStatusIcon } from './DoubtCard';
 import { PublicProfileModal } from '../profile/PublicProfileModal';
+import { useToast } from '../../hooks/useToast';
 
 interface DoubtDetailsModalProps {
   doubt: DoubtPostWithProfile;
@@ -70,6 +71,7 @@ const ReplyThread: React.FC<{
   canReply: boolean;
   onReplyAdded: (reply: DoubtAnswerReplyWithProfile) => void;
 }> = ({ answerId, doubtId, currentUserId, replies, canReply, onReplyAdded }) => {
+  const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [replyAnon, setReplyAnon] = useState(false);
@@ -96,9 +98,11 @@ const ReplyThread: React.FC<{
         setReplyText('');
         setShowForm(false);
         setExpanded(true);
+        toast.success('Reply Posted', 'Your reply/cross-question is now live.');
       }
     } catch {
       setError('Failed to post reply. Please try again.');
+      toast.error('Reply Failed', 'Could not post your reply.');
     } finally {
       setSubmitting(false);
     }
@@ -200,6 +204,7 @@ const AnswerCard: React.FC<{
   answer, doubt, currentUserId, existingRating, replies,
   canRate, canMark, canReply, onMarkAccepted, onRated, onReplyAdded,
 }) => {
+  const toast = useToast();
   const TRUNCATE_AT = 400;
   const [expanded, setExpanded] = useState(false);
   const [marking, setMarking] = useState(false);
@@ -228,6 +233,7 @@ const AnswerCard: React.FC<{
       let result: DoubtAnswerRating | null = null;
       if (existingRating) {
         result = await updateDoubtAnswerRating(existingRating.id, { rating: ratingValue, comment: ratingComment });
+        toast.success('Rating Updated', 'Your answer rating has been updated.');
       } else {
         result = await rateDoubtAnswer({
           answer_id: answer.id,
@@ -237,11 +243,14 @@ const AnswerCard: React.FC<{
           rating: ratingValue,
           comment: ratingComment,
         });
+        toast.success('Answer Rated', 'Thank you for rating this answer!');
       }
       if (result) { onRated(result); setShowRatingForm(false); }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setRatingError(msg.includes('no_self_rating') ? 'You cannot rate your own answer.' : 'Failed to submit rating.');
+      const userFriendlyMsg = msg.includes('no_self_rating') ? 'You cannot rate your own answer.' : 'Failed to submit rating.';
+      setRatingError(userFriendlyMsg);
+      toast.error('Rating Failed', userFriendlyMsg);
     } finally {
       setRatingSubmitting(false);
     }
@@ -354,6 +363,7 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
   onDoubtUpdated,
   onDoubtDeleted,
 }) => {
+  const toast = useToast();
   const [doubt, setDoubt] = useState<DoubtPostWithProfile>(initialDoubt);
   const [answers, setAnswers] = useState<DoubtAnswerWithProfile[]>([]);
   const [ratings, setRatings] = useState<DoubtAnswerRating[]>([]);
@@ -421,21 +431,28 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
         if (doubt.status === 'open') {
           applyDoubtUpdate({ ...doubt, status: 'answered' as const });
         }
+        toast.success('Answer Submitted', 'Your answer has been posted successfully.');
       }
-    } catch {
+    } catch (err: any) {
       setAnswerError('Failed to post answer. Please try again.');
+      toast.error('Submission Failed', err.message || 'Could not post answer.');
     } finally {
       setSubmittingAnswer(false);
     }
   };
 
   const handleMarkAccepted = async (answerId: string) => {
-    await markDoubtSolved(doubt.id, answerId);
-    // Update this answer's is_accepted = true; leave others untouched
-    setAnswers((prev) => prev.map((a) => a.id === answerId ? { ...a, is_accepted: true } : a));
-    // Update doubt status to solved if not already
-    const updated = { ...doubt, status: 'solved' as const };
-    applyDoubtUpdate(updated);
+    try {
+      await markDoubtSolved(doubt.id, answerId);
+      // Update this answer's is_accepted = true; leave others untouched
+      setAnswers((prev) => prev.map((a) => a.id === answerId ? { ...a, is_accepted: true } : a));
+      // Update doubt status to solved if not already
+      const updated = { ...doubt, status: 'solved' as const };
+      applyDoubtUpdate(updated);
+      toast.success('Answer Accepted', 'You marked this answer as accepted! Doubt is now solved.');
+    } catch (err: any) {
+      toast.error('Operation Failed', err.message || 'Could not accept answer.');
+    }
   };
 
   const handleClose = async () => {
@@ -444,7 +461,10 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     try {
       await closeDoubt(doubt.id);
       applyDoubtUpdate({ ...doubt, status: 'closed' as const });
-    } catch { /* ignore */ } finally { setClosing(false); }
+      toast.success('Doubt Closed', 'The doubt post has been closed.');
+    } catch (err: any) {
+      toast.error('Close Failed', err.message || 'Could not close doubt.');
+    } finally { setClosing(false); }
   };
 
   const handleReopen = async () => {
@@ -457,8 +477,9 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
       applyDoubtUpdate({ ...doubt, status: nextStatus });
       // Refresh answers to ensure the modal shows fresh state
       await loadData();
-    } catch (err) {
-      console.error('Reopen failed:', err);
+      toast.success('Doubt Reopened', 'The doubt is open for answers again.');
+    } catch (err: any) {
+      toast.error('Reopen Failed', err.message || 'Could not reopen doubt.');
     } finally { setReopening(false); }
   };
 

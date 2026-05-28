@@ -161,3 +161,39 @@ src/
 9. Test search and category/status filters — verify they work correctly.
 10. Click **🔒 Close Doubt** on an open doubt and verify it closes.
 
+---
+
+## 🎨 Phase 3.5: Global UX Polish & Readiness Check
+
+Phase 3.5 brings the application to full production-grade readiness, focusing on cohesive user experience, mobile-friendly layouts, reusable state widgets, and custom notifications.
+
+### Key Enhancements
+
+- **Global Toast Notification System**:
+  - Pure-Tailwind custom notifications (Success, Error, Warning, Info) that auto-dismiss and stack elegantly.
+  - Zero external package dependencies, ensuring excellent performance and clean bundle size.
+  - Fully integrated into all primary user journeys (Auth logins, Profile saves, Peer Help actions, Feedback submissions, Doubt posts/replies/ratings/closes).
+- **Reusable UX State Widgets**:
+  - `LoadingState`: animated loader with optional text.
+  - `ErrorState`: premium failure indicator card with an optional Retry handler.
+  - `EmptyState`: illustration emoji and message card with custom call-to-actions.
+- **Profile Completeness Indicator**:
+  - Computation algorithm that scores user profile progress across 7 primary fields.
+  - Informative progress card on the **My Profile** page detailing remaining edits to improve peer recommendations.
+  - Dynamic **Dashboard Reminder Banner** that prompts the user to complete missing profile details (completely hidden when 100% complete).
+- **Mobile Responsiveness Polish**:
+  - Layout sidebar navigation is scroll-optimized and centered on mobile ports.
+  - Responsive single-column grid layouts for all board filters, cards, and modal components.
+  - Sizing guards (`max-w-2xl w-full max-h-[92vh]`) to fit details modals beautifully on mobile screens.
+- **Unified Board Filters**:
+  - Perfectly synchronized spacing, search input height, borders, and reset/refresh layouts between Peer Help and Doubts boards.
+
+### Verification Checklist & Docs
+
+All verification procedures and manual testing checklists are detailed in [docs/testing-checklist.md](./docs/testing-checklist.md).
+Detailed database tables and policies are summarized in [supabase/README.md](./supabase/README.md).
+
+---
+
+## 🚀 Future Roadmap: Phase 4 & Beyond
+- **Phase 4: Senior Connect**: Mentor discovery, booking appointments, chat sessions.

@@ -41,7 +41,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           </div>
           
           <div className="flex items-center gap-3 text-xs font-semibold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
-            <span>Phase 1: Supabase Integration</span>
+            <span>Phase 3.5: UX Polish &amp; Readiness</span>
           </div>
         </div>
       </header>
@@ -51,14 +51,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         {/* Navigation Sidebar */}
         <aside className="w-full lg:w-64 p-4 lg:py-6 lg:border-r border-slate-200 shrink-0 flex flex-col justify-between">
           <div className="space-y-6">
-            <nav className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible gap-1 pb-4 lg:pb-0 scrollbar-none">
+            <nav className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible gap-1 pb-3 lg:pb-0 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
               {navItems.map((item) => {
                 const isActive = activePage === item.id;
                 return (
                   <button
                     key={item.id}
                     onClick={() => onNavigate(item.id)}
-                    className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap text-left shrink-0 w-full ${
+                    className={`px-3.5 py-2 text-xs lg:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap text-center lg:text-left shrink-0 w-auto lg:w-full ${
                       isActive
                         ? 'bg-indigo-600 text-white shadow-sm'
                         : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -83,7 +83,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
               {onLogout && (
                 <button
                   onClick={onLogout}
-                  className="w-full px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition-colors text-left"
+                  className="w-full px-4 py-2 text-sm font-semibold text-red-650 hover:bg-red-50 text-red-600 hover:bg-red-50/50 rounded-lg border border-transparent hover:border-red-100 transition-colors text-center lg:text-left"
                 >
                   Logout
                 </button>
@@ -94,7 +94,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
         {/* Dynamic Page Workspace */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0">
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 min-h-[60vh] shadow-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 min-h-[60vh] shadow-sm">
             {children}
           </div>
         </main>
@@ -102,7 +102,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
-        <p>© 2026 SkillSaathi Campus Platform. All rights reserved. (Phase 1 Enabled)</p>
+        <p>© 2026 SkillSaathi Campus Platform. All rights reserved. (Phase 3.5 Enabled)</p>
       </footer>
     </div>
   );

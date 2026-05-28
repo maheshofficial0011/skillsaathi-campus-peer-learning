@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { YearOfStudy } from '../types';
 import { DEPARTMENTS } from '../lib/departments';
+import { useToast } from '../hooks/useToast';
 
 export const AuthPage: React.FC = () => {
+  const toast = useToast();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,8 +40,11 @@ export const AuthPage: React.FC = () => {
 
       if (error) throw error;
       setSuccessMsg('Logged in successfully!');
+      toast.success('Sign In Successful', 'Welcome back to SkillSaathi!');
     } catch (err: any) {
-      setErrorMsg(err.message || 'An error occurred during sign in.');
+      const errMsg = err.message || 'An error occurred during sign in.';
+      setErrorMsg(errMsg);
+      toast.error('Sign In Failed', errMsg);
     } finally {
       setLoading(false);
     }
@@ -80,9 +85,12 @@ export const AuthPage: React.FC = () => {
 
       // Check if email confirmation is required (session might be null if email confirmation is enabled)
       if (data.user && !data.session) {
-        setSuccessMsg('Registration successful! Please check your campus email inbox to confirm your account.');
+        const msg = 'Registration successful! Please check your campus email inbox to confirm your account.';
+        setSuccessMsg(msg);
+        toast.success('Registration Successful', 'Check your college email to verify your profile!');
       } else {
         setSuccessMsg('Account created and logged in successfully!');
+        toast.success('Account Created', 'Welcome to SkillSaathi peer learning!');
       }
 
       // Reset registration inputs
@@ -90,7 +98,9 @@ export const AuthPage: React.FC = () => {
       setDepartment('');
       setSection('');
     } catch (err: any) {
-      setErrorMsg(err.message || 'An error occurred during registration.');
+      const errMsg = err.message || 'An error occurred during registration.';
+      setErrorMsg(errMsg);
+      toast.error('Registration Failed', errMsg);
     } finally {
       setLoading(false);
     }

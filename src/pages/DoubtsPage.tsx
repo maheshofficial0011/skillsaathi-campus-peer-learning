@@ -14,6 +14,10 @@ import { CreateDoubtModal } from '../components/doubts/CreateDoubtModal';
 import { DoubtDetailsModal } from '../components/doubts/DoubtDetailsModal';
 import { DoubtCard } from '../components/doubts/DoubtCard';
 import { PublicProfileModal } from '../components/profile/PublicProfileModal';
+import { useToast } from '../hooks/useToast';
+import { LoadingState } from '../components/ui/LoadingState';
+import { ErrorState } from '../components/ui/ErrorState';
+import { EmptyState } from '../components/ui/EmptyState';
 
 // ──────────────────────────────────────────
 // TABS
@@ -68,6 +72,7 @@ const calcMatchScore = (doubt: DoubtPostWithProfile, skills: string[]): number =
 // ──────────────────────────────────────────
 const DoubtsPage: React.FC = () => {
   const { user } = useAuth();
+  const toast = useToast();
   const [doubts, setDoubts] = useState<DoubtPostWithProfile[]>([]);
   const [myAnsweredIds, setMyAnsweredIds] = useState<Set<string>>(new Set());
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
@@ -167,6 +172,7 @@ const DoubtsPage: React.FC = () => {
   const handleDoubtCreated = (newDoubt: DoubtPostWithProfile) => {
     setDoubts((prev) => [newDoubt, ...prev]);
     setActiveTab('my-doubts');
+    toast.success('Doubt Posted Successfully', 'Your doubt is now live on the board!');
   };
 
   const handleDoubtUpdated = useCallback((updated: DoubtPostWithProfile) => {
@@ -175,29 +181,44 @@ const DoubtsPage: React.FC = () => {
   }, []);
 
   const handleCloseDoubt = async (doubtId: string) => {
-    await closeDoubt(doubtId);
-    const existing = doubts.find((d) => d.id === doubtId);
-    if (existing) handleDoubtUpdated({ ...existing, status: 'closed' });
+    try {
+      await closeDoubt(doubtId);
+      const existing = doubts.find((d) => d.id === doubtId);
+      if (existing) handleDoubtUpdated({ ...existing, status: 'closed' });
+      toast.success('Doubt Closed', 'Your doubt has been closed.');
+    } catch (err: any) {
+      toast.error('Close Failed', err.message || 'Could not close doubt.');
+    }
   };
 
   const handleReopenDoubt = async (doubtId: string) => {
-    const existing = doubts.find((d) => d.id === doubtId);
-    if (!existing) return;
-    // Determine new status from answer_count on the existing card
-    const nextStatus: 'open' | 'answered' = (existing.answer_count ?? 0) > 0 ? 'answered' : 'open';
-    await reopenDoubt(doubtId, nextStatus);
-    // Optimistically update local state then do a full board refresh
-    handleDoubtUpdated({ ...existing, status: nextStatus });
-    await loadData();
+    try {
+      const existing = doubts.find((d) => d.id === doubtId);
+      if (!existing) return;
+      // Determine new status from answer_count on the existing card
+      const nextStatus: 'open' | 'answered' = (existing.answer_count ?? 0) > 0 ? 'answered' : 'open';
+      await reopenDoubt(doubtId, nextStatus);
+      // Optimistically update local state then do a full board refresh
+      handleDoubtUpdated({ ...existing, status: nextStatus });
+      await loadData();
+      toast.success('Doubt Reopened', 'Students can now answer your doubt again.');
+    } catch (err: any) {
+      toast.error('Reopen Failed', err.message || 'Could not reopen doubt.');
+    }
   };
 
   const handleDeleteDoubt = async (doubtId: string) => {
-    await deleteDoubt(doubtId);
-    // Remove from local state immediately
-    setDoubts((prev) => prev.filter((d) => d.id !== doubtId));
-    if (selectedDoubt?.id === doubtId) setSelectedDoubt(null);
-    // Full board refresh to ensure consistency
-    await loadData();
+    try {
+      await deleteDoubt(doubtId);
+      // Remove from local state immediately
+      setDoubts((prev) => prev.filter((d) => d.id !== doubtId));
+      if (selectedDoubt?.id === doubtId) setSelectedDoubt(null);
+      // Full board refresh to ensure consistency
+      await loadData();
+      toast.success('Doubt Deleted', 'Your doubt has been deleted.');
+    } catch (err: any) {
+      toast.error('Delete Failed', err.message || 'Could not delete doubt.');
+    }
   };
 
   const handleViewProfile = (userId: string) => setViewProfileUserId(userId);
@@ -206,30 +227,11 @@ const DoubtsPage: React.FC = () => {
 
   // ── Loading / Error states ──
   if (loading) {
-    return (
-      <div className="min-h-[50vh] flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="animate-spin w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full mx-auto" />
-          <p className="text-slate-500 text-sm">Loading doubts...</p>
-        </div>
-      </div>
-    );
+    return <LoadingState label="Loading doubts board..." minHeight="min-h-[50vh]" />;
   }
 
   if (error) {
-    return (
-      <div className="min-h-[40vh] flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <p className="text-red-500 font-semibold">{error}</p>
-          <button
-            onClick={loadData}
-            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
+    return <ErrorState title="Failed to Load Doubts" message={error} onRetry={loadData} minHeight="min-h-[40vh]" />;
   }
 
   // ──────────────────────────────────────────
@@ -304,6 +306,7 @@ const DoubtsPage: React.FC = () => {
           }
           emptyMessage="No recommended doubts right now. Check All Doubts or update your profile skills!"
           emptyAction={undefined}
+          icon="🎯"
         >
           {recommendedDoubts.map(({ doubt, score }) => (
             <DoubtCard
@@ -328,6 +331,7 @@ const DoubtsPage: React.FC = () => {
           subtitle="Doubts you have posted. Accept answers and close doubts here."
           emptyMessage="You have not posted any doubts yet."
           emptyAction={{ label: '+ Ask a Doubt', onClick: () => setShowCreateModal(true) }}
+          icon="📝"
         >
           {myDoubts.map((doubt) => (
             <DoubtCard
@@ -351,6 +355,7 @@ const DoubtsPage: React.FC = () => {
           subtitle="Doubts you have contributed an answer to."
           emptyMessage="You have not answered any doubts yet. Go to Recommended or All Doubts to help peers!"
           emptyAction={undefined}
+          icon="💡"
         >
           {answeredByMeDoubts.map((doubt) => (
             <DoubtCard
@@ -371,41 +376,47 @@ const DoubtsPage: React.FC = () => {
       {activeTab === 'all' && (
         <div className="space-y-4">
           {/* Filters */}
-          <div className="flex flex-wrap gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by title, description, or category..."
-              className="flex-1 min-w-[200px] px-4 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors"
-            />
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors"
-            >
-              <option value="All">All Categories</option>
-              {DOUBT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors"
-            >
-              <option value="All">All Status</option>
-              <option value="open">Open</option>
-              <option value="answered">Answered</option>
-              <option value="solved">Solved</option>
-              <option value="closed">Closed</option>
-            </select>
-            {(searchQuery || filterCategory !== 'All' || filterStatus !== 'All') && (
-              <button
-                onClick={() => { setSearchQuery(''); setFilterCategory('All'); setFilterStatus('All'); }}
-                className="px-3 py-2 text-sm border border-slate-200 hover:bg-white text-slate-600 font-semibold rounded-lg transition-colors"
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Filter Doubts Board</h3>
+              {(searchQuery || filterCategory !== 'All' || filterStatus !== 'All') && (
+                <button
+                  onClick={() => { setSearchQuery(''); setFilterCategory('All'); setFilterStatus('All'); }}
+                  className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold rounded border border-slate-300 transition"
+                >
+                  Reset Filters
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search doubts (title, description)..."
+                className="w-full px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-sans"
               >
-                Reset
-              </button>
-            )}
+                <option value="All">All Categories</option>
+                {DOUBT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-sans"
+              >
+                <option value="All">All Statuses</option>
+                <option value="open">Open</option>
+                <option value="answered">Answered</option>
+                <option value="solved">Solved</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
           </div>
 
           <p className="text-xs text-slate-500 font-medium">
@@ -413,15 +424,13 @@ const DoubtsPage: React.FC = () => {
           </p>
 
           {allFilteredDoubts.length === 0 ? (
-            <div className="text-center py-12 space-y-3">
-              <p className="text-slate-500 font-semibold">No doubts match your filters.</p>
-              <button
-                onClick={() => { setSearchQuery(''); setFilterCategory('All'); setFilterStatus('All'); }}
-                className="text-indigo-500 hover:text-indigo-700 text-sm font-semibold"
-              >
-                Clear filters
-              </button>
-            </div>
+            <EmptyState
+              icon="🔍"
+              title="No doubts match your filters"
+              message="Try clearing your search terms or resetting the category and status filters."
+              actionLabel="Clear Filters"
+              onAction={() => { setSearchQuery(''); setFilterCategory('All'); setFilterStatus('All'); }}
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {allFilteredDoubts.map((doubt) => (
@@ -480,6 +489,7 @@ interface TabSectionProps {
   emptyMessage: string;
   emptyAction?: { label: string; onClick: () => void };
   children: React.ReactNode;
+  icon?: string;
 }
 
 const TabSection: React.FC<TabSectionProps> = ({
@@ -488,6 +498,7 @@ const TabSection: React.FC<TabSectionProps> = ({
   emptyMessage,
   emptyAction,
   children,
+  icon = '💬',
 }) => {
   const childArray = React.Children.toArray(children).filter(Boolean);
   return (
@@ -497,17 +508,13 @@ const TabSection: React.FC<TabSectionProps> = ({
         <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
       </div>
       {childArray.length === 0 ? (
-        <div className="text-center py-12 space-y-3">
-          <p className="text-slate-500 font-semibold text-sm">{emptyMessage}</p>
-          {emptyAction && (
-            <button
-              onClick={emptyAction.onClick}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl shadow-sm transition-colors"
-            >
-              {emptyAction.label}
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon={icon}
+          title={title}
+          message={emptyMessage}
+          actionLabel={emptyAction?.label}
+          onAction={emptyAction?.onClick}
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {children}

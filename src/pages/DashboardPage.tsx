@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { getHelpRequests, acceptHelpRequest, markHelpRequestSolved, closeHelpRequest, deleteHelpRequest } from '../lib/helpRequests';
 import { HELP_CATEGORIES } from '../lib/helpCategories';
 import { getCurrentProfile } from '../lib/profiles';
@@ -8,10 +8,14 @@ import { HelpRequestForm } from '../components/help/HelpRequestForm';
 import { FeedbackModal } from '../components/help/FeedbackModal';
 import { HelpRequestDetailsModal } from '../components/help/HelpRequestDetailsModal';
 import type { HelpRequestWithProfiles, Feedback, Profile } from '../types';
+import { useToast } from '../hooks/useToast';
+import { LoadingState } from '../components/ui/LoadingState';
+import { EmptyState } from '../components/ui/EmptyState';
 
 interface DashboardPageProps {
   userId?: string;
   userEmail?: string;
+  onNavigate?: (page: string) => void;
 }
 
 type SortOption = 'newest' | 'urgency' | 'deadline' | 'status' | 'best-match';
@@ -44,7 +48,8 @@ const applySorting = (list: HelpRequestWithProfiles[], sort: SortOption): HelpRe
   }
 };
 
-export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail }) => {
+export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail, onNavigate }) => {
+  const toast = useToast();
   const [requests, setRequests] = useState<HelpRequestWithProfiles[]>([]);
   const [trustScore, setTrustScore] = useState<number>(100);
   const [loading, setLoading] = useState(true);
@@ -61,6 +66,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
   const [allFeedbackRequestIds, setAllFeedbackRequestIds] = useState<Set<string>>(new Set());
   const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('recommended');
+
+  const profileCompleteness = useMemo(() => {
+    if (!currentUserProfile) return 0;
+    let filled = 0;
+    if (currentUserProfile.full_name && currentUserProfile.full_name.trim() && currentUserProfile.full_name !== 'Campus Scholar' && currentUserProfile.full_name !== 'New User') filled++;
+    if (currentUserProfile.department && currentUserProfile.department.trim()) filled++;
+    if (currentUserProfile.year_of_study) filled++;
+    if (currentUserProfile.skills_known && currentUserProfile.skills_known.length > 0) filled++;
+    if (currentUserProfile.skills_wanted && currentUserProfile.skills_wanted.length > 0) filled++;
+    if (currentUserProfile.availability && currentUserProfile.availability.trim()) filled++;
+    if (currentUserProfile.help_mode && currentUserProfile.help_mode.trim()) filled++;
+    return Math.round((filled / 7) * 100);
+  }, [currentUserProfile]);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,8 +165,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
     try {
       await acceptHelpRequest(requestId, userId);
       await loadData();
+      toast.success('Request Accepted', 'You have accepted this help request. Get in touch with your peer!');
     } catch (err: any) {
-      alert(err.message || 'Failed to accept help request.');
+      const errMsg = err.message || 'Failed to accept help request.';
+      toast.error('Accept Failed', errMsg);
     }
   };
 
@@ -157,8 +177,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
     try {
       await markHelpRequestSolved(requestId, userId);
       await loadData();
+      toast.success('Marked as Solved', 'Great job helping your peer! Trust score and solved stats updated.');
     } catch (err: any) {
-      alert(err.message || 'Failed to mark request solved.');
+      const errMsg = err.message || 'Failed to mark request solved.';
+      toast.error('Operation Failed', errMsg);
     }
   };
 
@@ -167,8 +189,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
     try {
       await closeHelpRequest(requestId, userId);
       await loadData();
+      toast.success('Request Closed', 'The peer help request has been successfully closed.');
     } catch (err: any) {
-      alert(err.message || 'Failed to close help request.');
+      const errMsg = err.message || 'Failed to close help request.';
+      toast.error('Close Failed', errMsg);
     }
   };
 
@@ -179,8 +203,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
       await loadData();
       // If the deleted request is currently shown in details modal, close it
       setDetailsRequest(null);
+      toast.success('Request Deleted', 'Your peer help request was deleted successfully.');
     } catch (err: any) {
-      alert(err.message || 'Failed to delete help request. Ensure the Supabase delete policy patch has been applied.');
+      const errMsg = err.message || 'Failed to delete help request.';
+      toast.error('Delete Failed', errMsg);
     }
   };
 
@@ -310,6 +336,29 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
           </button>
         )}
       </div>
+
+      {/* Profile Completeness Reminder (shown only if incomplete) */}
+      {currentUserProfile && profileCompleteness < 100 && onNavigate && (
+        <div className="p-4 bg-amber-50/50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-pulse">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl filter drop-shadow-sm">🎯</span>
+            <div>
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                Complete Your Profile ({profileCompleteness}%)
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Listing your skills & availability helps campus peers find you and improves peer matches!
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('profile')}
+            className="self-start sm:self-auto px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 whitespace-nowrap"
+          >
+            Complete Now
+          </button>
+        </div>
+      )}
 
       {/* Alert Error Box */}
       {errorMsg && (
@@ -472,21 +521,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
           </div>
 
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-16 space-y-3">
-              <div className="w-10 h-10 rounded-full border-4 border-slate-200 border-t-indigo-600 animate-spin" />
-              <p className="text-xs text-slate-400 font-medium">Refreshing Board...</p>
-            </div>
+            <LoadingState label="Refreshing Board..." minHeight="min-h-[200px]" />
           ) : (
             <>
               {activeTab === 'recommended' && (
                 sortedRecommended.length === 0 ? (
-                  <div className="p-12 border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl text-center space-y-3">
-                    <div className="text-3xl">🎯</div>
-                    <h4 className="font-bold text-slate-700">No matching requests yet</h4>
-                    <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-                      No matching requests yet. Update your profile skills or browse all campus requests.
-                    </p>
-                  </div>
+                  <EmptyState
+                    icon="🎯"
+                    title="No matching requests yet"
+                    message="No matching requests yet. Update your profile skills or browse all campus requests."
+                  />
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {sortedRecommended.map((req) => renderCard(req))}
@@ -496,19 +540,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
 
               {activeTab === 'my-requests' && (
                 sortedMyRequests.length === 0 ? (
-                  <div className="p-12 border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl text-center space-y-3">
-                    <div className="text-3xl">📋</div>
-                    <h4 className="font-bold text-slate-700">No help requests posted yet</h4>
-                    <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-                      You have not posted any help request yet. Create your first request.
-                    </p>
-                    <button
-                      onClick={() => setShowCreateModal(true)}
-                      className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition"
-                    >
-                      + Create Help Request
-                    </button>
-                  </div>
+                  <EmptyState
+                    icon="📋"
+                    title="No help requests posted yet"
+                    message="You have not posted any help request yet. Create your first request."
+                    actionLabel="+ Create Help Request"
+                    onAction={() => setShowCreateModal(true)}
+                  />
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {sortedMyRequests.map((req) => renderCard(req))}
@@ -518,19 +556,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
 
               {activeTab === 'accepted-by-me' && (
                 sortedAcceptedByMe.length === 0 ? (
-                  <div className="p-12 border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl text-center space-y-3">
-                    <div className="text-3xl">🤝</div>
-                    <h4 className="font-bold text-slate-700">No accepted requests yet</h4>
-                    <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-                      You have not accepted any request yet. Browse all requests to help a peer.
-                    </p>
-                    <button
-                      onClick={() => handleTabChange('all')}
-                      className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition"
-                    >
-                      Browse All Requests
-                    </button>
-                  </div>
+                  <EmptyState
+                    icon="🤝"
+                    title="No accepted requests yet"
+                    message="You have not accepted any request yet. Browse all requests to help a peer."
+                    actionLabel="Browse All Requests"
+                    onAction={() => handleTabChange('all')}
+                  />
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {sortedAcceptedByMe.map((req) => renderCard(req))}
@@ -540,19 +572,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
 
               {activeTab === 'all' && (
                 sortedFilteredRequests.length === 0 ? (
-                  <div className="p-12 border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl text-center space-y-3">
-                    <div className="text-3xl">🔍</div>
-                    <h4 className="font-bold text-slate-700">No campus help requests found</h4>
-                    <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-                      Try clearing search terms, resetting filters, or browse other categories.
-                    </p>
-                    <button
-                      onClick={handleResetFilters}
-                      className="mt-2 px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition"
-                    >
-                      Reset Filters
-                    </button>
-                  </div>
+                  <EmptyState
+                    icon="🔍"
+                    title="No campus help requests found"
+                    message="Try clearing search terms, resetting filters, or browse other categories."
+                    actionLabel="Reset Filters"
+                    onAction={handleResetFilters}
+                  />
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {sortedFilteredRequests.map((req) => renderCard(req))}
@@ -588,7 +614,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
         <HelpRequestForm
           currentUserId={userId}
           onClose={() => setShowCreateModal(false)}
-          onSuccess={loadData}
+          onSuccess={async () => {
+            await loadData();
+            toast.success('Help Request Posted', 'Your peer help request has been successfully created.');
+          }}
         />
       )}
 
@@ -597,7 +626,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail 
           request={feedbackRequest}
           currentUserId={userId}
           onClose={() => setFeedbackRequest(null)}
-          onSuccess={loadData}
+          onSuccess={async () => {
+            await loadData();
+            toast.success('Feedback Submitted', 'Thank you for updating peer trust score reviews.');
+          }}
           existingFeedback={feedbacks.find((f) => f.request_id === feedbackRequest.id)}
         />
       )}

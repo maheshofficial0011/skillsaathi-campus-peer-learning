@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentProfile, upsertCurrentProfile } from '../lib/profiles';
 import { getReviewsReceived, getDoubtContributionStats } from '../lib/profileStats';
@@ -6,6 +6,10 @@ import type { Profile, YearOfStudy } from '../types';
 import type { ReviewItem, DoubtContributionStats } from '../lib/profileStats';
 import { DEPARTMENTS } from '../lib/departments';
 import { PublicProfileModal } from '../components/profile/PublicProfileModal';
+import { useToast } from '../hooks/useToast';
+import { LoadingState } from '../components/ui/LoadingState';
+import { ErrorState } from '../components/ui/ErrorState';
+import { EmptyState } from '../components/ui/EmptyState';
 
 interface ProfilePageProps {
   userId?: string;
@@ -13,6 +17,7 @@ interface ProfilePageProps {
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) => {
+  const toast = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [solvedRequestsCount, setSolvedRequestsCount] = useState<number>(0);
   const [feedbackAverage, setFeedbackAverage] = useState<number | null>(null);
@@ -37,6 +42,64 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [editLoading, setEditLoading] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
+
+  const completeness = useMemo(() => {
+    if (!profile) return { percent: 0, missing: [] as { name: string; label: string }[] };
+    const missingList: { name: string; label: string }[] = [];
+    let filled = 0;
+
+    // 1. Full Name
+    if (profile.full_name && profile.full_name.trim() && profile.full_name !== 'Campus Scholar' && profile.full_name !== 'New User') {
+      filled++;
+    } else {
+      missingList.push({ name: 'full_name', label: 'Add your real full name' });
+    }
+
+    // 2. Department
+    if (profile.department && profile.department.trim()) {
+      filled++;
+    } else {
+      missingList.push({ name: 'department', label: 'Select your department' });
+    }
+
+    // 3. Year of study
+    if (profile.year_of_study) {
+      filled++;
+    } else {
+      missingList.push({ name: 'year_of_study', label: 'Select your year of study' });
+    }
+
+    // 4. Skills known
+    if (profile.skills_known && profile.skills_known.length > 0) {
+      filled++;
+    } else {
+      missingList.push({ name: 'skills_known', label: 'List skills you can help with' });
+    }
+
+    // 5. Skills wanted
+    if (profile.skills_wanted && profile.skills_wanted.length > 0) {
+      filled++;
+    } else {
+      missingList.push({ name: 'skills_wanted', label: 'List skills you want to learn' });
+    }
+
+    // 6. Availability
+    if (profile.availability && profile.availability.trim()) {
+      filled++;
+    } else {
+      missingList.push({ name: 'availability', label: 'Provide availability details' });
+    }
+
+    // 7. Preferred Meeting Mode
+    if (profile.help_mode && profile.help_mode.trim()) {
+      filled++;
+    } else {
+      missingList.push({ name: 'help_mode', label: 'Set preferred meeting mode (Online/In-person)' });
+    }
+
+    const percent = Math.round((filled / 7) * 100);
+    return { percent, missing: missingList };
+  }, [profile]);
 
   const loadProfile = async () => {
     if (!userId) { setLoading(false); return; }
@@ -127,12 +190,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
       if (updated) {
         setEditSuccess('Profile changes saved successfully!');
         setProfile(updated);
+        toast.success('Profile Saved', 'Your changes have been updated successfully.');
         setTimeout(() => { setIsEditing(false); loadProfile(); }, 800);
       } else {
         setEditError('Failed to save profile changes.');
+        toast.error('Save Failed', 'Could not save profile changes.');
       }
     } catch (err: any) {
-      setEditError(err.message || 'An error occurred during save.');
+      const errMsg = err.message || 'An error occurred during save.';
+      setEditError(errMsg);
+      toast.error('Save Failed', errMsg);
     } finally {
       setEditLoading(false);
     }
@@ -168,47 +235,28 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[40vh] space-y-4">
-        <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin"></div>
-        <p className="text-sm text-slate-500 font-medium">Loading your profile from Supabase...</p>
-      </div>
-    );
+    return <LoadingState label="Loading your profile from Supabase..." minHeight="min-h-[40vh]" />;
   }
 
   if (errorMsg) {
-    return (
-      <div className="max-w-md mx-auto p-6 bg-red-50 rounded-xl border border-red-200 text-center space-y-4">
-        <h3 className="text-lg font-bold text-red-800">Error Loading Profile</h3>
-        <p className="text-sm text-slate-600">{errorMsg}</p>
-        <button onClick={loadProfile}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow transition text-xs">
-          Retry
-        </button>
-      </div>
-    );
+    return <ErrorState title="Error Loading Profile" message={errorMsg} onRetry={loadProfile} minHeight="min-h-[40vh]" />;
   }
 
   if (!profile) {
     return (
       <div className="max-w-lg mx-auto p-8 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-5 shadow-sm">
-        <div className="w-16 h-16 bg-amber-50 text-amber-700 rounded-full border border-amber-200 flex items-center justify-center text-3xl mx-auto">
-          ⚠️
-        </div>
-        <div className="space-y-2">
-          <h3 className="text-xl font-bold text-slate-900">No Profile Found</h3>
-          <p className="text-sm text-slate-600 max-w-sm mx-auto leading-relaxed">
-            Your auth account is active, but we couldn't fetch a corresponding row in the public profiles table.
-          </p>
-        </div>
-        <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+        <EmptyState
+          icon="⚠️"
+          title="No Profile Found"
+          message="Your auth account is active, but we couldn't fetch a corresponding row in the public profiles table."
+          actionLabel="Create Default Profile Row"
+          onAction={handleCreatePlaceholderProfile}
+          minHeight="min-h-[200px]"
+        />
+        <div className="pt-2 flex justify-center">
           <button onClick={loadProfile}
-            className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-lg text-sm transition">
+            className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-lg text-sm transition shadow-sm">
             Refresh Profile
-          </button>
-          <button onClick={handleCreatePlaceholderProfile}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-sm shadow transition">
-            Create Default Profile Row
           </button>
         </div>
       </div>
@@ -374,6 +422,58 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                 Refresh Data
               </button>
             </div>
+          </div>
+
+          {/* Profile Completeness Indicator Card */}
+          <div className="p-6 bg-indigo-50/30 border border-indigo-100 rounded-2xl shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                  🎯 Profile Completeness: {completeness.percent}%
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Completing your profile improves matching with campus peers for learning.
+                </p>
+              </div>
+              {completeness.percent === 100 ? (
+                <span className="self-start sm:self-auto px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-100 flex items-center gap-1">
+                  ✓ 100% Complete
+                </span>
+              ) : (
+                <button
+                  onClick={handleStartEditing}
+                  className="self-start sm:self-auto px-3 py-1.5 bg-indigo-650 bg-indigo-600 hover:bg-indigo-755 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95"
+                >
+                  Edit Profile to Complete
+                </button>
+              )}
+            </div>
+
+            {/* Progress bar wrapper */}
+            <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+              <div
+                className="bg-indigo-600 h-full rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${completeness.percent}%` }}
+              />
+            </div>
+
+            {completeness.missing.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Remaining items to improve your recommendation matches:</p>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {completeness.missing.map((item) => (
+                    <li key={item.name} className="flex items-center gap-2 text-xs text-slate-600 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+                      {item.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-xs text-emerald-700 font-bold bg-emerald-50/50 p-2.5 rounded-lg border border-emerald-100 flex items-center gap-1.5">
+                <span>🎉</span> All parameters complete! Peers can now easily search and match with you.
+              </p>
+            )}
           </div>
 
           {/* Core Profile Parameters Grid */}

@@ -219,3 +219,36 @@ Run these in the Supabase SQL Editor one at a time:
 - Clicking opens PublicProfileModal for the asker.
 - Anonymous doubts show "Anonymous Student" (non-clickable).
 - PublicProfileModal opens with `layer="top"` when opened from inside DoubtDetailsModal.
+
+---
+
+## 🎨 Step 9: Phase 3.5 — Global UX Polish & Readiness Check
+
+Phase 3.5 introduces zero backend schema changes, meaning it operates completely using the existing Phase 1–3 tables and RLS configurations. 
+
+### Complete Supabase Table Registry
+
+A fresh database setup requires executing the SQL files in the following order:
+1. `supabase/schema.sql` (Initial tables: `profiles`, `help_requests`, `feedback`)
+2. `supabase/phase2-feedback-edit-patch.sql` (RLS edit update support for reviews)
+3. `supabase/phase2-delete-request-patch.sql` (DELETE RLS policy for `help_requests`)
+4. `supabase/phase3-doubts-patch.sql` (Core Doubts tables: `doubt_posts`, `doubt_answers`)
+5. `supabase/phase3-doubt-answer-ratings-patch.sql` (Ratings and replies tables + first answer auto-trigger)
+6. `supabase/phase3-doubt-reopen-delete-patch.sql` (DELETE RLS policy for `doubt_posts`)
+
+---
+
+## 🔒 Complete RLS Policy Summary
+
+| Table Name | SELECT Policy | INSERT Policy | UPDATE Policy | DELETE Policy |
+| :--- | :--- | :--- | :--- | :--- |
+| **`profiles`** | Authenticated users | Authenticated users | Owner (`auth.uid() = id`) | None |
+| **`help_requests`** | Authenticated users | Authenticated users | Creator (`auth.uid() = created_by`) OR Helper (`auth.uid() = accepted_by` on accept) | Creator (`auth.uid() = created_by` AND status in `'open'`, `'closed'`) |
+| **`feedback`** | Authenticated users | Creator (`auth.uid() = created_by` AND verified solver) | Creator (`auth.uid() = created_by`) | None |
+| **`doubt_posts`** | Authenticated users | Authenticated users | Creator (`auth.uid() = created_by`) | Creator (`auth.uid() = created_by` AND status in `'open'`, `'closed'`) |
+| **`doubt_answers`** | Authenticated users | Authenticated users (on open/answered doubts) | Creator (`auth.uid() = created_by`) | None |
+| **`doubt_answer_ratings`** | Authenticated users | Creator (`auth.uid() = created_by` and receiver != creator) | Creator (`auth.uid() = created_by`) | None |
+| **`doubt_answer_replies`** | Authenticated users | Authenticated users | Creator (`auth.uid() = created_by`) | None |
+
+> [!TIP]
+> **Setup Reminder**: Always run these SQL patches in the exact order specified above to prevent relation or index errors. Verify that all RLS policies are enabled (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`) and that no root tables are exposed without filters.
