@@ -365,20 +365,24 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
   const [closing, setClosing] = useState(false);
   const [reopening, setReopening] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [viewProfileUserId, setViewProfileUserId] = useState<string | null>(null);
 
   const isCreator = doubt.created_by === currentUserId;
+  // New answer form: only shown for open or answered doubts (NOT solved)
   const canAnswer = doubt.status === 'open' || doubt.status === 'answered';
   // Replies allowed on open/answered only
   const canReply = doubt.status === 'open' || doubt.status === 'answered';
-  // Creator can accept answers on open, answered, and also if solved (to add more accepted answers)
+  // Creator can accept (mark) any existing answer on open, answered, OR solved
+  // This lets them accept additional answers even after the doubt is marked solved
   const canMarkAnswers = isCreator && (
     doubt.status === 'open' || doubt.status === 'answered' || doubt.status === 'solved'
   );
-  // Safe delete: open or closed + no answers
+  // Safe delete: creator + (open or closed) + answers fully loaded + none present
   const canDelete =
     isCreator &&
     (doubt.status === 'open' || doubt.status === 'closed') &&
+    !loadingAnswers &&
     answers.length === 0;
 
   const loadData = useCallback(async () => {
@@ -447,20 +451,43 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     if (!window.confirm('Reopen this doubt so students can answer again?')) return;
     setReopening(true);
     try {
+      // Use locally loaded answers.length for status determination
       const nextStatus: 'open' | 'answered' = answers.length > 0 ? 'answered' : 'open';
       await reopenDoubt(doubt.id, nextStatus);
       applyDoubtUpdate({ ...doubt, status: nextStatus });
-    } catch { /* ignore */ } finally { setReopening(false); }
+      // Refresh answers to ensure the modal shows fresh state
+      await loadData();
+    } catch (err) {
+      console.error('Reopen failed:', err);
+    } finally { setReopening(false); }
   };
 
   const handleDelete = async () => {
+    setDeleteError('');
+    // Pre-flight: guard against stale state by checking loaded answers
+    if (answers.length > 0) {
+      setDeleteError('Cannot delete: this doubt has answers. Please close it instead.');
+      return;
+    }
+    if (doubt.status === 'answered' || doubt.status === 'solved') {
+      setDeleteError('Cannot delete an answered or solved doubt.');
+      return;
+    }
     if (!window.confirm('Delete this doubt permanently? This cannot be undone.')) return;
     setDeleting(true);
     try {
       await deleteDoubt(doubt.id);
       onDoubtDeleted?.(doubt.id);
       onClose();
-    } catch { /* ignore */ } finally { setDeleting(false); }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Friendly error for RLS block or any DB error
+      if (msg.includes('policy') || msg.includes('permission') || msg.includes('violates')) {
+        setDeleteError('Delete blocked by database policy. The doubt may already have answers or an invalid status.');
+      } else {
+        setDeleteError('Failed to delete. Please try again or contact support.');
+      }
+    } finally { setDeleting(false); }
   };
 
   const handleRated = (newRating: DoubtAnswerRating) => {
@@ -549,24 +576,31 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
 
             {/* Creator action buttons */}
             {isCreator && (
-              <div className="flex flex-wrap gap-2">
-                {(doubt.status === 'open' || doubt.status === 'answered') && (
-                  <button onClick={handleClose} disabled={closing}
-                    className="px-4 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 text-xs font-bold rounded-lg transition-colors">
-                    {closing ? 'Closing...' : '🔒 Close Doubt'}
-                  </button>
-                )}
-                {doubt.status === 'closed' && (
-                  <button onClick={handleReopen} disabled={reopening}
-                    className="px-4 py-1.5 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-60 text-emerald-700 text-xs font-bold rounded-lg transition-colors">
-                    {reopening ? 'Reopening...' : '🔓 Reopen Doubt'}
-                  </button>
-                )}
-                {canDelete && (
-                  <button onClick={handleDelete} disabled={deleting}
-                    className="px-4 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-500 text-xs font-bold rounded-lg transition-colors">
-                    {deleting ? 'Deleting...' : '🗑 Delete Doubt'}
-                  </button>
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {(doubt.status === 'open' || doubt.status === 'answered') && (
+                    <button onClick={handleClose} disabled={closing}
+                      className="px-4 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 text-xs font-bold rounded-lg transition-colors">
+                      {closing ? 'Closing...' : '🔒 Close Doubt'}
+                    </button>
+                  )}
+                  {doubt.status === 'closed' && (
+                    <button onClick={handleReopen} disabled={reopening}
+                      className="px-4 py-1.5 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-60 text-emerald-700 text-xs font-bold rounded-lg transition-colors">
+                      {reopening ? 'Reopening...' : '🔓 Reopen Doubt'}
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button onClick={handleDelete} disabled={deleting}
+                      className="px-4 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-500 text-xs font-bold rounded-lg transition-colors">
+                      {deleting ? 'Deleting...' : '🗑 Delete Doubt'}
+                    </button>
+                  )}
+                </div>
+                {deleteError && (
+                  <p className="text-xs text-red-600 font-medium bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    ⚠️ {deleteError}
+                  </p>
                 )}
               </div>
             )}
@@ -579,7 +613,10 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
             )}
             {doubt.status === 'solved' && (
               <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-700 font-semibold text-center">
-                ✅ This doubt has been solved! {isCreator ? 'You can still accept additional answers below.' : 'An answer has been accepted.'}
+                ✅ This doubt has been solved!{' '}
+                {isCreator
+                  ? 'New answers are closed, but you can still accept any existing answer below.'
+                  : 'An answer has been accepted by the asker.'}
               </div>
             )}
 

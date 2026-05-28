@@ -183,15 +183,21 @@ const DoubtsPage: React.FC = () => {
   const handleReopenDoubt = async (doubtId: string) => {
     const existing = doubts.find((d) => d.id === doubtId);
     if (!existing) return;
+    // Determine new status from answer_count on the existing card
     const nextStatus: 'open' | 'answered' = (existing.answer_count ?? 0) > 0 ? 'answered' : 'open';
     await reopenDoubt(doubtId, nextStatus);
+    // Optimistically update local state then do a full board refresh
     handleDoubtUpdated({ ...existing, status: nextStatus });
+    await loadData();
   };
 
   const handleDeleteDoubt = async (doubtId: string) => {
     await deleteDoubt(doubtId);
+    // Remove from local state immediately
     setDoubts((prev) => prev.filter((d) => d.id !== doubtId));
     if (selectedDoubt?.id === doubtId) setSelectedDoubt(null);
+    // Full board refresh to ensure consistency
+    await loadData();
   };
 
   const handleViewProfile = (userId: string) => setViewProfileUserId(userId);
