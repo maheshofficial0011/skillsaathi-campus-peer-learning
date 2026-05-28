@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getPublicProfileStats } from '../../lib/profileStats';
 import type { PublicProfileStats, ReviewItem } from '../../lib/profileStats';
+import { getSeniorMentorStats } from '../../lib/seniorConnect';
+import type { SeniorMentorStats } from '../../lib/seniorConnect';
 
 interface PublicProfileModalProps {
   userId: string;
@@ -93,6 +95,7 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
   const [activeUserId, setActiveUserId] = useState(initialUserId);
   const [history, setHistory] = useState<string[]>([]);
   const [stats, setStats] = useState<PublicProfileStats | null>(null);
+  const [mentorStats, setMentorStats] = useState<SeniorMentorStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,12 +107,22 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
     setLoading(true);
     setError(null);
     setStats(null);
-    getPublicProfileStats(activeUserId).then((result) => {
+    setMentorStats(null);
+
+    Promise.all([
+      getPublicProfileStats(activeUserId),
+      getSeniorMentorStats(activeUserId),
+    ]).then(([profileResult, mentorResult]) => {
       if (cancelled) return;
-      if (!result) setError('Could not load this profile.');
-      else setStats(result);
+      if (!profileResult) {
+        setError('Could not load this profile.');
+      } else {
+        setStats(profileResult);
+        setMentorStats(mentorResult);
+      }
       setLoading(false);
     });
+
     return () => { cancelled = true; };
   }, [activeUserId]);
 
@@ -231,6 +244,38 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
                       ))}
                     </div>
                   )}
+
+                  {/* Impact Stats Grid */}
+                  {mentorStats && (
+                    <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-violet-100 text-center">
+                      <div className="p-1 bg-white rounded-lg border border-violet-100 shadow-sm">
+                        <p className="text-xs font-extrabold text-violet-900">{mentorStats.completedCount}</p>
+                        <p className="text-[9px] font-bold text-violet-500 mt-0.5">Completed</p>
+                      </div>
+                      <div className="p-1 bg-white rounded-lg border border-violet-100 shadow-sm">
+                        <p className="text-xs font-extrabold text-violet-900">{mentorStats.acceptedCount}</p>
+                        <p className="text-[9px] font-bold text-violet-500 mt-0.5">Accepted</p>
+                      </div>
+                      <div className="p-1 bg-white rounded-lg border border-violet-100 shadow-sm">
+                        <p className="text-xs font-extrabold text-violet-900">{mentorStats.completionRate}%</p>
+                        <p className="text-[9px] font-bold text-violet-500 mt-0.5">Rate</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Availability details */}
+                  <div className="mt-3 pt-3 border-t border-violet-100 flex flex-col gap-1 text-[11px] text-violet-800 font-medium">
+                    {stats.profile.availability && (
+                      <p>
+                        <span className="font-bold">⏰ Availability:</span> {stats.profile.availability}
+                      </p>
+                    )}
+                    {stats.profile.help_mode && (
+                      <p>
+                        <span className="font-bold">📍 Preference:</span> {stats.profile.help_mode}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 

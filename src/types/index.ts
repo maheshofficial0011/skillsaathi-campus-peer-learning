@@ -201,6 +201,9 @@ export interface SeniorGuidanceRequest {
   status: SeniorGuidanceStatus;
   response_message: string | null;
   completed_at: string | null;
+  meeting_mode: GuidanceMode | null;
+  meeting_details: string | null;
+  scheduled_time: string | null;
   created_at: string;
   updated_at: string;
 }

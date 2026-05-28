@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentProfile, upsertCurrentProfile } from '../lib/profiles';
 import { getReviewsReceived, getDoubtContributionStats } from '../lib/profileStats';
+import { getSeniorMentorStats } from '../lib/seniorConnect';
+import type { SeniorMentorStats } from '../lib/seniorConnect';
 import type { Profile, YearOfStudy } from '../types';
 import type { ReviewItem, DoubtContributionStats } from '../lib/profileStats';
 import { DEPARTMENTS } from '../lib/departments';
@@ -33,6 +35,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editFullName, setEditFullName] = useState('');
   const [editDepartment, setEditDepartment] = useState('');
+  const [customDepartment, setCustomDepartment] = useState('');
   const [editYearOfStudy, setEditYearOfStudy] = useState<YearOfStudy>('1st Year');
   const [editSection, setEditSection] = useState('');
   const [editSkillsKnown, setEditSkillsKnown] = useState('');
@@ -42,6 +45,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [editLoading, setEditLoading] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
+  const [mentorStats, setMentorStats] = useState<SeniorMentorStats | null>(null);
 
   const completeness = useMemo(() => {
     if (!profile) return { percent: 0, missing: [] as { name: string; label: string }[] };
@@ -132,6 +136,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
         // Doubt contribution stats
         const ds = await getDoubtContributionStats(userId);
         setDoubtStats(ds);
+
+        if (data.is_senior_mentor) {
+          const ms = await getSeniorMentorStats(userId);
+          setMentorStats(ms);
+        }
       }
     } catch (err) {
       console.error('Error loading profile page data:', err);
@@ -146,7 +155,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const handleStartEditing = () => {
     if (!profile) return;
     setEditFullName(profile.full_name);
-    setEditDepartment(profile.department);
+    
+    const isStandard = DEPARTMENTS.filter((d) => d.toLowerCase() !== 'other').includes(profile.department);
+    if (isStandard) {
+      setEditDepartment(profile.department);
+      setCustomDepartment('');
+    } else {
+      setEditDepartment('Other');
+      setCustomDepartment(profile.department || '');
+    }
+
     setEditYearOfStudy(profile.year_of_study as YearOfStudy);
     setEditSection(profile.section || '');
     setEditSkillsKnown(profile.skills_known.join(', '));
@@ -165,6 +183,23 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
       setEditError('Please fill in required fields: Full Name and Department.');
       return;
     }
+
+    let finalDept = editDepartment.trim();
+    if (finalDept.toLowerCase() === 'other') {
+      const trimmedCustom = customDepartment.trim();
+      if (!trimmedCustom) {
+        setEditError('Please specify your custom department.');
+        toast.error('Validation Error', 'Please specify your custom department.');
+        return;
+      }
+      finalDept = trimmedCustom;
+    }
+
+    if (!finalDept) {
+      setEditError('Please enter a valid department.');
+      return;
+    }
+
     setEditLoading(true);
     setEditError(null);
     setEditSuccess(null);
@@ -174,7 +209,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
       const updated = await upsertCurrentProfile({
         id: userId,
         full_name: editFullName.trim(),
-        department: editDepartment.trim(),
+        department: finalDept,
         year_of_study: editYearOfStudy,
         section: editSection.trim() || null,
         skills_known: skillsKnownArr,
@@ -305,6 +340,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                 <datalist id="profile-departments-list">
                   {DEPARTMENTS.map((dept) => <option key={dept} value={dept} />)}
                 </datalist>
+
+                {editDepartment.toLowerCase() === 'other' && (
+                  <div className="mt-3">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                      Enter your department <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={customDepartment}
+                      onChange={(e) => setCustomDepartment(e.target.value)}
+                      placeholder="e.g. Cyber Security, Mechatronics"
+                      className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-xs font-semibold"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -653,6 +704,89 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
             </div>
           </div>
           {/* ============================================ */}
+
+          {/* ========== SENIOR MENTOR IMPACT SECTION ========== */}
+          {profile.is_senior_mentor && (
+            <div className="p-6 bg-violet-50/50 rounded-2xl border border-violet-200 shadow-sm space-y-6">
+              <div className="border-b border-violet-200 pb-3 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-violet-900 flex items-center gap-2">
+                    <span>🎓</span> Senior Mentor Impact
+                  </h3>
+                  <p className="text-xs text-violet-600 mt-0.5">Based on professional guidance requests received and completed</p>
+                </div>
+                <span className="text-xs text-violet-500 font-medium shrink-0 bg-violet-100 px-2 py-0.5 rounded-full border border-violet-200">Active Mentor</span>
+              </div>
+
+              {/* Stats Grid */}
+              {mentorStats ? (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
+                    <p className="text-2xl font-extrabold text-violet-700">{mentorStats.completedCount}</p>
+                    <p className="text-[11px] font-bold text-violet-500 mt-1">Completed</p>
+                  </div>
+                  <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
+                    <p className="text-2xl font-extrabold text-violet-700">{mentorStats.acceptedCount}</p>
+                    <p className="text-[11px] font-bold text-violet-500 mt-1">Accepted</p>
+                  </div>
+                  <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
+                    <p className="text-2xl font-extrabold text-violet-700">{mentorStats.pendingCount}</p>
+                    <p className="text-[11px] font-bold text-violet-500 mt-1">Pending</p>
+                  </div>
+                  <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm">
+                    <p className="text-2xl font-extrabold text-violet-700">{mentorStats.declinedCount}</p>
+                    <p className="text-[11px] font-bold text-violet-500 mt-1">Declined</p>
+                  </div>
+                  <div className="p-4 bg-white rounded-xl border border-violet-100 text-center shadow-sm col-span-2 md:col-span-1">
+                    <p className="text-2xl font-extrabold text-violet-700">{mentorStats.completionRate}%</p>
+                    <p className="text-[11px] font-bold text-violet-500 mt-1">Completion Rate</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-violet-500 italic">Loading mentor impact statistics…</p>
+              )}
+
+              {/* Bio & Details */}
+              <div className="space-y-4 pt-2">
+                {profile.mentor_bio && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-violet-800">Biography / Core Advice</p>
+                    <p className="text-xs text-violet-700 bg-white p-3 rounded-lg border border-violet-100 leading-relaxed">{profile.mentor_bio}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-violet-800">Topics of Expertise</p>
+                    {profile.mentor_topics && profile.mentor_topics.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {profile.mentor_topics.map((t) => (
+                          <span key={t} className="px-2.5 py-1 bg-violet-100 border border-violet-200 text-violet-700 text-[10px] font-bold rounded-full">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-violet-400 italic">No topics selected.</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 text-xs text-violet-800">
+                    {profile.availability && (
+                      <p>
+                        <span className="font-bold">⏰ Available Hours:</span> {profile.availability}
+                      </p>
+                    )}
+                    {profile.help_mode && (
+                      <p>
+                        <span className="font-bold">📍 Preferred Mode:</span> {profile.help_mode}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ========== DOUBT CONTRIBUTION SECTION ========== */}
           <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-6">

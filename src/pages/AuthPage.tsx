@@ -13,6 +13,7 @@ export const AuthPage: React.FC = () => {
   // Registration metadata states
   const [fullName, setFullName] = useState('');
   const [department, setDepartment] = useState('');
+  const [customDepartment, setCustomDepartment] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState<YearOfStudy>('1st Year');
   const [section, setSection] = useState('');
 
@@ -57,8 +58,18 @@ export const AuthPage: React.FC = () => {
       return;
     }
 
-    const trimmedDept = department.trim();
-    if (!trimmedDept) {
+    let finalDept = department.trim();
+    if (finalDept.toLowerCase() === 'other') {
+      const trimmedCustom = customDepartment.trim();
+      if (!trimmedCustom) {
+        setErrorMsg('Please specify your custom department.');
+        toast.error('Validation Error', 'Please specify your custom department.');
+        return;
+      }
+      finalDept = trimmedCustom;
+    }
+
+    if (!finalDept) {
       setErrorMsg('Please enter a valid department.');
       return;
     }
@@ -74,7 +85,7 @@ export const AuthPage: React.FC = () => {
         options: {
           data: {
             full_name: fullName.trim(),
-            department: trimmedDept,
+            department: finalDept,
             year_of_study: yearOfStudy,
             section: section.trim() || null,
           },
@@ -96,6 +107,7 @@ export const AuthPage: React.FC = () => {
       // Reset registration inputs
       setFullName('');
       setDepartment('');
+      setCustomDepartment('');
       setSection('');
     } catch (err: any) {
       const errMsg = err.message || 'An error occurred during registration.';
@@ -240,6 +252,22 @@ export const AuthPage: React.FC = () => {
                     <option key={dept} value={dept} />
                   ))}
                 </datalist>
+
+                {department.toLowerCase() === 'other' && (
+                  <div className="mt-3">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                      Enter your department <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={customDepartment}
+                      onChange={(e) => setCustomDepartment(e.target.value)}
+                      placeholder="e.g. Cyber Security, Mechatronics"
+                      className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-900 text-xs font-semibold"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

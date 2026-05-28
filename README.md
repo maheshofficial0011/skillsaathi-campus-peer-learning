@@ -186,7 +186,35 @@ Phase 3.5 brings the application to full production-grade readiness, focusing on
   - Responsive single-column grid layouts for all board filters, cards, and modal components.
   - Sizing guards (`max-w-2xl w-full max-h-[92vh]`) to fit details modals beautifully on mobile screens.
 - **Unified Board Filters**:
+- **Unified Board Filters**:
   - Perfectly synchronized spacing, search input height, borders, and reset/refresh layouts between Peer Help and Doubts boards.
+
+---
+
+## 🎓 Completed Phase 4: Senior Connect Module & Polishes
+
+Phase 4 bridges junior students seeking academic and career guidance with experienced senior student mentors, while refining crucial platform profile capabilities:
+
+1. **Find Seniors Directory**:
+   - Advanced discovery tab allowing juniors to search seniors by name, filter by shared departments, or filter by specific expertise topics (Resume Review, Interview Guidance, Placement Prep, Higher Studies, etc.).
+   - Displays detailed cards with Trust Scores, peer badges, skills known, bio, availability hours, and preferred guidance modes.
+
+2. **Session Coordination & Contact Fields**:
+   - Upgraded requests with coordination details: `meeting_mode` (Online, In-Person, Hybrid), `scheduled_time`, and `meeting_details` (links, location instructions, or contact handles).
+   - Seniors specify these fields upon accepting requests. Both juniors and seniors view this session block directly on their request cards to coordinate securely without publicizing private data.
+
+3. **Senior Mentor Impact Stats**:
+   - Dedicated **Senior Mentor Impact** metrics block on `PublicProfileModal`, `ProfilePage`, and `SeniorConnectPage` Mentor Dashboard.
+   - Shows guidance requests received, accepted, completed, declined, and completion rate (%) alongside topics and hours.
+
+4. **Shared Consistent Departments & Custom "Other" Input**:
+   - Integrated a single central department dictionary `src/lib/departments.ts` across the entire application (registration, profiles, filters).
+   - Supports selecting/typing "Other" in registration and profiles. Selecting "Other" dynamically renders an **Enter your department** text field, preventing raw placeholder saves.
+
+5. **Help Request Coordination Note**:
+   - Lightweight UI coordination guidance card rendered in the help request details modal once a peer request is accepted, helping students coordinate meeting locations or links.
+
+*Note: Fully featured real-time in-app chat and push notifications are planned as part of the future learning circles module.*
 
 ### Verification Checklist & Docs
 
@@ -195,5 +223,5 @@ Detailed database tables and policies are summarized in [supabase/README.md](./s
 
 ---
 
-## 🚀 Future Roadmap: Phase 4 & Beyond
-- **Phase 4: Senior Connect**: Mentor discovery, booking appointments, chat sessions.
+## 🚀 Future Roadmap: Phase 5 & Beyond
+- **Phase 5: Learning Circles & Group Tutoring**: Study group circles, shared files, group doubts, live session booking, and notification boards.

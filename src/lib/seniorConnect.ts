@@ -201,7 +201,12 @@ export const getSeniorIncomingRequests = async (
 export const updateGuidanceRequestStatus = async (
   requestId: string,
   status: SeniorGuidanceStatus,
-  responseMessage?: string
+  responseMessage?: string,
+  coordination?: {
+    meeting_mode?: GuidanceMode | null;
+    meeting_details?: string | null;
+    scheduled_time?: string | null;
+  }
 ): Promise<SeniorGuidanceRequestWithProfiles> => {
   try {
     const payload: Record<string, unknown> = { status };
@@ -210,6 +215,17 @@ export const updateGuidanceRequestStatus = async (
     }
     if (status === 'completed') {
       payload.completed_at = new Date().toISOString();
+    }
+    if (coordination) {
+      if (coordination.meeting_mode !== undefined) {
+        payload.meeting_mode = coordination.meeting_mode;
+      }
+      if (coordination.meeting_details !== undefined) {
+        payload.meeting_details = coordination.meeting_details?.trim() || null;
+      }
+      if (coordination.scheduled_time !== undefined) {
+        payload.scheduled_time = coordination.scheduled_time?.trim() || null;
+      }
     }
 
     const { data, error } = await supabase
@@ -245,5 +261,66 @@ export const getGuidanceRequestById = async (
   } catch (err) {
     console.error('getGuidanceRequestById error:', err);
     return null;
+  }
+};
+
+export interface SeniorMentorStats {
+  receivedCount: number;
+  pendingCount: number;
+  acceptedCount: number;
+  completedCount: number;
+  declinedCount: number;
+  cancelledCount: number;
+  completionRate: number;
+}
+
+/**
+ * Calculates guidance statistics for a senior mentor:
+ * - receivedCount: total guidance requests received
+ * - pendingCount / acceptedCount / completedCount / declinedCount / cancelledCount
+ * - completionRate: completed / received %
+ */
+export const getSeniorMentorStats = async (userId: string): Promise<SeniorMentorStats> => {
+  try {
+    const { data, error } = await supabase
+      .from('senior_guidance_requests')
+      .select('status')
+      .eq('senior_id', userId);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    const receivedCount = rows.length;
+    const pendingCount = rows.filter((r) => r.status === 'pending').length;
+    const acceptedCount = rows.filter((r) => r.status === 'accepted').length;
+    const completedCount = rows.filter((r) => r.status === 'completed').length;
+    const declinedCount = rows.filter((r) => r.status === 'declined').length;
+    const cancelledCount = rows.filter((r) => r.status === 'cancelled').length;
+
+    // completed / received (%)
+    const completionRate = receivedCount > 0
+      ? Math.round((completedCount / receivedCount) * 100)
+      : 0;
+
+    return {
+      receivedCount,
+      pendingCount,
+      acceptedCount,
+      completedCount,
+      declinedCount,
+      cancelledCount,
+      completionRate,
+    };
+  } catch (err) {
+    console.error('getSeniorMentorStats error:', err);
+    return {
+      receivedCount: 0,
+      pendingCount: 0,
+      acceptedCount: 0,
+      completedCount: 0,
+      declinedCount: 0,
+      cancelledCount: 0,
+      completionRate: 0,
+    };
   }
 };

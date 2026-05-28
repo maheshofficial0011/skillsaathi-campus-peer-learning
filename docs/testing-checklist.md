@@ -136,3 +136,53 @@ Use this checklist to perform regression testing and ensure full readiness of al
 - [ ] **Own accepted answer does NOT inflate stat**: Go to **My Profile → Doubt Contribution**. Accepting own answer should NOT increment `Accepted Answers` count.
 - [ ] **External accepted answer DOES increment stat**: The answerer's profile `Accepted Answers` count increases after creator accepts their answer.
 - [ ] **Like button hidden for own content**: 👍 Like button not shown on own answers or replies. Count is still displayed as read-only text if others liked it.
+
+---
+
+## 🎓 9. Phase 4 - Senior Connect Module & Polishes
+
+> **Requires Supabase patches**: Run `supabase/phase4-senior-connect-patch.sql` and `supabase/phase4-senior-connect-contact-patch.sql` in the SQL Editor.
+
+- [ ] **Custom Manual "Other" Department selection**:
+  - Visit the auth portal, toggle to "Create Campus Account".
+  - Type exactly `Other` in the **Department** input box.
+  - Verify that a secondary input **Enter your department** pops up.
+  - Fill it with a custom department, e.g. `Mechatronics`. Submit. Verify the profile is saved with `Mechatronics` as the department.
+  - Go to **My Profile**, click **Edit Profile**. Type exactly `Other` in the department list. Verify the secondary field appears. Leave it empty and click Save. Verify that a validation error/toast appears.
+  - Fill it with `Cyber Security` and save. Verify success toast and view profile department reflects `Cyber Security`.
+
+- [ ] **Find Seniors Dynamic Filters**:
+  - Open the **Senior Connect** tab.
+  - Select the **Find Seniors** tab.
+  - Verify that the **Select Department** filter dropdown lists `All`, all active mentor departments present in the fetched list (including any custom-typed ones like `Cyber Security`), and all standard departments alphabetically.
+  - Filter by department or topic. Verify cards filter instantly.
+
+- [ ] **Guidance Request Coordination Workflow**:
+  - Log in with Student Account A. Go to **Senior Connect** → **Find Seniors**.
+  - Locate Senior Mentor B. Click **Request Guidance**. Prevents requesting self (Senior Mentor B sees request modal blocked for their own profile).
+  - Submit request with topic, message, preferred mode, and time. Outgoing request appears in **My Requests** as `⏳ pending`.
+  - Log in as Senior Mentor B. Go to **Senior Connect** → **Mentor Dashboard**.
+  - In **Incoming Guidance Requests**, locate Student A's request. Click **Accept**.
+  - Verify the accept modal prompts for:
+    * Message (optional)
+    * Meeting Mode (Online / In-Person / Hybrid)
+    * Scheduled Time (required text)
+    * Meeting/Contact Details (required text)
+  - Fill these details and submit. Request moves to accepted.
+  - Log back in as Student A. Check **My Requests**.
+  - Verify the request shows `✅ accepted` status and a dedicated **Session Coordination Details** panel appears:
+    * Displays selected Mode, Scheduled Time, and a clean copy-paste contact details card showing the Meet link or campus location shared by the senior.
+  - Senior marks the session as `completed`. Verify status changes to `🎓 completed` and statistics update.
+
+- [ ] **Senior Mentor Impact stats**:
+  - Log in as Senior Mentor B. View the **Mentor Dashboard**.
+  - Verify that the stats grid lists 6 distinct counters: **Received, Pending, Accepted, Completed, Declined, Completion Rate (%)**.
+  - Open the **My Profile** page. Verify a dedicated **🎓 Senior Mentor Impact** section is rendered with Completed, Accepted, Pending, Declined, and Completion Rate counters, bio, topics of expertise, availability hours, and preference mode.
+  - Click on Senior Mentor B's name from a Doubt post to open their `PublicProfileModal`.
+  - Verify a premium **Senior Mentor** card is rendered containing their bio, expertise badges, availability details, and the 3-column stats panel (**Completed, Accepted, Completion Rate %**).
+  - Double check that this section does NOT mix with Peer Help trust scores or Doubt rating stats.
+
+- [ ] **Help Request coordination note**:
+  - Open the **Peer Help Request** details modal for an accepted help request.
+  - If you are either the request creator or the helper, verify that a clean **Next Step: Coordinate Session** guidance tip box is shown right below the people details block, instructing you on how to share links or locations based on the chosen mode.
+

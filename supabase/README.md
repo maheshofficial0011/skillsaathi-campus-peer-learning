@@ -244,6 +244,22 @@ Navigate to the **Table Editor** tab and confirm:
 
 ---
 
+## 📅 Step 11: Phase 4 — Session Coordination & Contact Patch
+
+To enable session coordination and secure meeting contact sharing for accept actions:
+1. Open the [Supabase Dashboard](https://supabase.com/dashboard) SQL Editor.
+2. Create a new query.
+3. Paste the contents of `supabase/phase4-senior-connect-contact-patch.sql` and click **Run**.
+4. Verify success.
+
+### ✅ Verify Coordination Columns
+Table `senior_guidance_requests` should contain three additional columns:
+* `meeting_mode` (`text`, check constraint: Online, In-Person, Hybrid)
+* `meeting_details` (`text`)
+* `scheduled_time` (`text`)
+
+---
+
 ## 🔄 Complete Supabase Table Registry
 
 A fresh database setup requires executing the SQL files in the following order:
@@ -254,6 +270,7 @@ A fresh database setup requires executing the SQL files in the following order:
 5. `supabase/phase3-doubt-answer-ratings-patch.sql` (Ratings and replies tables + first answer auto-trigger)
 6. `supabase/phase3-doubt-reopen-delete-patch.sql` (DELETE RLS policy for `doubt_posts`)
 7. `supabase/phase4-senior-connect-patch.sql` (Senior Connect columns and requests table + trigger + RLS)
+8. `supabase/phase4-senior-connect-contact-patch.sql` (Session coordination contact fields and mode validation constraint)
 
 ---
 

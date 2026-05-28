@@ -239,6 +239,21 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
             </div>
           </div>
 
+          {/* Coordination Guidance Box */}
+          {(isCreator || (request.accepted_by === currentUserId)) && request.status === 'accepted' && (
+            <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl space-y-1.5">
+              <p className="text-xs font-bold text-indigo-800 flex items-center gap-1">
+                <span>💬</span> Next Step: Coordinate Session
+              </p>
+              <p className="text-[11px] text-slate-700 leading-relaxed">
+                Connect with your peer based on the preferred help mode.
+                For <span className="font-semibold">Online</span> sessions, share a Google Meet or Discord link.
+                For <span className="font-semibold">In-Person</span>, coordinate a campus spot like the library or CSE labs.
+                <span className="italic text-slate-500 block mt-1">In-app notifications and direct coordination chat are coming soon!</span>
+              </p>
+            </div>
+          )}
+
           {/* Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">

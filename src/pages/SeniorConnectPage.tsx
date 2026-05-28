@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingState } from '../components/ui/LoadingState';
 import { PublicProfileModal } from '../components/profile/PublicProfileModal';
+import { DEPARTMENTS as SHARED_DEPARTMENTS } from '../lib/departments';
 import {
   getSeniorMentors,
   updateSeniorMentorProfile,
@@ -25,19 +26,7 @@ import type {
 // ──────────────────────────────────────────
 // CONSTANTS
 // ──────────────────────────────────────────
-const DEPARTMENTS = [
-  'All',
-  'Computer Science',
-  'Information Technology',
-  'Electronics & Communication',
-  'Mechanical Engineering',
-  'Civil Engineering',
-  'Electrical Engineering',
-  'Chemical Engineering',
-  'Biotechnology',
-  'Management',
-  'Other',
-];
+// Local DEPARTMENTS constant removed, computed dynamically below
 
 const STATUS_STYLES: Record<SeniorGuidanceStatus, string> = {
   pending:   'bg-amber-50   border-amber-200   text-amber-700',
@@ -249,12 +238,22 @@ const RequestGuidanceModal: React.FC<RequestGuidanceModalProps> = ({ mentor, cur
 // ──────────────────────────────────────────
 interface ResponseModalProps {
   action: 'accept' | 'decline' | 'complete';
-  onConfirm: (msg: string) => Promise<void>;
+  onConfirm: (
+    msg: string,
+    coordination?: {
+      meeting_mode: GuidanceMode;
+      meeting_details: string;
+      scheduled_time: string;
+    }
+  ) => Promise<void>;
   onClose: () => void;
 }
 const ResponseModal: React.FC<ResponseModalProps> = ({ action, onConfirm, onClose }) => {
   const [msg, setMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [meetingMode, setMeetingMode] = useState<GuidanceMode>('Online');
+  const [scheduledTime, setScheduledTime] = useState('');
+  const [meetingDetails, setMeetingDetails] = useState('');
 
   const labels = {
     accept:   { title: 'Accept Request', btn: '✅ Accept', color: 'bg-emerald-600 hover:bg-emerald-700', placeholder: 'e.g. Sure! Let\'s connect this weekend.' },
@@ -264,9 +263,24 @@ const ResponseModal: React.FC<ResponseModalProps> = ({ action, onConfirm, onClos
   const l = labels[action];
 
   const handleConfirm = async () => {
+    if (action === 'accept' && (!scheduledTime.trim() || !meetingDetails.trim())) {
+      alert('Please fill in both Scheduled Time and Meeting/Contact Details.');
+      return;
+    }
     setSubmitting(true);
-    try { await onConfirm(msg); }
-    finally { setSubmitting(false); }
+    try {
+      if (action === 'accept') {
+        await onConfirm(msg, {
+          meeting_mode: meetingMode,
+          scheduled_time: scheduledTime.trim(),
+          meeting_details: meetingDetails.trim(),
+        });
+      } else {
+        await onConfirm(msg);
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -278,11 +292,65 @@ const ResponseModal: React.FC<ResponseModalProps> = ({ action, onConfirm, onClos
           <label className="text-xs font-bold text-slate-600">Message <span className="text-slate-400 font-normal">(optional)</span></label>
           <textarea
             value={msg} onChange={(e) => setMsg(e.target.value)}
-            rows={3} placeholder={l.placeholder}
-            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-1 focus:ring-indigo-400 transition-colors"
+            rows={2} placeholder={l.placeholder}
+            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-1 focus:ring-indigo-400 transition-colors text-slate-900"
           />
         </div>
-        <div className="flex gap-2">
+
+        {action === 'accept' && (
+          <div className="space-y-3 pt-1 border-t border-slate-100">
+            <div>
+              <label className="text-xs font-bold text-slate-600 block mb-1">
+                Meeting Mode <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={meetingMode}
+                onChange={(e) => setMeetingMode(e.target.value as GuidanceMode)}
+                className="w-full px-3 py-1.5 border border-slate-200 bg-white rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-400 text-slate-900"
+              >
+                <option value="Online">Online</option>
+                <option value="In-Person">In-Person</option>
+                <option value="Hybrid">Hybrid</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-600 block mb-1">
+                Scheduled Time <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+                placeholder="e.g. Next Monday at 4 PM"
+                className="w-full px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-400 text-slate-900"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-600 block mb-1">
+                Meeting/Contact Details <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                required
+                value={meetingDetails}
+                onChange={(e) => setMeetingDetails(e.target.value)}
+                rows={2}
+                placeholder={
+                  meetingMode === 'Online'
+                    ? "e.g. Google Meet link or WhatsApp/Discord instructions"
+                    : meetingMode === 'In-Person'
+                    ? "e.g. Library, CSE block, lab, classroom, etc."
+                    : "e.g. Online link + campus backup location"
+                }
+                className="w-full px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-medium resize-none focus:outline-none focus:ring-1 focus:ring-indigo-400 text-slate-900"
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
             Cancel
           </button>
@@ -431,6 +499,34 @@ const MyRequestCard: React.FC<MyRequestCardProps> = ({ req, onCancel, onViewProf
             <p className="text-xs text-slate-700 italic">"{req.response_message}"</p>
           </div>
         )}
+
+        {/* Coordination details display */}
+        {(req.meeting_mode || req.scheduled_time || req.meeting_details) && (
+          <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-2">
+            <p className="text-[11px] font-bold text-indigo-850 flex items-center gap-1">
+              <span>📅</span> Session Coordination:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-medium">
+              {req.meeting_mode && (
+                <p className="text-slate-700">
+                  <span className="font-semibold text-slate-500">Mode:</span> {req.meeting_mode}
+                </p>
+              )}
+              {req.scheduled_time && (
+                <p className="text-slate-700">
+                  <span className="font-semibold text-slate-500">Scheduled:</span> {req.scheduled_time}
+                </p>
+              )}
+            </div>
+            {req.meeting_details && (
+              <div className="text-[11px] pt-1.5 border-t border-indigo-100/50 text-slate-700">
+                <span className="font-semibold text-slate-500 block mb-0.5">Location / Contact Details:</span>
+                <p className="bg-white p-2 rounded border border-indigo-100 leading-relaxed break-words text-xs font-semibold">{req.meeting_details}</p>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-3 text-[10px] text-slate-400 flex-wrap">
           <span>Sent {formatDate(req.created_at)}</span>
           {req.completed_at && <span>· Completed {formatDate(req.completed_at)}</span>}
@@ -499,6 +595,34 @@ const IncomingRequestCard: React.FC<IncomingRequestCardProps> = ({ req, onAction
             <p className="text-xs text-slate-700 italic">"{req.response_message}"</p>
           </div>
         )}
+
+        {/* Coordination details display */}
+        {(req.meeting_mode || req.scheduled_time || req.meeting_details) && (
+          <div className="p-3 bg-violet-50/50 border border-violet-100 rounded-xl space-y-2">
+            <p className="text-[11px] font-bold text-violet-850 flex items-center gap-1">
+              <span>📅</span> Session Coordination:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-medium">
+              {req.meeting_mode && (
+                <p className="text-slate-700">
+                  <span className="font-semibold text-slate-500">Mode:</span> {req.meeting_mode}
+                </p>
+              )}
+              {req.scheduled_time && (
+                <p className="text-slate-700">
+                  <span className="font-semibold text-slate-500">Scheduled:</span> {req.scheduled_time}
+                </p>
+              )}
+            </div>
+            {req.meeting_details && (
+              <div className="text-[11px] pt-1.5 border-t border-violet-100/50 text-slate-700">
+                <span className="font-semibold text-slate-500 block mb-0.5">Location / Contact Details:</span>
+                <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed break-words text-xs font-semibold">{req.meeting_details}</p>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-3 text-[10px] text-slate-400 flex-wrap">
           <span>Received {formatDate(req.created_at)}</span>
           {req.completed_at && <span>· Completed {formatDate(req.completed_at)}</span>}
@@ -660,12 +784,19 @@ export const SeniorConnectPage: React.FC = () => {
     }
   };
 
-  const handleSeniorAction = async (msg: string) => {
+  const handleSeniorAction = async (
+    msg: string,
+    coordination?: {
+      meeting_mode: GuidanceMode;
+      meeting_details: string;
+      scheduled_time: string;
+    }
+  ) => {
     if (!responseModal) return;
     const statusMap = { accept: 'accepted', decline: 'declined', complete: 'completed' } as const;
     const newStatus: SeniorGuidanceStatus = statusMap[responseModal.action];
     try {
-      await updateGuidanceRequestStatus(responseModal.req.id, newStatus, msg);
+      await updateGuidanceRequestStatus(responseModal.req.id, newStatus, msg, coordination);
       setResponseModal(null);
       await loadIncoming();
       const messages = {
@@ -714,12 +845,24 @@ export const SeniorConnectPage: React.FC = () => {
   };
 
   // ── Stats for incoming ──
-  const incomingStats = useMemo(() => ({
-    pending:   incomingRequests.filter((r) => r.status === 'pending').length,
-    accepted:  incomingRequests.filter((r) => r.status === 'accepted').length,
-    completed: incomingRequests.filter((r) => r.status === 'completed').length,
-    declined:  incomingRequests.filter((r) => r.status === 'declined').length,
-  }), [incomingRequests]);
+  const incomingStats = useMemo(() => {
+    const pending = incomingRequests.filter((r) => r.status === 'pending').length;
+    const accepted = incomingRequests.filter((r) => r.status === 'accepted').length;
+    const completed = incomingRequests.filter((r) => r.status === 'completed').length;
+    const declined = incomingRequests.filter((r) => r.status === 'declined').length;
+    const received = incomingRequests.length;
+    const completionRate = received > 0 ? Math.round((completed / received) * 100) : 0;
+    return { pending, accepted, completed, declined, received, completionRate };
+  }, [incomingRequests]);
+
+  // ── Dynamic filter departments computation ──
+  const filterDepartmentsList = useMemo(() => {
+    const activeDepts = Array.from(new Set(mentors.map((m) => m.department).filter(Boolean)));
+    const standardDepts = SHARED_DEPARTMENTS.filter((d) => d.toLowerCase() !== 'other');
+    const combined = Array.from(new Set([...activeDepts, ...standardDepts]));
+    combined.sort((a, b) => a.localeCompare(b));
+    return ['All', ...combined];
+  }, [mentors]);
 
   // ── Current mentor profile for display ──
   const myMentorProfile = mentors.find((m) => m.id === userId);
@@ -787,9 +930,9 @@ export const SeniorConnectPage: React.FC = () => {
             />
             <select
               value={filterDept} onChange={(e) => setFilterDept(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors"
+              className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors text-slate-900"
             >
-              {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+              {filterDepartmentsList.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
             <select
               value={filterTopic} onChange={(e) => setFilterTopic(e.target.value)}
@@ -1003,12 +1146,14 @@ export const SeniorConnectPage: React.FC = () => {
           {/* Incoming stats */}
           {isMentor && (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
                 {[
+                  { label: 'Received',  value: incomingStats.received,  color: 'slate',   icon: '📬' },
                   { label: 'Pending',   value: incomingStats.pending,   color: 'amber',   icon: '⏳' },
                   { label: 'Accepted',  value: incomingStats.accepted,  color: 'emerald', icon: '✅' },
                   { label: 'Completed', value: incomingStats.completed, color: 'indigo',  icon: '🎓' },
                   { label: 'Declined',  value: incomingStats.declined,  color: 'red',     icon: '❌' },
+                  { label: 'Rate',      value: `${incomingStats.completionRate}%`, color: 'violet', icon: '📈' },
                 ].map(({ label, value, icon }) => (
                   <div key={label} className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm text-center">
                     <p className="text-xl font-extrabold text-slate-800">{value}</p>
