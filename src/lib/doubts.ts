@@ -562,6 +562,69 @@ export const updateAnswerReply = async (
   }
 };
 
+/**
+ * Update the text of a doubt answer (answer author only).
+ * Only sends answer_text — never touches is_accepted / is_pinned / pinned_at.
+ * Requires 'Answer author can edit own answer text' RLS policy.
+ */
+export const updateDoubtAnswer = async (
+  answerId: string,
+  answerText: string
+): Promise<DoubtAnswerWithProfile | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('doubt_answers')
+      .update({ answer_text: answerText.trim() })
+      .eq('id', answerId)
+      .select(`
+        *,
+        answerer_profile:profiles!doubt_answers_created_by_fkey(full_name, department, year_of_study)
+      `)
+      .single();
+    if (error) throw error;
+    return data as DoubtAnswerWithProfile;
+  } catch (err) {
+    console.error('Error updating doubt answer:', err);
+    throw err;
+  }
+};
+
+/**
+ * Delete an answer (author only, only when not accepted and not pinned).
+ * RLS policy also enforces this server-side.
+ * UI must guard: only show button when !is_accepted && !is_pinned.
+ */
+export const deleteDoubtAnswer = async (answerId: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('doubt_answers')
+      .delete()
+      .eq('id', answerId);
+    if (error) throw error;
+  } catch (err) {
+    console.error('Error deleting doubt answer:', err);
+    throw err;
+  }
+};
+
+/**
+ * Delete a reply (author only, only when not pinned).
+ * Requires 'Reply author can delete own reply' RLS policy.
+ */
+export const deleteDoubtReply = async (replyId: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('doubt_answer_replies')
+      .delete()
+      .eq('id', replyId);
+    if (error) throw error;
+  } catch (err) {
+    console.error('Error deleting reply:', err);
+    throw err;
+  }
+};
+
+
 // ──────────────────────────────────────────
 // ANSWER LIKES (Phase 3 YouTube upgrade)
 // ──────────────────────────────────────────
@@ -696,3 +759,43 @@ export const toggleAnswerPin = async (
     throw err;
   }
 };
+
+// ──────────────────────────────────────────
+// PIN / UNPIN REPLY (Phase 3 edit/delete patch)
+// ──────────────────────────────────────────
+
+/**
+ * Toggle is_pinned on a specific reply.
+ * Only the doubt creator can pin/unpin; RLS enforces this.
+ * Throws if 0 rows updated (RLS blocked or column missing).
+ */
+export const toggleReplyPin = async (
+  replyId: string,
+  doubtId: string,
+  shouldPin: boolean
+): Promise<boolean> => {
+  try {
+    const { data: updated, error } = await supabase
+      .from('doubt_answer_replies')
+      .update({
+        is_pinned: shouldPin,
+        pinned_at: shouldPin ? new Date().toISOString() : null,
+      })
+      .eq('id', replyId)
+      .eq('doubt_id', doubtId)
+      .select('id, is_pinned');
+
+    if (error) throw error;
+    if (!updated || updated.length === 0) {
+      throw new Error(
+        'Reply pin failed: database policy blocked the update. ' +
+        'Apply supabase/phase3-answer-reply-edit-delete-patch.sql to enable reply pinning.'
+      );
+    }
+    return true;
+  } catch (err) {
+    console.error('Error toggling reply pin:', err);
+    throw err;
+  }
+};
+

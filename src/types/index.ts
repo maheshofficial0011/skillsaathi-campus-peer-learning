@@ -146,6 +146,9 @@ export interface DoubtAnswerReply {
   reply_text: string;
   created_by: string;
   is_anonymous: boolean;
+  // Added by phase3-answer-reply-edit-delete-patch.sql — optional until patch applied
+  is_pinned?: boolean;
+  pinned_at?: string | null;
   created_at: string;
   updated_at: string;
 }
