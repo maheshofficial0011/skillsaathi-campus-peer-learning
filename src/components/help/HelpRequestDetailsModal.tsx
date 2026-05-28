@@ -328,13 +328,18 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
                         </p>
                       )}
                     </div>
-                    <p className="text-[10px] text-slate-400 leading-normal italic mt-1.5">
-                      Only visible because this request is accepted/completed and the user enabled sharing for these fields.
-                    </p>
+                    <div className="text-[10px] text-slate-400 leading-normal space-y-0.5 mt-1.5">
+                      <p>🔒 Only visible after an accepted/completed connection.</p>
+                      <p>✓ Only contact methods enabled by the user are shown.</p>
+                      <p>🚫 Private contact is never shown on public profiles.</p>
+                    </div>
                   </div>
                 ) : (
-                  <div className="text-[11px] text-slate-500 italic bg-white p-2 rounded border border-violet-100">
-                    No contact details shared. Use the meeting/session details provided.
+                  <div className="text-[11px] text-slate-500 bg-white p-2.5 rounded border border-violet-100 space-y-1">
+                    <p className="italic">No contact details shared.</p>
+                    <p className="text-[10px] text-slate-400 leading-normal pt-1">
+                      ✓ Only contact methods enabled by the user are shown. Private contact is never shown on public profiles.
+                    </p>
                   </div>
                 )}
               </div>

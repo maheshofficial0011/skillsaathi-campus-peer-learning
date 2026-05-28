@@ -272,3 +272,46 @@ Use this checklist to perform regression testing and ensure full readiness of al
     * **Doubt Contribution Ratings** use a 1-10 scale (Average Doubt Answer Rating).
   - Double check that doubt scores or peer help ratings never leak into the senior mentor rating averages, keeping the three modules strictly independent.
 
+---
+
+## 📈 12. Phase 4.7 - Final Pre-Phase-5 Stability & Review UX Polish
+
+- [ ] **My Profile Toggles & Counters**:
+  - Go to **My Profile** tab.
+  - Verify **Peer Help Reviews (N)** header displays the compact count of reviews.
+  - Verify reviews sort quality-first (`rating desc → helpful true first → created_at desc`).
+  - Verify Peer Help reviews cap at `3` initially with an independent **Show more reviews** / **Show fewer reviews** button.
+  - Verify **⭐ Top Received Mentor Reviews (N)** header displays the compact count of reviews.
+  - Verify Mentor reviews cap at `3` initially with an independent **Show more reviews** / **Show fewer reviews** button and the redirection footnote.
+  - Verify empty states `"No peer help reviews yet"` and `"No senior guidance reviews yet"` render nicely when there are no reviews.
+
+- [ ] **Mentor Dashboard Reviews Capping & Counters**:
+  - Open **Senior Connect** → **Mentor Dashboard** (Tab 3).
+  - Verify header displays **⭐ Reviews Received (N)** with total received reviews count.
+  - Verify the list of reviews is sorted best-first.
+  - Verify the list caps at `5` initially with a local **Show more reviews** / **Show fewer reviews** button.
+  - Verify that clicking the button expands the list locally to show all received reviews.
+
+- [ ] **In-Page Review Refresh**:
+  - As a student, navigate to **Senior Connect** → **My Requests**.
+  - Rate a completed session (submit or edit feedback).
+  - Submit the form. Verify that the request status, review badges, and any active dashboard reviews lists are immediately updated in-place without requiring a browser reload.
+
+- [ ] **Contact Privacy & Warning Copy**:
+  - Edit your profile and go to the **Private Contact Sharing Settings** section.
+  - Verify the explicit gating warnings are displayed:
+    * `"🔒 Only visible after an accepted/completed connection."`
+    * `"✓ Only contact methods enabled by the user are shown."`
+    * `"🚫 Private contact is never shown on public profiles."`
+  - Open an accepted help request coordinate modal or guidance request coordination card.
+  - Verify that the shared contact details card displays the same explicit gating warning copy consistently.
+
+- [ ] **Request Workflow Descriptions & Warnings**:
+  - Verify that request status cards display status-specific descriptive workflow notes:
+    * **Pending**: `"⏳ Waiting for mentor response."` or `"⏳ Waiting for your response."`
+    * **Accepted**: `"✅ Session coordination is available below."` or `"✅ Session coordination is active below."`
+    * **Completed**: `"🎓 Guidance completed. You can review this mentor."` or `"🎓 Guidance completed."`
+    * **Declined**: `"❌ Mentor declined this request."` or `"❌ You declined this request."`
+    * **Cancelled**: `"🚫 You cancelled this request."` or `"🚫 Student cancelled this request."`
+  - Verify duplicate requests show descriptive info: `"ℹ️ You already have an active request with this mentor. New requests are allowed after completed, cancelled, or declined sessions."`
+

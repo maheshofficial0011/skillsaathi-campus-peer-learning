@@ -57,6 +57,33 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [mentorStats, setMentorStats] = useState<SeniorMentorStats | null>(null);
   const [seniorFeedback, setSeniorFeedback] = useState<SeniorGuidanceFeedbackWithProfiles[]>([]);
 
+  const [showAllPeerReviews, setShowAllPeerReviews] = useState(false);
+  const [showAllMentorReviews, setShowAllMentorReviews] = useState(false);
+
+  const sortedPeerReviews = useMemo(() => {
+    return [...recentReviews].sort((a, b) => {
+      if (b.rating !== a.rating) return b.rating - a.rating;
+      if (b.helpful !== a.helpful) return (b.helpful ? 1 : 0) - (a.helpful ? 1 : 0);
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [recentReviews]);
+
+  const displayedPeerReviews = useMemo(() => {
+    return showAllPeerReviews ? sortedPeerReviews : sortedPeerReviews.slice(0, 3);
+  }, [sortedPeerReviews, showAllPeerReviews]);
+
+  const sortedMentorReviews = useMemo(() => {
+    return [...seniorFeedback].sort((a, b) => {
+      if (b.rating !== a.rating) return b.rating - a.rating;
+      if (b.helpful !== a.helpful) return (b.helpful ? 1 : 0) - (a.helpful ? 1 : 0);
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [seniorFeedback]);
+
+  const displayedMentorReviews = useMemo(() => {
+    return showAllMentorReviews ? sortedMentorReviews : sortedMentorReviews.slice(0, 3);
+  }, [sortedMentorReviews, showAllMentorReviews]);
+
   const completeness = useMemo(() => {
     if (!profile) return { percent: 0, missing: [] as { name: string; label: string }[] };
     const missingList: { name: string; label: string }[] = [];
@@ -494,8 +521,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                 <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
                   <span>🔒</span> Private Contact Sharing Settings
                 </h4>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  These details are private and only visible to the other participant after a guidance or help request is accepted. They are never shown publicly.
+                <p className="text-xs text-slate-400 mt-0.5 space-y-1">
+                  <span className="block">🔒 Only visible after an accepted/completed connection.</span>
+                  <span className="block">✓ Only contact methods enabled by the user are shown.</span>
+                  <span className="block">🚫 Private contact is never shown on public profiles.</span>
                 </p>
               </div>
 
@@ -794,18 +823,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
 
             {/* Recent Reviews */}
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Recent Help Reviews Received</p>
-              {recentReviews.length === 0 ? (
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">
+                Peer Help Reviews ({recentReviews.length})
+              </p>
+              {displayedPeerReviews.length === 0 ? (
                 <div className="p-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center space-y-2">
                   <p className="text-2xl">⭐</p>
-                  <p className="text-sm font-semibold text-slate-600">No reviews yet</p>
+                  <p className="text-sm font-semibold text-slate-600">No peer help reviews yet</p>
                   <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
                     No peer help reviews yet. Help peers to build your trust score.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {recentReviews.slice(0, 5).map((rev) => (
+                  {displayedPeerReviews.map((rev) => (
                     <div key={rev.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         {rev.reviewer_name ? (
@@ -847,6 +878,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                       )}
                     </div>
                   ))}
+                  {sortedPeerReviews.length > 3 && (
+                    <div className="flex justify-center mt-3 pt-1">
+                      <button
+                        onClick={() => setShowAllPeerReviews(!showAllPeerReviews)}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 focus:outline-none flex items-center gap-1 transition-colors"
+                      >
+                        {showAllPeerReviews ? 'Show fewer reviews' : 'Show more reviews'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -972,21 +1013,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
               </div>
 
               {/* Top Best Mentor Reviews Summary (Capped to top 3) */}
-              {seniorFeedback.length > 0 && (() => {
-                const sortedMentorReviews = [...seniorFeedback].sort((a, b) => {
-                  if (b.rating !== a.rating) return b.rating - a.rating;
-                  if (b.helpful !== a.helpful) return (b.helpful ? 1 : 0) - (a.helpful ? 1 : 0);
-                  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-                });
-                const topMentorReviews = sortedMentorReviews.slice(0, 3);
-                
-                return (
-                  <div className="pt-4 border-t border-violet-200 space-y-3">
-                    <p className="text-xs font-bold text-violet-800 uppercase tracking-wider block">
-                      ⭐ Top Received Mentor Reviews
-                    </p>
+              <div className="pt-4 border-t border-violet-200 space-y-3">
+                <p className="text-xs font-bold text-violet-800 uppercase tracking-wider block">
+                  ⭐ Top Received Mentor Reviews ({seniorFeedback.length})
+                </p>
+                {displayedMentorReviews.length === 0 ? (
+                  <div className="p-4 bg-white/50 rounded-xl border border-dashed border-violet-200 text-center space-y-1">
+                    <p className="text-sm font-semibold text-violet-600">No senior guidance reviews yet</p>
+                    <p className="text-[11px] text-slate-400">Guide juniors to receive reviews.</p>
+                  </div>
+                ) : (
+                  <>
                     <div className="space-y-2">
-                      {topMentorReviews.map((rev) => {
+                      {displayedMentorReviews.map((rev) => {
                         const requestTopic = rev.guidance_request?.topic || '';
                         return (
                           <div key={rev.id} className="p-3 bg-white rounded-xl border border-violet-100 space-y-1.5 text-xs text-left shadow-sm">
@@ -1019,13 +1058,21 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                       })}
                     </div>
                     {sortedMentorReviews.length > 3 && (
-                      <p className="text-[11px] text-violet-600 font-semibold italic text-center pt-1">
-                        💡 View all received mentor reviews in Senior Connect dashboard.
-                      </p>
+                      <div className="flex flex-col gap-2 items-center justify-center pt-2">
+                        <button
+                          onClick={() => setShowAllMentorReviews(!showAllMentorReviews)}
+                          className="text-xs font-semibold text-violet-700 hover:text-violet-900 focus:outline-none flex items-center gap-1 transition-colors"
+                        >
+                          {showAllMentorReviews ? 'Show fewer reviews' : 'Show more reviews'}
+                        </button>
+                        <p className="text-[10px] text-violet-500 italic">
+                          💡 View all received mentor reviews in Senior Connect dashboard.
+                        </p>
+                      </div>
                     )}
-                  </div>
-                );
-              })()}
+                  </>
+                )}
+              </div>
             </div>
           );
         })()}

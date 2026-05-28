@@ -652,8 +652,9 @@ interface MentorCardProps {
   currentUserId: string;
   onRequest: (mentor: SeniorMentorProfile) => void;
   onViewProfile: (userId: string) => void;
+  hasActiveRequest?: boolean;
 }
-const MentorCard: React.FC<MentorCardProps> = ({ mentor, currentUserId, onRequest, onViewProfile }) => {
+const MentorCard: React.FC<MentorCardProps> = ({ mentor, currentUserId, onRequest, onViewProfile, hasActiveRequest }) => {
   const isSelf = mentor.id === currentUserId;
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 hover:shadow-md transition-shadow">
@@ -669,10 +670,10 @@ const MentorCard: React.FC<MentorCardProps> = ({ mentor, currentUserId, onReques
             {mentor.mentor_status && (
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
                 mentor.mentor_status === 'accepting'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  ? 'bg-emerald-50 border-emerald-250 text-emerald-705'
                   : mentor.mentor_status === 'busy'
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-red-50 text-red-600 border-red-200'
+                  ? 'bg-amber-50 border-amber-250 text-amber-705'
+                  : 'bg-red-50 border-red-250 text-red-705'
               }`}>
                 {mentor.mentor_status === 'accepting'
                   ? 'Accepting'
@@ -724,6 +725,11 @@ const MentorCard: React.FC<MentorCardProps> = ({ mentor, currentUserId, onReques
       {!isSelf && mentor.mentor_status === 'unavailable' && (
         <p className="text-[10px] text-red-600 font-semibold italic leading-snug">⚠️ This mentor is not accepting requests right now.</p>
       )}
+      {!isSelf && hasActiveRequest && (
+        <div className="text-[10px] text-indigo-700 font-bold bg-indigo-50 border border-indigo-100 p-2 rounded-xl leading-normal">
+          ℹ️ You already have an active request with this mentor. New requests are allowed after completed, cancelled, or declined sessions.
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-2 pt-1">
@@ -736,15 +742,19 @@ const MentorCard: React.FC<MentorCardProps> = ({ mentor, currentUserId, onReques
         {!isSelf && (
           <button
             type="button"
-            disabled={mentor.mentor_status === 'unavailable'}
+            disabled={mentor.mentor_status === 'unavailable' || hasActiveRequest}
             onClick={() => onRequest(mentor)}
             className={`flex-1 py-2 text-white text-xs font-bold rounded-lg shadow-sm transition-colors ${
-              mentor.mentor_status === 'unavailable'
+              mentor.mentor_status === 'unavailable' || hasActiveRequest
                 ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200'
                 : 'bg-indigo-600 hover:bg-indigo-700'
             }`}
           >
-            {mentor.mentor_status === 'unavailable' ? 'Unavailable' : 'Request Guidance'}
+            {mentor.mentor_status === 'unavailable'
+              ? 'Unavailable'
+              : hasActiveRequest
+              ? 'Active Request'
+              : 'Request Guidance'}
           </button>
         )}
       </div>
@@ -834,6 +844,13 @@ const MyRequestCard: React.FC<MyRequestCardProps> = ({ req, onCancel, onViewProf
           <p className="text-xs text-slate-500 mt-0.5">
             {req.senior_profile?.department} · {req.senior_profile?.year_of_study}
           </p>
+          <div className="text-xs font-semibold text-slate-700 mt-2 flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-100 max-w-max">
+            {req.status === 'pending' && "⏳ Waiting for mentor response."}
+            {req.status === 'accepted' && "✅ Session coordination is available below."}
+            {req.status === 'completed' && "🎓 Guidance completed. You can review this mentor."}
+            {req.status === 'declined' && "❌ Mentor declined this request."}
+            {req.status === 'cancelled' && "🚫 You cancelled this request."}
+          </div>
         </div>
       </div>
 
@@ -944,13 +961,18 @@ const MyRequestCard: React.FC<MyRequestCardProps> = ({ req, onCancel, onViewProf
                     </p>
                   )}
                 </div>
-                <p className="text-[10px] text-slate-400 leading-normal italic mt-1.5">
-                  Only visible because this request is accepted/completed and the user enabled sharing for these fields.
-                </p>
+                <div className="text-[10px] text-slate-400 leading-normal space-y-0.5 mt-1.5">
+                  <p>🔒 Only visible after an accepted/completed connection.</p>
+                  <p>✓ Only contact methods enabled by the user are shown.</p>
+                  <p>🚫 Private contact is never shown on public profiles.</p>
+                </div>
               </div>
             ) : (
-              <div className="text-[11px] text-slate-500 italic bg-white p-2 rounded border border-violet-100">
-                No contact details shared. Use the meeting/session details provided.
+              <div className="text-[11px] text-slate-500 bg-white p-2.5 rounded border border-violet-100 space-y-1">
+                <p className="italic">No contact details shared.</p>
+                <p className="text-[10px] text-slate-400 leading-normal pt-1">
+                  ✓ Only contact methods enabled by the user are shown. Private contact is never shown on public profiles.
+                </p>
               </div>
             )}
           </div>
@@ -1060,6 +1082,13 @@ const IncomingRequestCard: React.FC<IncomingRequestCardProps> = ({ req, onAction
             {req.requester_profile?.department} · {req.requester_profile?.year_of_study}
             {req.requester_profile?.section ? ` · Sec ${req.requester_profile.section}` : ''}
           </p>
+          <div className="text-xs font-semibold text-slate-700 mt-2 flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-100 max-w-max">
+            {req.status === 'pending' && "⏳ Waiting for your response."}
+            {req.status === 'accepted' && "✅ Session coordination is active below."}
+            {req.status === 'completed' && "🎓 Guidance completed."}
+            {req.status === 'declined' && "❌ You declined this request."}
+            {req.status === 'cancelled' && "🚫 Student cancelled this request."}
+          </div>
         </div>
       </div>
 
@@ -1170,13 +1199,18 @@ const IncomingRequestCard: React.FC<IncomingRequestCardProps> = ({ req, onAction
                     </p>
                   )}
                 </div>
-                <p className="text-[10px] text-slate-400 leading-normal italic mt-1.5">
-                  Only visible because this request is accepted/completed and the user enabled sharing for these fields.
-                </p>
+                <div className="text-[10px] text-slate-400 leading-normal space-y-0.5 mt-1.5">
+                  <p>🔒 Only visible after an accepted/completed connection.</p>
+                  <p>✓ Only contact methods enabled by the user are shown.</p>
+                  <p>🚫 Private contact is never shown on public profiles.</p>
+                </div>
               </div>
             ) : (
-              <div className="text-[11px] text-slate-500 italic bg-white p-2 rounded border border-violet-100">
-                No contact details shared. Use the meeting/session details provided.
+              <div className="text-[11px] text-slate-500 bg-white p-2.5 rounded border border-violet-100 space-y-1">
+                <p className="italic">No contact details shared.</p>
+                <p className="text-[10px] text-slate-400 leading-normal pt-1">
+                  ✓ Only contact methods enabled by the user are shown. Private contact is never shown on public profiles.
+                </p>
               </div>
             )}
           </div>
@@ -1265,6 +1299,19 @@ export const SeniorConnectPage: React.FC = () => {
 
   // Mentor dashboard reviews state
   const [receivedReviews, setReceivedReviews] = useState<SeniorGuidanceFeedbackWithProfiles[]>([]);
+  const [showAllReceivedReviews, setShowAllReceivedReviews] = useState(false);
+
+  const sortedReceivedReviews = useMemo(() => {
+    return [...receivedReviews].sort((a, b) => {
+      if (b.rating !== a.rating) return b.rating - a.rating;
+      if (b.helpful !== a.helpful) return (b.helpful ? 1 : 0) - (a.helpful ? 1 : 0);
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [receivedReviews]);
+
+  const displayedReceivedReviews = useMemo(() => {
+    return showAllReceivedReviews ? sortedReceivedReviews : sortedReceivedReviews.slice(0, 5);
+  }, [sortedReceivedReviews, showAllReceivedReviews]);
 
   // ── Data loading ──
   const loadMentors = useCallback(async () => {
@@ -1453,7 +1500,7 @@ export const SeniorConnectPage: React.FC = () => {
         comment,
       });
       setFeedbackModal(null);
-      await loadMyRequests();
+      await Promise.all([loadMyRequests(), loadFeedback()]);
       toast.success(
         feedbackModal.existingFeedback ? 'Review Updated! ✏️' : 'Review Submitted! ⭐',
         'Thank you! Your feedback helps the community.'
@@ -1602,14 +1649,20 @@ export const SeniorConnectPage: React.FC = () => {
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredMentors.map((mentor) => (
-                <MentorCard
-                  key={mentor.id} mentor={mentor}
-                  currentUserId={userId}
-                  onRequest={(m) => setRequestModal(m)}
-                  onViewProfile={(uid) => setViewProfileUserId(uid)}
-                />
-              ))}
+              {filteredMentors.map((mentor) => {
+                const hasActive = myRequests.some(
+                  (r) => r.senior_id === mentor.id && (r.status === 'pending' || r.status === 'accepted')
+                );
+                return (
+                  <MentorCard
+                    key={mentor.id} mentor={mentor}
+                    currentUserId={userId}
+                    onRequest={(m) => setRequestModal(m)}
+                    onViewProfile={(uid) => setViewProfileUserId(uid)}
+                    hasActiveRequest={hasActive}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
@@ -1844,73 +1897,86 @@ export const SeniorConnectPage: React.FC = () => {
 
               {/* ⭐ Reviews Received */}
               <div className="space-y-3 pt-4 border-t border-slate-100">
-                <h3 className="text-sm font-bold text-slate-700">⭐ Reviews Received</h3>
-                {receivedReviews.length === 0 ? (
+                <h3 className="text-sm font-bold text-slate-700">⭐ Reviews Received ({receivedReviews.length})</h3>
+                {displayedReceivedReviews.length === 0 ? (
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 text-center text-slate-500 text-xs font-medium">
                     No mentor reviews yet. Complete guidance sessions to receive reviews.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {receivedReviews.map((rev) => {
-                      const reviewerName = rev.requester_profile?.full_name || 'Campus Student';
-                      const reviewerDept = rev.requester_profile?.department || '';
-                      const reviewerYear = rev.requester_profile?.year_of_study || '';
-                      const requestTopic = rev.guidance_request?.topic || '';
-                      
-                      return (
-                        <div key={rev.id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between space-y-3 hover:shadow-md transition-all">
-                          <div className="space-y-2">
-                            {/* Reviewer Meta & Action */}
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <h4 className="font-bold text-slate-900 text-xs">{reviewerName}</h4>
-                                {(reviewerDept || reviewerYear) && (
-                                  <p className="text-[10px] text-slate-500">
-                                    {reviewerDept} {reviewerDept && reviewerYear && '·'} {reviewerYear}
-                                  </p>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {displayedReceivedReviews.map((rev) => {
+                        const reviewerName = rev.requester_profile?.full_name || 'Campus Student';
+                        const reviewerDept = rev.requester_profile?.department || '';
+                        const reviewerYear = rev.requester_profile?.year_of_study || '';
+                        const requestTopic = rev.guidance_request?.topic || '';
+                        
+                        return (
+                          <div key={rev.id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between space-y-3 hover:shadow-md transition-all">
+                            <div className="space-y-2">
+                              {/* Reviewer Meta & Action */}
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <h4 className="font-bold text-slate-900 text-xs">{reviewerName}</h4>
+                                  {(reviewerDept || reviewerYear) && (
+                                    <p className="text-[10px] text-slate-500">
+                                      {reviewerDept} {reviewerDept && reviewerYear && '·'} {reviewerYear}
+                                    </p>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setViewProfileUserId(rev.created_by)}
+                                  className="px-2.5 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors shrink-0"
+                                >
+                                  View Profile
+                                </button>
+                              </div>
+  
+                              {/* Rating Stars & Helpful Flag & Date */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex text-amber-400 text-xs font-bold">
+                                  {Array.from({ length: 5 }).map((_, idx) => (
+                                    <span key={idx}>{idx < rev.rating ? '★' : '☆'}</span>
+                                  ))}
+                                </div>
+                                {rev.helpful && (
+                                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                                    👍 Helpful
+                                  </span>
                                 )}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setViewProfileUserId(rev.created_by)}
-                                className="px-2.5 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors shrink-0"
-                              >
-                                View Profile
-                              </button>
-                            </div>
-
-                            {/* Rating Stars & Helpful Flag & Date */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <div className="flex text-amber-400 text-xs font-bold">
-                                {Array.from({ length: 5 }).map((_, idx) => (
-                                  <span key={idx}>{idx < rev.rating ? '★' : '☆'}</span>
-                                ))}
-                              </div>
-                              {rev.helpful && (
-                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
-                                  👍 Helpful
+                                <span className="text-[10px] text-slate-400">
+                                  {formatDate(rev.created_at)}
                                 </span>
-                              )}
-                              <span className="text-[10px] text-slate-400">
-                                {formatDate(rev.created_at)}
-                              </span>
-                            </div>
-
-                            {/* Guidance Request Topic */}
-                            {requestTopic && (
-                              <div className="text-[10px] font-semibold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 inline-block">
-                                Topic: {requestTopic}
                               </div>
-                            )}
-
-                            {/* Comment */}
-                            <p className="text-xs text-slate-600 leading-relaxed italic">
-                              {rev.comment ? `"${rev.comment}"` : 'No comment was added with this review.'}
-                            </p>
+  
+                              {/* Guidance Request Topic */}
+                              {requestTopic && (
+                                <div className="text-[10px] font-semibold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 inline-block">
+                                  Topic: {requestTopic}
+                                </div>
+                              )}
+  
+                              {/* Comment */}
+                              <p className="text-xs text-slate-600 leading-relaxed italic">
+                                {rev.comment ? `"${rev.comment}"` : 'No comment was added with this review.'}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
+                    {sortedReceivedReviews.length > 5 && (
+                      <div className="flex justify-center mt-3 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowAllReceivedReviews(!showAllReceivedReviews)}
+                          className="text-xs font-semibold text-violet-700 hover:text-violet-900 focus:outline-none flex items-center gap-1 transition-colors"
+                        >
+                          {showAllReceivedReviews ? 'Show fewer reviews' : 'Show more reviews'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
