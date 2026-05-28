@@ -17,6 +17,15 @@ export interface Profile {
   is_senior_mentor: boolean;
   mentor_topics: string[];
   mentor_bio: string | null;
+  contact_phone: string | null;
+  contact_whatsapp: string | null;
+  contact_email: string | null;
+  contact_other: string | null;
+  share_phone_after_accept: boolean;
+  share_whatsapp_after_accept: boolean;
+  share_email_after_accept: boolean;
+  share_other_contact_after_accept: boolean;
+  share_contact_after_accept: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -204,6 +213,10 @@ export interface SeniorGuidanceRequest {
   meeting_mode: GuidanceMode | null;
   meeting_details: string | null;
   scheduled_time: string | null;
+  meeting_link: string | null;
+  meeting_password: string | null;
+  meeting_location: string | null;
+  meeting_platform: string | null;
   created_at: string;
   updated_at: string;
 }

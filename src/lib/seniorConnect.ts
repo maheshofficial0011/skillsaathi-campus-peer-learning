@@ -206,6 +206,10 @@ export const updateGuidanceRequestStatus = async (
     meeting_mode?: GuidanceMode | null;
     meeting_details?: string | null;
     scheduled_time?: string | null;
+    meeting_link?: string | null;
+    meeting_password?: string | null;
+    meeting_location?: string | null;
+    meeting_platform?: string | null;
   }
 ): Promise<SeniorGuidanceRequestWithProfiles> => {
   try {
@@ -226,6 +230,18 @@ export const updateGuidanceRequestStatus = async (
       if (coordination.scheduled_time !== undefined) {
         payload.scheduled_time = coordination.scheduled_time?.trim() || null;
       }
+      if (coordination.meeting_link !== undefined) {
+        payload.meeting_link = coordination.meeting_link?.trim() || null;
+      }
+      if (coordination.meeting_password !== undefined) {
+        payload.meeting_password = coordination.meeting_password?.trim() || null;
+      }
+      if (coordination.meeting_location !== undefined) {
+        payload.meeting_location = coordination.meeting_location?.trim() || null;
+      }
+      if (coordination.meeting_platform !== undefined) {
+        payload.meeting_platform = coordination.meeting_platform?.trim() || null;
+      }
     }
 
     const { data, error } = await supabase
@@ -240,6 +256,60 @@ export const updateGuidanceRequestStatus = async (
   } catch (err) {
     console.error('updateGuidanceRequestStatus error:', err);
     throw err;
+  }
+};
+
+export interface SecureContactInfo {
+  contact_phone: string | null;
+  contact_whatsapp: string | null;
+  contact_email: string | null;
+  contact_other: string | null;
+}
+
+/**
+ * Invokes the secure database function to fetch allowed contact details.
+ * Will return null/empty fields if sharing is disabled by the target user.
+ */
+export const getSharedContactDetails = async (
+  targetUserId: string,
+  requestId: string
+): Promise<SecureContactInfo | null> => {
+  try {
+    const { data, error } = await supabase.rpc('get_shared_contact', {
+      target_user_id: targetUserId,
+      request_id: requestId,
+    });
+    if (error) throw error;
+    if (data && data.length > 0) {
+      return data[0] as SecureContactInfo;
+    }
+    return null;
+  } catch (err) {
+    console.error('getSharedContactDetails RPC error:', err);
+    return null;
+  }
+};
+
+/**
+ * Invokes the secure database function to fetch allowed help request contact details.
+ */
+export const getSharedHelpContactDetails = async (
+  targetUserId: string,
+  requestId: string
+): Promise<SecureContactInfo | null> => {
+  try {
+    const { data, error } = await supabase.rpc('get_shared_help_contact', {
+      target_user_id: targetUserId,
+      request_id: requestId,
+    });
+    if (error) throw error;
+    if (data && data.length > 0) {
+      return data[0] as SecureContactInfo;
+    }
+    return null;
+  } catch (err) {
+    console.error('getSharedHelpContactDetails RPC error:', err);
+    return null;
   }
 };
 

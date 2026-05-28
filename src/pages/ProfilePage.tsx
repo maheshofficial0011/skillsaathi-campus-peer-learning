@@ -42,6 +42,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [editSkillsWanted, setEditSkillsWanted] = useState('');
   const [editAvailability, setEditAvailability] = useState('');
   const [editHelpMode, setEditHelpMode] = useState<string>('Online');
+  const [editPhone, setEditPhone] = useState('');
+  const [editWhatsapp, setEditWhatsapp] = useState('');
+  const [editContactEmail, setEditContactEmail] = useState('');
+  const [editContactOther, setEditContactOther] = useState('');
+  const [editSharePhone, setEditSharePhone] = useState(false);
+  const [editShareWhatsapp, setEditShareWhatsapp] = useState(false);
+  const [editShareEmail, setEditShareEmail] = useState(false);
+  const [editShareOther, setEditShareOther] = useState(false);
+  const [editShareContactGlobal, setEditShareContactGlobal] = useState(false);
   const [editLoading, setEditLoading] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
@@ -171,6 +180,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
     setEditSkillsWanted(profile.skills_wanted.join(', '));
     setEditAvailability(profile.availability || '');
     setEditHelpMode(profile.help_mode || 'Online');
+    setEditPhone(profile.contact_phone || '');
+    setEditWhatsapp(profile.contact_whatsapp || '');
+    setEditContactEmail(profile.contact_email || '');
+    setEditContactOther(profile.contact_other || '');
+    setEditSharePhone(!!profile.share_phone_after_accept);
+    setEditShareWhatsapp(!!profile.share_whatsapp_after_accept);
+    setEditShareEmail(!!profile.share_email_after_accept);
+    setEditShareOther(!!profile.share_other_contact_after_accept);
+    setEditShareContactGlobal(!!profile.share_contact_after_accept);
     setEditError(null);
     setEditSuccess(null);
     setIsEditing(true);
@@ -200,6 +218,49 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
       return;
     }
 
+    const cleanPhone = editPhone.trim();
+    const cleanWhatsapp = editWhatsapp.trim();
+    const cleanEmail = editContactEmail.trim();
+    const cleanOther = editContactOther.trim();
+
+    // Validations:
+    if (editSharePhone && !cleanPhone) {
+      setEditError('Phone number cannot be empty if sharing is enabled.');
+      toast.error('Validation Warning', 'Please enter a phone number or disable sharing for it.');
+      return;
+    }
+    if (editShareWhatsapp && !cleanWhatsapp) {
+      setEditError('WhatsApp number/link cannot be empty if sharing is enabled.');
+      toast.error('Validation Warning', 'Please enter a WhatsApp link/number or disable sharing for it.');
+      return;
+    }
+    if (editShareEmail && !cleanEmail) {
+      setEditError('Contact email cannot be empty if sharing is enabled.');
+      toast.error('Validation Warning', 'Please enter a contact email or disable sharing for it.');
+      return;
+    }
+    if (editShareOther && !cleanOther) {
+      setEditError('Other contact details cannot be empty if sharing is enabled.');
+      toast.error('Validation Warning', 'Please specify other contact info or disable sharing.');
+      return;
+    }
+
+    // Email format validation (if provided)
+    if (cleanEmail && !cleanEmail.includes('@')) {
+      setEditError('Please enter a valid email address.');
+      toast.error('Validation Warning', 'Contact email format is invalid.');
+      return;
+    }
+
+    // If globally sharing or any sharing checkbox is enabled but all contact fields are blank
+    const anySharingEnabled = editSharePhone || editShareWhatsapp || editShareEmail || editShareOther || editShareContactGlobal;
+    const allFieldsBlank = !cleanPhone && !cleanWhatsapp && !cleanEmail && !cleanOther;
+    if (anySharingEnabled && allFieldsBlank) {
+      setEditError('Add at least one contact detail or disable sharing.');
+      toast.error('Validation Warning', 'Add at least one contact detail or disable sharing.');
+      return;
+    }
+
     setEditLoading(true);
     setEditError(null);
     setEditSuccess(null);
@@ -216,6 +277,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
         skills_wanted: skillsWantedArr,
         availability: editAvailability.trim() || null,
         help_mode: editHelpMode || null,
+        contact_phone: cleanPhone || null,
+        contact_whatsapp: cleanWhatsapp || null,
+        contact_email: cleanEmail || null,
+        contact_other: cleanOther || null,
+        share_phone_after_accept: editSharePhone,
+        share_whatsapp_after_accept: editShareWhatsapp,
+        share_email_after_accept: editShareEmail,
+        share_other_contact_after_accept: editShareOther,
+        share_contact_after_accept: editShareContactGlobal,
         trust_score: profile.trust_score,
         badge_level: profile.badge_level,
         is_senior_mentor: profile.is_senior_mentor,
@@ -412,6 +482,81 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                 <textarea rows={2} value={editSkillsWanted} onChange={(e) => setEditSkillsWanted(e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
                   placeholder="e.g. Docker, Python, Machine Learning" />
+              </div>
+            </div>
+
+            {/* ========== PRIVATE CONTACT SHARING SECTION ========== */}
+            <div className="pt-6 border-t border-slate-100 space-y-4">
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  <span>🔒</span> Private Contact Sharing Settings
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  These details are private and only visible to the other participant after a guidance or help request is accepted. They are never shown publicly.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Phone */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">Contact Phone Number (Optional)</label>
+                  <input type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 text-xs font-semibold bg-white"
+                    placeholder="e.g. +91 98765 43210" />
+                  <label className="flex items-center gap-2 select-none text-[11px] font-bold text-slate-600 cursor-pointer pt-0.5">
+                    <input type="checkbox" checked={editSharePhone} onChange={(e) => setEditSharePhone(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5" />
+                    <span>Share phone after accepted request</span>
+                  </label>
+                </div>
+
+                {/* WhatsApp */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">WhatsApp Link or Number (Optional)</label>
+                  <input type="text" value={editWhatsapp} onChange={(e) => setEditWhatsapp(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 text-xs font-semibold bg-white"
+                    placeholder="e.g. wa.me/919876543210" />
+                  <label className="flex items-center gap-2 select-none text-[11px] font-bold text-slate-600 cursor-pointer pt-0.5">
+                    <input type="checkbox" checked={editShareWhatsapp} onChange={(e) => setEditShareWhatsapp(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5" />
+                    <span>Share WhatsApp after accepted request</span>
+                  </label>
+                </div>
+
+                {/* Contact Email */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">Contact Email (Optional)</label>
+                  <input type="email" value={editContactEmail} onChange={(e) => setEditContactEmail(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 text-xs font-semibold bg-white"
+                    placeholder="e.g. contact@email.com" />
+                  <label className="flex items-center gap-2 select-none text-[11px] font-bold text-slate-600 cursor-pointer pt-0.5">
+                    <input type="checkbox" checked={editShareEmail} onChange={(e) => setEditShareEmail(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5" />
+                    <span>Share email after accepted request</span>
+                  </label>
+                </div>
+
+                {/* Other Handle */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">Other Handle/Discord/Telegram (Optional)</label>
+                  <input type="text" value={editContactOther} onChange={(e) => setEditContactOther(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 text-xs font-semibold bg-white"
+                    placeholder="e.g. Discord: username#1234" />
+                  <label className="flex items-center gap-2 select-none text-[11px] font-bold text-slate-600 cursor-pointer pt-0.5">
+                    <input type="checkbox" checked={editShareOther} onChange={(e) => setEditShareOther(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5" />
+                    <span>Share other contact after accepted request</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Global opt-in compatibility checkbox */}
+              <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 flex items-center gap-3">
+                <input type="checkbox" id="global-share-contact" checked={editShareContactGlobal} onChange={(e) => setEditShareContactGlobal(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 shrink-0" />
+                <label htmlFor="global-share-contact" className="text-xs font-bold text-indigo-800 leading-normal select-none cursor-pointer">
+                  Opt-in: Share my enabled contact details automatically with approved request peers.
+                </label>
               </div>
             </div>
 

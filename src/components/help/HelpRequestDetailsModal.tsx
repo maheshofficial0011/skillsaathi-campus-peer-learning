@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { HelpRequestWithProfiles, Feedback } from '../../types';
 import { PublicProfileModal } from '../profile/PublicProfileModal';
+import { getSharedHelpContactDetails } from '../../lib/seniorConnect';
+import type { SecureContactInfo } from '../../lib/seniorConnect';
 
 interface HelpRequestDetailsModalProps {
   request: HelpRequestWithProfiles;
@@ -89,6 +91,31 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
   const [viewProfileId, setViewProfileId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [contactDetails, setContactDetails] = useState<SecureContactInfo | null>(null);
+  const [loadingContact, setLoadingContact] = useState(false);
+
+  useEffect(() => {
+    const fetchHelpContact = async () => {
+      const isParticipant = currentUserId === request.created_by || currentUserId === request.accepted_by;
+      const hasAcceptedHelper = !!request.accepted_by;
+      const isValidStatus = request.status === 'accepted' || request.status === 'solved' || request.status === 'closed';
+
+      if (!isParticipant || !hasAcceptedHelper || !isValidStatus) return;
+
+      const targetUserId = currentUserId === request.created_by ? request.accepted_by! : request.created_by;
+
+      setLoadingContact(true);
+      try {
+        const details = await getSharedHelpContactDetails(targetUserId, request.id);
+        setContactDetails(details);
+      } catch (err) {
+        console.error('Error fetching shared help contact:', err);
+      } finally {
+        setLoadingContact(false);
+      }
+    };
+    fetchHelpContact();
+  }, [request.id, request.status, request.created_by, request.accepted_by, currentUserId]);
 
   const isCreator = request.created_by === currentUserId;
   const canDelete =
@@ -253,6 +280,65 @@ export const HelpRequestDetailsModal: React.FC<HelpRequestDetailsModalProps> = (
               </p>
             </div>
           )}
+
+          {/* Shared Contact Details Card */}
+          {(request.status === 'accepted' || request.status === 'solved' || request.status === 'closed') &&
+            (currentUserId === request.created_by || currentUserId === request.accepted_by) &&
+            request.accepted_by && (
+              <div className="p-3.5 bg-violet-50/50 border border-violet-100 rounded-xl space-y-2">
+                <p className="text-xs font-bold text-violet-850 flex items-center gap-1">
+                  <span>👤</span> Shared Contact Details:
+                </p>
+                {loadingContact ? (
+                  <p className="text-xs text-slate-400 italic">Loading contact details...</p>
+                ) : contactDetails && (
+                  contactDetails.contact_phone ||
+                  contactDetails.contact_whatsapp ||
+                  contactDetails.contact_email ||
+                  contactDetails.contact_other
+                ) ? (
+                  <div className="space-y-2 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {contactDetails.contact_phone && (
+                        <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                          <span className="font-semibold text-slate-500 block mb-0.5">📞 Phone Number:</span>
+                          {contactDetails.contact_phone}
+                        </p>
+                      )}
+                      {contactDetails.contact_whatsapp && (
+                        <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                          <span className="font-semibold text-slate-500 block mb-0.5">💬 WhatsApp:</span>
+                          <a href={contactDetails.contact_whatsapp.startsWith('http') ? contactDetails.contact_whatsapp : `https://wa.me/${contactDetails.contact_whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                            {contactDetails.contact_whatsapp}
+                          </a>
+                        </p>
+                      )}
+                      {contactDetails.contact_email && (
+                        <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                          <span className="font-semibold text-slate-500 block mb-0.5">✉️ Contact Email:</span>
+                          <a href={`mailto:${contactDetails.contact_email}`} className="text-indigo-600 hover:underline">
+                            {contactDetails.contact_email}
+                          </a>
+                        </p>
+                      )}
+                      {contactDetails.contact_other && (
+                        <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                          <span className="font-semibold text-slate-500 block mb-0.5">🌐 Other Handle / Contact:</span>
+                          {contactDetails.contact_other}
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-normal italic mt-1.5">
+                      Only visible because this request is accepted/completed and the user enabled sharing for these fields.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-500 italic bg-white p-2 rounded border border-violet-100">
+                    No contact details shared. Use the meeting/session details provided.
+                  </div>
+                )}
+              </div>
+            )}
 
           {/* Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

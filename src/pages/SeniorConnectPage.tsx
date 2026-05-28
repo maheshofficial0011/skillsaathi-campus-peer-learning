@@ -13,9 +13,12 @@ import {
   getMyGuidanceRequests,
   getSeniorIncomingRequests,
   updateGuidanceRequestStatus,
+  getSharedContactDetails,
   MENTOR_TOPICS,
   GUIDANCE_MODES,
 } from '../lib/seniorConnect';
+import type { SecureContactInfo } from '../lib/seniorConnect';
+import { isTrustedMeetingLink, getMeetingPlatform } from '../lib/trustedMeetingLinks';
 import type {
   SeniorMentorProfile,
   SeniorGuidanceRequestWithProfiles,
@@ -237,47 +240,95 @@ const RequestGuidanceModal: React.FC<RequestGuidanceModalProps> = ({ mentor, cur
 // RESPONSE MESSAGE MODAL (for senior actions)
 // ──────────────────────────────────────────
 interface ResponseModalProps {
-  action: 'accept' | 'decline' | 'complete';
+  action: 'accept' | 'decline' | 'complete' | 'edit';
+  initialCoordination?: {
+    meeting_mode: GuidanceMode;
+    meeting_details: string;
+    scheduled_time: string;
+    meeting_link: string | null;
+    meeting_password: string | null;
+    meeting_location: string | null;
+  } | null;
   onConfirm: (
     msg: string,
     coordination?: {
       meeting_mode: GuidanceMode;
       meeting_details: string;
       scheduled_time: string;
+      meeting_link: string | null;
+      meeting_password: string | null;
+      meeting_location: string | null;
+      meeting_platform: string | null;
     }
   ) => Promise<void>;
   onClose: () => void;
 }
-const ResponseModal: React.FC<ResponseModalProps> = ({ action, onConfirm, onClose }) => {
+const ResponseModal: React.FC<ResponseModalProps> = ({ action, initialCoordination, onConfirm, onClose }) => {
   const [msg, setMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [meetingMode, setMeetingMode] = useState<GuidanceMode>('Online');
-  const [scheduledTime, setScheduledTime] = useState('');
-  const [meetingDetails, setMeetingDetails] = useState('');
+  const [meetingMode, setMeetingMode] = useState<GuidanceMode>(initialCoordination?.meeting_mode ?? 'Online');
+  const [scheduledTime, setScheduledTime] = useState(initialCoordination?.scheduled_time ?? '');
+  const [meetingDetails, setMeetingDetails] = useState(initialCoordination?.meeting_details ?? '');
+  const [meetingLink, setMeetingLink] = useState(initialCoordination?.meeting_link ?? '');
+  const [meetingPassword, setMeetingPassword] = useState(initialCoordination?.meeting_password ?? '');
+  const [meetingLocation, setMeetingLocation] = useState(initialCoordination?.meeting_location ?? '');
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const labels = {
     accept:   { title: 'Accept Request', btn: '✅ Accept', color: 'bg-emerald-600 hover:bg-emerald-700', placeholder: 'e.g. Sure! Let\'s connect this weekend.' },
     decline:  { title: 'Decline Request', btn: '❌ Decline', color: 'bg-red-600 hover:bg-red-700',       placeholder: 'e.g. Sorry, I\'m not available this week.' },
     complete: { title: 'Mark Completed', btn: '🎓 Complete', color: 'bg-indigo-600 hover:bg-indigo-700', placeholder: 'e.g. Great session! Hope this helps your placement prep.' },
+    edit:     { title: 'Edit Session Details', btn: '💾 Update', color: 'bg-indigo-600 hover:bg-indigo-700', placeholder: 'e.g. Updating meeting details...' },
   };
   const l = labels[action];
 
   const handleConfirm = async () => {
-    if (action === 'accept' && (!scheduledTime.trim() || !meetingDetails.trim())) {
-      alert('Please fill in both Scheduled Time and Meeting/Contact Details.');
+    setLocalError(null);
+    if ((action === 'accept' || action === 'edit') && (!scheduledTime.trim() || !meetingDetails.trim())) {
+      setLocalError('Please fill in both Scheduled Time and Meeting Details.');
       return;
     }
+
+    if (action === 'accept' || action === 'edit') {
+      if (meetingMode === 'Online' && !meetingLink.trim()) {
+        setLocalError('Meeting Link is required for Online sessions.');
+        return;
+      }
+      if (meetingMode === 'In-Person' && !meetingLocation.trim()) {
+        setLocalError('Meeting Location is required for In-Person sessions.');
+        return;
+      }
+
+      if (meetingLink.trim()) {
+        if (!meetingLink.trim().toLowerCase().startsWith('https://')) {
+          setLocalError('Meeting Link must start with https://');
+          return;
+        }
+        if (!isTrustedMeetingLink(meetingLink)) {
+          setLocalError('Meeting Link domain is untrusted. Please use meet.google.com, zoom.us, teams.microsoft.com, or webex.com.');
+          return;
+        }
+      }
+    }
+
     setSubmitting(true);
     try {
-      if (action === 'accept') {
+      if (action === 'accept' || action === 'edit') {
+        const linkVal = meetingLink.trim() || null;
         await onConfirm(msg, {
           meeting_mode: meetingMode,
           scheduled_time: scheduledTime.trim(),
           meeting_details: meetingDetails.trim(),
+          meeting_link: linkVal,
+          meeting_password: meetingPassword.trim() || null,
+          meeting_location: meetingLocation.trim() || null,
+          meeting_platform: linkVal ? getMeetingPlatform(linkVal) : null,
         });
       } else {
         await onConfirm(msg);
       }
+    } catch (err: any) {
+      setLocalError(err.message || 'An error occurred while saving details.');
     } finally {
       setSubmitting(false);
     }
@@ -297,8 +348,13 @@ const ResponseModal: React.FC<ResponseModalProps> = ({ action, onConfirm, onClos
           />
         </div>
 
-        {action === 'accept' && (
-          <div className="space-y-3 pt-1 border-t border-slate-100">
+        {(action === 'accept' || action === 'edit') && (
+          <div className="space-y-3 pt-1 border-t border-slate-100 max-h-[50vh] overflow-y-auto px-1">
+            {localError && (
+              <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 text-center font-bold">
+                ⚠️ {localError}
+              </div>
+            )}
             <div>
               <label className="text-xs font-bold text-slate-600 block mb-1">
                 Meeting Mode <span className="text-red-500">*</span>
@@ -328,9 +384,59 @@ const ResponseModal: React.FC<ResponseModalProps> = ({ action, onConfirm, onClos
               />
             </div>
 
+            {(meetingMode === 'Online' || meetingMode === 'Hybrid') && (
+              <>
+                <div>
+                  <label className="text-xs font-bold text-slate-600 block mb-1">
+                    Meeting Link {meetingMode === 'Online' && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    required={meetingMode === 'Online'}
+                    value={meetingLink}
+                    onChange={(e) => { setMeetingLink(e.target.value); setLocalError(null); }}
+                    placeholder="https://meet.google.com/abc-defg-hij"
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-400 text-slate-900"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-normal">
+                    Supported: Google Meet, Zoom, MS Teams, Webex. Must start with https://
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-600 block mb-1">
+                    Meeting Password / Access Code <span className="text-slate-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={meetingPassword}
+                    onChange={(e) => setMeetingPassword(e.target.value)}
+                    placeholder="e.g. 123456 or passcode"
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-400 text-slate-900"
+                  />
+                </div>
+              </>
+            )}
+
+            {(meetingMode === 'In-Person' || meetingMode === 'Hybrid') && (
+              <div>
+                <label className="text-xs font-bold text-slate-600 block mb-1">
+                  Meeting Location {meetingMode === 'In-Person' && <span className="text-red-500">*</span>}
+                </label>
+                <input
+                  type="text"
+                  required={meetingMode === 'In-Person'}
+                  value={meetingLocation}
+                  onChange={(e) => setMeetingLocation(e.target.value)}
+                  placeholder="e.g. CSE Labs, Block 3, Library 2nd Floor"
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-400 text-slate-900"
+                />
+              </div>
+            )}
+
             <div>
               <label className="text-xs font-bold text-slate-600 block mb-1">
-                Meeting/Contact Details <span className="text-red-500">*</span>
+                Meeting Details / Extra Notes <span className="text-red-500">*</span>
               </label>
               <textarea
                 required
@@ -453,14 +559,40 @@ interface MyRequestCardProps {
 }
 const MyRequestCard: React.FC<MyRequestCardProps> = ({ req, onCancel, onViewProfile }) => {
   const [cancelling, setCancelling] = useState(false);
+  const [contactDetails, setContactDetails] = useState<SecureContactInfo | null>(null);
+  const [loadingContact, setLoadingContact] = useState(false);
+
   const canCancel = req.status === 'pending' || req.status === 'accepted';
   const seniorName = req.senior_profile?.full_name || 'Senior Mentor';
+
+  useEffect(() => {
+    const fetchContact = async () => {
+      if (req.status !== 'accepted' && req.status !== 'completed') return;
+      setLoadingContact(true);
+      try {
+        const details = await getSharedContactDetails(req.senior_id, req.id);
+        setContactDetails(details);
+      } catch (err) {
+        console.error('Error fetching shared contact:', err);
+      } finally {
+        setLoadingContact(false);
+      }
+    };
+    fetchContact();
+  }, [req.status, req.id, req.senior_id]);
 
   const handleCancel = async () => {
     if (!window.confirm('Cancel this guidance request?')) return;
     setCancelling(true);
     try { await onCancel(req); } finally { setCancelling(false); }
   };
+
+  const hasContacts = contactDetails && (
+    contactDetails.contact_phone ||
+    contactDetails.contact_whatsapp ||
+    contactDetails.contact_email ||
+    contactDetails.contact_other
+  );
 
   return (
     <div className={`bg-white rounded-2xl border shadow-sm p-5 space-y-3 ${req.status === 'completed' ? 'border-indigo-200' : req.status === 'declined' ? 'border-red-200' : 'border-slate-200'}`}>
@@ -501,7 +633,7 @@ const MyRequestCard: React.FC<MyRequestCardProps> = ({ req, onCancel, onViewProf
         )}
 
         {/* Coordination details display */}
-        {(req.meeting_mode || req.scheduled_time || req.meeting_details) && (
+        {(req.meeting_mode || req.scheduled_time || req.meeting_details || req.meeting_link || req.meeting_location) && (
           <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-2">
             <p className="text-[11px] font-bold text-indigo-850 flex items-center gap-1">
               <span>📅</span> Session Coordination:
@@ -517,11 +649,86 @@ const MyRequestCard: React.FC<MyRequestCardProps> = ({ req, onCancel, onViewProf
                   <span className="font-semibold text-slate-500">Scheduled:</span> {req.scheduled_time}
                 </p>
               )}
+              {req.meeting_location && (
+                <p className="text-slate-700 sm:col-span-2">
+                  <span className="font-semibold text-slate-500">Location:</span> {req.meeting_location}
+                </p>
+              )}
+              {req.meeting_link && (
+                <p className="text-slate-700 sm:col-span-2">
+                  <span className="font-semibold text-slate-500">Meeting Link:</span>{' '}
+                  <a
+                    href={req.meeting_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:underline font-bold inline-flex items-center gap-1 bg-white px-2 py-1 rounded border border-indigo-100 shadow-sm"
+                  >
+                    <span>{req.meeting_platform ?? '🔗'}</span> Click to Join Session
+                  </a>
+                </p>
+              )}
+              {req.meeting_password && (
+                <p className="text-slate-700 sm:col-span-2 bg-white px-2 py-1.5 rounded border border-indigo-100 font-mono text-[10px] w-fit">
+                  <span className="font-semibold text-slate-500 font-sans text-xs mr-1">Password/Passcode:</span> {req.meeting_password}
+                </p>
+              )}
             </div>
             {req.meeting_details && (
               <div className="text-[11px] pt-1.5 border-t border-indigo-100/50 text-slate-700">
-                <span className="font-semibold text-slate-500 block mb-0.5">Location / Contact Details:</span>
+                <span className="font-semibold text-slate-500 block mb-0.5">Additional Session Notes:</span>
                 <p className="bg-white p-2 rounded border border-indigo-100 leading-relaxed break-words text-xs font-semibold">{req.meeting_details}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Shared Contact Details Card */}
+        {(req.status === 'accepted' || req.status === 'completed') && (
+          <div className="p-3 bg-violet-50/50 border border-violet-100 rounded-xl space-y-2">
+            <p className="text-[11px] font-bold text-violet-850 flex items-center gap-1">
+              <span>👤</span> Shared Contact Details:
+            </p>
+            {loadingContact ? (
+              <p className="text-xs text-slate-400 italic">Loading contact details...</p>
+            ) : hasContacts ? (
+              <div className="space-y-2 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {contactDetails.contact_phone && (
+                    <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                      <span className="font-semibold text-slate-500 block mb-0.5">📞 Phone Number:</span>
+                      {contactDetails.contact_phone}
+                    </p>
+                  )}
+                  {contactDetails.contact_whatsapp && (
+                    <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                      <span className="font-semibold text-slate-500 block mb-0.5">💬 WhatsApp:</span>
+                      <a href={contactDetails.contact_whatsapp.startsWith('http') ? contactDetails.contact_whatsapp : `https://wa.me/${contactDetails.contact_whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                        {contactDetails.contact_whatsapp}
+                      </a>
+                    </p>
+                  )}
+                  {contactDetails.contact_email && (
+                    <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                      <span className="font-semibold text-slate-500 block mb-0.5">✉️ Contact Email:</span>
+                      <a href={`mailto:${contactDetails.contact_email}`} className="text-indigo-600 hover:underline">
+                        {contactDetails.contact_email}
+                      </a>
+                    </p>
+                  )}
+                  {contactDetails.contact_other && (
+                    <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                      <span className="font-semibold text-slate-500 block mb-0.5">🌐 Other Handle / Contact:</span>
+                      {contactDetails.contact_other}
+                    </p>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400 leading-normal italic mt-1.5">
+                  Only visible because this request is accepted/completed and the user enabled sharing for these fields.
+                </p>
+              </div>
+            ) : (
+              <div className="text-[11px] text-slate-500 italic bg-white p-2 rounded border border-violet-100">
+                No contact details shared. Use the meeting/session details provided.
               </div>
             )}
           </div>
@@ -551,11 +758,36 @@ const MyRequestCard: React.FC<MyRequestCardProps> = ({ req, onCancel, onViewProf
 // ──────────────────────────────────────────
 interface IncomingRequestCardProps {
   req: SeniorGuidanceRequestWithProfiles;
-  onAction: (req: SeniorGuidanceRequestWithProfiles, action: 'accept' | 'decline' | 'complete') => void;
+  onAction: (req: SeniorGuidanceRequestWithProfiles, action: 'accept' | 'decline' | 'complete' | 'edit') => void;
   onViewProfile: (userId: string) => void;
 }
 const IncomingRequestCard: React.FC<IncomingRequestCardProps> = ({ req, onAction, onViewProfile }) => {
   const requesterName = req.requester_profile?.full_name || 'Student';
+  const [contactDetails, setContactDetails] = useState<SecureContactInfo | null>(null);
+  const [loadingContact, setLoadingContact] = useState(false);
+
+  useEffect(() => {
+    const fetchContact = async () => {
+      if (req.status !== 'accepted' && req.status !== 'completed') return;
+      setLoadingContact(true);
+      try {
+        const details = await getSharedContactDetails(req.requester_id, req.id);
+        setContactDetails(details);
+      } catch (err) {
+        console.error('Error fetching shared contact:', err);
+      } finally {
+        setLoadingContact(false);
+      }
+    };
+    fetchContact();
+  }, [req.status, req.id, req.requester_id]);
+
+  const hasContacts = contactDetails && (
+    contactDetails.contact_phone ||
+    contactDetails.contact_whatsapp ||
+    contactDetails.contact_email ||
+    contactDetails.contact_other
+  );
 
   return (
     <div className={`bg-white rounded-2xl border shadow-sm p-5 space-y-3 ${req.status === 'completed' ? 'border-indigo-200 bg-indigo-50/20' : req.status === 'declined' ? 'border-red-100' : 'border-slate-200'}`}>
@@ -597,7 +829,7 @@ const IncomingRequestCard: React.FC<IncomingRequestCardProps> = ({ req, onAction
         )}
 
         {/* Coordination details display */}
-        {(req.meeting_mode || req.scheduled_time || req.meeting_details) && (
+        {(req.meeting_mode || req.scheduled_time || req.meeting_details || req.meeting_link || req.meeting_location) && (
           <div className="p-3 bg-violet-50/50 border border-violet-100 rounded-xl space-y-2">
             <p className="text-[11px] font-bold text-violet-850 flex items-center gap-1">
               <span>📅</span> Session Coordination:
@@ -613,11 +845,86 @@ const IncomingRequestCard: React.FC<IncomingRequestCardProps> = ({ req, onAction
                   <span className="font-semibold text-slate-500">Scheduled:</span> {req.scheduled_time}
                 </p>
               )}
+              {req.meeting_location && (
+                <p className="text-slate-700 sm:col-span-2">
+                  <span className="font-semibold text-slate-500">Location:</span> {req.meeting_location}
+                </p>
+              )}
+              {req.meeting_link && (
+                <p className="text-slate-700 sm:col-span-2">
+                  <span className="font-semibold text-slate-500">Meeting Link:</span>{' '}
+                  <a
+                    href={req.meeting_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:underline font-bold inline-flex items-center gap-1 bg-white px-2 py-1 rounded border border-indigo-100 shadow-sm"
+                  >
+                    <span>{req.meeting_platform ?? '🔗'}</span> Click to Join Session
+                  </a>
+                </p>
+              )}
+              {req.meeting_password && (
+                <p className="text-slate-700 sm:col-span-2 bg-white px-2 py-1.5 rounded border border-indigo-100 font-mono text-[10px] w-fit">
+                  <span className="font-semibold text-slate-500 font-sans text-xs mr-1">Password/Passcode:</span> {req.meeting_password}
+                </p>
+              )}
             </div>
             {req.meeting_details && (
               <div className="text-[11px] pt-1.5 border-t border-violet-100/50 text-slate-700">
-                <span className="font-semibold text-slate-500 block mb-0.5">Location / Contact Details:</span>
+                <span className="font-semibold text-slate-500 block mb-0.5">Additional Session Notes:</span>
                 <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed break-words text-xs font-semibold">{req.meeting_details}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Shared Contact Details Card */}
+        {(req.status === 'accepted' || req.status === 'completed') && (
+          <div className="p-3 bg-violet-50/50 border border-violet-100 rounded-xl space-y-2">
+            <p className="text-[11px] font-bold text-violet-850 flex items-center gap-1">
+              <span>👤</span> Shared Contact Details:
+            </p>
+            {loadingContact ? (
+              <p className="text-xs text-slate-400 italic">Loading contact details...</p>
+            ) : hasContacts ? (
+              <div className="space-y-2 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {contactDetails.contact_phone && (
+                    <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                      <span className="font-semibold text-slate-500 block mb-0.5">📞 Phone Number:</span>
+                      {contactDetails.contact_phone}
+                    </p>
+                  )}
+                  {contactDetails.contact_whatsapp && (
+                    <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                      <span className="font-semibold text-slate-500 block mb-0.5">💬 WhatsApp:</span>
+                      <a href={contactDetails.contact_whatsapp.startsWith('http') ? contactDetails.contact_whatsapp : `https://wa.me/${contactDetails.contact_whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                        {contactDetails.contact_whatsapp}
+                      </a>
+                    </p>
+                  )}
+                  {contactDetails.contact_email && (
+                    <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                      <span className="font-semibold text-slate-500 block mb-0.5">✉️ Contact Email:</span>
+                      <a href={`mailto:${contactDetails.contact_email}`} className="text-indigo-600 hover:underline">
+                        {contactDetails.contact_email}
+                      </a>
+                    </p>
+                  )}
+                  {contactDetails.contact_other && (
+                    <p className="bg-white p-2 rounded border border-violet-200 leading-relaxed font-semibold text-slate-800">
+                      <span className="font-semibold text-slate-500 block mb-0.5">🌐 Other Handle / Contact:</span>
+                      {contactDetails.contact_other}
+                    </p>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400 leading-normal italic mt-1.5">
+                  Only visible because this request is accepted/completed and the user enabled sharing for these fields.
+                </p>
+              </div>
+            ) : (
+              <div className="text-[11px] text-slate-500 italic bg-white p-2 rounded border border-violet-100">
+                No contact details shared. Use the meeting/session details provided.
               </div>
             )}
           </div>
@@ -643,10 +950,14 @@ const IncomingRequestCard: React.FC<IncomingRequestCardProps> = ({ req, onAction
         </div>
       )}
       {req.status === 'accepted' && (
-        <div className="pl-9">
+        <div className="pl-9 flex gap-2 flex-wrap">
           <button type="button" onClick={() => onAction(req, 'complete')}
             className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">
             🎓 Mark Completed
+          </button>
+          <button type="button" onClick={() => onAction(req, 'edit')}
+            className="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold rounded-lg transition-colors">
+            ✏️ Edit Session
           </button>
         </div>
       )}
@@ -681,7 +992,7 @@ export const SeniorConnectPage: React.FC = () => {
   // Modal state
   const [requestModal, setRequestModal] = useState<SeniorMentorProfile | null>(null);
   const [responseModal, setResponseModal] = useState<{
-    req: SeniorGuidanceRequestWithProfiles; action: 'accept' | 'decline' | 'complete';
+    req: SeniorGuidanceRequestWithProfiles; action: 'accept' | 'decline' | 'complete' | 'edit';
   } | null>(null);
   const [viewProfileUserId, setViewProfileUserId] = useState<string | null>(null);
 
@@ -790,9 +1101,31 @@ export const SeniorConnectPage: React.FC = () => {
       meeting_mode: GuidanceMode;
       meeting_details: string;
       scheduled_time: string;
+      meeting_link: string | null;
+      meeting_password: string | null;
+      meeting_location: string | null;
+      meeting_platform: string | null;
     }
   ) => {
     if (!responseModal) return;
+    if (responseModal.action === 'edit') {
+      try {
+        await updateGuidanceRequestStatus(
+          responseModal.req.id,
+          responseModal.req.status,
+          msg,
+          coordination
+        );
+        setResponseModal(null);
+        await loadIncoming();
+        toast.success('Session Updated ✅', 'The session details have been updated successfully.');
+      } catch (err: unknown) {
+        const msg2 = err instanceof Error ? err.message : String(err);
+        toast.error('Update Failed', msg2 || 'Could not update session details.');
+      }
+      return;
+    }
+
     const statusMap = { accept: 'accepted', decline: 'declined', complete: 'completed' } as const;
     const newStatus: SeniorGuidanceStatus = statusMap[responseModal.action];
     try {
@@ -1210,6 +1543,18 @@ export const SeniorConnectPage: React.FC = () => {
       {responseModal && (
         <ResponseModal
           action={responseModal.action}
+          initialCoordination={
+            responseModal.action === 'edit' || responseModal.action === 'accept'
+              ? {
+                  meeting_mode: responseModal.req.meeting_mode ?? 'Online',
+                  meeting_details: responseModal.req.meeting_details ?? '',
+                  scheduled_time: responseModal.req.scheduled_time ?? '',
+                  meeting_link: responseModal.req.meeting_link ?? '',
+                  meeting_password: responseModal.req.meeting_password ?? '',
+                  meeting_location: responseModal.req.meeting_location ?? '',
+                }
+              : null
+          }
           onConfirm={handleSeniorAction}
           onClose={() => setResponseModal(null)}
         />
