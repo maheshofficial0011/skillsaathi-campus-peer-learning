@@ -212,6 +212,28 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
                 </div>
               )}
 
+              {/* ─── Senior Mentor Info ─── */}
+              {stats.profile.is_senior_mentor && (
+                <div className="space-y-2.5 p-4 bg-violet-50 border border-violet-200 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🎓</span>
+                    <span className="text-sm font-bold text-violet-800">Senior Mentor</span>
+                  </div>
+                  {stats.profile.mentor_bio && (
+                    <p className="text-xs text-violet-800 leading-relaxed">{stats.profile.mentor_bio}</p>
+                  )}
+                  {stats.profile.mentor_topics && stats.profile.mentor_topics.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {stats.profile.mentor_topics.map((t) => (
+                        <span key={t} className="px-2 py-0.5 bg-violet-100 border border-violet-200 text-violet-700 text-[10px] font-semibold rounded-full">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ─── SECTION A: PEER HELP REPUTATION ─── */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-2">

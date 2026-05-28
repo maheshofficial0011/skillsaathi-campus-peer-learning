@@ -176,3 +176,68 @@ export interface DoubtReplyLike {
   created_by: string;
   created_at: string;
 }
+
+// ==========================================
+// PHASE 4: SENIOR CONNECT TYPES
+// ==========================================
+
+export type SeniorGuidanceStatus =
+  | 'pending'
+  | 'accepted'
+  | 'declined'
+  | 'completed'
+  | 'cancelled';
+
+export type GuidanceMode = 'Online' | 'In-Person' | 'Hybrid';
+
+export interface SeniorGuidanceRequest {
+  id: string;
+  requester_id: string;
+  senior_id: string;
+  topic: string;
+  message: string;
+  preferred_mode: GuidanceMode;
+  preferred_time: string | null;
+  status: SeniorGuidanceStatus;
+  response_message: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SeniorGuidanceRequestWithProfiles extends SeniorGuidanceRequest {
+  requester_profile?: {
+    full_name: string;
+    department: string;
+    year_of_study: string;
+    section: string | null;
+  } | null;
+  senior_profile?: {
+    full_name: string;
+    department: string;
+    year_of_study: string;
+    is_senior_mentor: boolean;
+    mentor_topics: string[];
+    mentor_bio: string | null;
+    availability: string | null;
+    help_mode: string | null;
+    trust_score: number;
+    badge_level: string;
+  } | null;
+}
+
+/** Subset of Profile containing mentor-specific fields, used in Find Seniors tab */
+export interface SeniorMentorProfile {
+  id: string;
+  full_name: string;
+  department: string;
+  year_of_study: string;
+  section: string | null;
+  mentor_topics: string[];
+  mentor_bio: string | null;
+  availability: string | null;
+  help_mode: string | null;
+  trust_score: number;
+  badge_level: string;
+  skills_known: string[];
+}

@@ -224,9 +224,27 @@ Run these in the Supabase SQL Editor one at a time:
 
 ## 🎨 Step 9: Phase 3.5 — Global UX Polish & Readiness Check
 
-Phase 3.5 introduces zero backend schema changes, meaning it operates completely using the existing Phase 1–3 tables and RLS configurations. 
+Phase 3.5 introduces zero backend schema changes, meaning it operates completely using the existing Phase 1–3 tables and RLS configurations.
 
-### Complete Supabase Table Registry
+---
+
+## 🎓 Step 10: Phase 4 — Senior Connect Module SQL Patch
+
+To enable the Senior Connect module:
+1. Open the [Supabase Dashboard](https://supabase.com/dashboard) SQL Editor.
+2. Create a new query.
+3. Paste the contents of `supabase/phase4-senior-connect-patch.sql` and click **Run**.
+4. Confirm that the query finishes with `Success` or `Query returned no rows`.
+
+### ✅ Verify Phase 4 Tables & Columns
+
+Navigate to the **Table Editor** tab and confirm:
+1. Table `profiles` has columns `is_senior_mentor` (boolean), `mentor_topics` (text[]), `mentor_bio` (text), `availability` (text), and `help_mode` (text).
+2. Table `senior_guidance_requests` is created with columns `id`, `requester_id`, `senior_id`, `topic`, `message`, `preferred_mode`, `preferred_time`, `status`, `response_message`, `completed_at`, timestamps.
+
+---
+
+## 🔄 Complete Supabase Table Registry
 
 A fresh database setup requires executing the SQL files in the following order:
 1. `supabase/schema.sql` (Initial tables: `profiles`, `help_requests`, `feedback`)
@@ -235,6 +253,7 @@ A fresh database setup requires executing the SQL files in the following order:
 4. `supabase/phase3-doubts-patch.sql` (Core Doubts tables: `doubt_posts`, `doubt_answers`)
 5. `supabase/phase3-doubt-answer-ratings-patch.sql` (Ratings and replies tables + first answer auto-trigger)
 6. `supabase/phase3-doubt-reopen-delete-patch.sql` (DELETE RLS policy for `doubt_posts`)
+7. `supabase/phase4-senior-connect-patch.sql` (Senior Connect columns and requests table + trigger + RLS)
 
 ---
 
@@ -249,6 +268,7 @@ A fresh database setup requires executing the SQL files in the following order:
 | **`doubt_answers`** | Authenticated users | Authenticated users (on open/answered doubts) | Creator (`auth.uid() = created_by`) | None |
 | **`doubt_answer_ratings`** | Authenticated users | Creator (`auth.uid() = created_by` and receiver != creator) | Creator (`auth.uid() = created_by`) | None |
 | **`doubt_answer_replies`** | Authenticated users | Authenticated users | Creator (`auth.uid() = created_by`) | None |
+| **`senior_guidance_requests`** | Participants (`auth.uid() = requester_id` OR `auth.uid() = senior_id`) | Requester (`auth.uid() = requester_id` and not self-request) | Requester (`auth.uid() = requester_id` to cancel) OR Senior (`auth.uid() = senior_id` to respond) | None |
 
 > [!TIP]
 > **Setup Reminder**: Always run these SQL patches in the exact order specified above to prevent relation or index errors. Verify that all RLS policies are enabled (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`) and that no root tables are exposed without filters.
