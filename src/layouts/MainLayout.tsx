@@ -94,7 +94,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
         {/* Dynamic Page Workspace */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 lg:h-full lg:overflow-y-auto flex flex-col gap-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 min-h-[60vh] shadow-sm flex-grow shrink-0">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm shrink-0">
             {children}
           </div>
 
