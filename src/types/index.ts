@@ -110,6 +110,9 @@ export interface DoubtAnswer {
   answer_text: string;
   created_by: string;
   is_accepted: boolean;
+  // Added by phase3-doubt-likes-pins-patch.sql — optional until patch is applied
+  is_pinned?: boolean;
+  pinned_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -151,4 +154,22 @@ export interface DoubtAnswerReplyWithProfile extends DoubtAnswerReply {
   author_profile?: {
     full_name: string;
   } | null;
+}
+
+// Phase 3 YouTube upgrade: answer likes
+export interface DoubtAnswerLike {
+  id: string;
+  answer_id: string;
+  doubt_id: string;
+  created_by: string;
+  created_at: string;
+}
+
+// Phase 3 YouTube upgrade: reply likes
+export interface DoubtReplyLike {
+  id: string;
+  reply_id: string;
+  doubt_id: string;
+  created_by: string;
+  created_at: string;
 }

@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type {
   DoubtPostWithProfile,
   DoubtAnswerWithProfile,
   DoubtAnswerRating,
   DoubtAnswerReplyWithProfile,
+  DoubtAnswerLike,
+  DoubtReplyLike,
 } from '../../types';
 import {
   getAnswersForDoubt,
   getRatingsForDoubt,
   getRepliesForDoubt,
+  getAnswerLikesForDoubt,
+  getReplyLikesForDoubt,
   createAnswer,
   markDoubtSolved,
   closeDoubt,
@@ -17,24 +21,91 @@ import {
   rateDoubtAnswer,
   updateDoubtAnswerRating,
   createAnswerReply,
+  toggleAnswerLike,
+  toggleReplyLike,
+  toggleAnswerPin,
 } from '../../lib/doubts';
 import { getStatusStyle, getStatusIcon } from './DoubtCard';
 import { PublicProfileModal } from '../profile/PublicProfileModal';
 import { useToast } from '../../hooks/useToast';
 
-interface DoubtDetailsModalProps {
-  doubt: DoubtPostWithProfile;
-  currentUserId: string;
-  onClose: () => void;
-  onDoubtUpdated: (updated: DoubtPostWithProfile) => void;
-  onDoubtDeleted?: (doubtId: string) => void;
-}
+// ──────────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────────
 
 const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  new Date(d).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+const AVATAR_COLORS = [
+  'bg-indigo-100 text-indigo-700',
+  'bg-violet-100 text-violet-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-amber-100 text-amber-700',
+  'bg-sky-100 text-sky-700',
+  'bg-rose-100 text-rose-700',
+  'bg-teal-100 text-teal-700',
+  'bg-orange-100 text-orange-700',
+];
+
+const getAvatarColor = (name: string) => {
+  const code = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[code % AVATAR_COLORS.length];
+};
+
+/** Sort answers YouTube-style. Pinned always float to top. */
+const sortAnswers = (
+  answers: DoubtAnswerWithProfile[],
+  order: 'top' | 'newest',
+  ratings: DoubtAnswerRating[],
+  answerLikes: DoubtAnswerLike[]
+): DoubtAnswerWithProfile[] =>
+  [...answers].sort((a, b) => {
+    // Pinned always first regardless of sort
+    const aPinned = !!a.is_pinned;
+    const bPinned = !!b.is_pinned;
+    if (aPinned !== bPinned) return bPinned ? 1 : -1;
+
+    if (order === 'newest') {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+
+    // Top sort: accepted → likes → avg rating → newest
+    if (a.is_accepted !== b.is_accepted) return b.is_accepted ? 1 : -1;
+    const aLikes = answerLikes.filter((l) => l.answer_id === a.id).length;
+    const bLikes = answerLikes.filter((l) => l.answer_id === b.id).length;
+    if (aLikes !== bLikes) return bLikes - aLikes;
+    const aR = ratings.filter((r) => r.answer_id === a.id);
+    const bR = ratings.filter((r) => r.answer_id === b.id);
+    const aAvg = aR.length ? aR.reduce((s, r) => s + r.rating, 0) / aR.length : 0;
+    const bAvg = bR.length ? bR.reduce((s, r) => s + r.rating, 0) / bR.length : 0;
+    if (aAvg !== bAvg) return bAvg - aAvg;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 
 // ──────────────────────────────────────────
-// RATING CONTROL (1–10)
+// AVATAR
+// ──────────────────────────────────────────
+const Avatar: React.FC<{ name: string; size?: 'sm' | 'md' }> = ({ name, size = 'md' }) => {
+  const initial = name ? name.charAt(0).toUpperCase() : '?';
+  const color = getAvatarColor(name);
+  return (
+    <div
+      className={`shrink-0 rounded-full flex items-center justify-center font-bold select-none ${color} ${
+        size === 'sm' ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-xs'
+      }`}
+    >
+      {initial}
+    </div>
+  );
+};
+
+// ──────────────────────────────────────────
+// RATING CONTROL
 // ──────────────────────────────────────────
 const RatingControl: React.FC<{
   value: number;
@@ -48,7 +119,7 @@ const RatingControl: React.FC<{
         type="button"
         disabled={disabled}
         onClick={() => onChange(n)}
-        className={`w-7 h-7 rounded-lg text-xs font-bold border transition-all duration-100 ${
+        className={`w-7 h-7 rounded-lg text-xs font-bold border transition-all ${
           n <= value
             ? 'bg-amber-400 border-amber-500 text-white shadow-sm'
             : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-amber-50 hover:border-amber-300'
@@ -61,25 +132,120 @@ const RatingControl: React.FC<{
 );
 
 // ──────────────────────────────────────────
-// REPLY THREAD (per answer)
+// REPLY CARD (single reply in thread)
 // ──────────────────────────────────────────
-const ReplyThread: React.FC<{
+interface ReplyCardProps {
+  reply: DoubtAnswerReplyWithProfile;
+  currentUserId: string;
+  likeCount: number;
+  isLiked: boolean;
+  canReply: boolean;
+  onToggleLike: () => Promise<void>;
+  onReplyToThis: (authorName: string) => void;
+  onViewProfile: (userId: string) => void;
+}
+
+const ReplyCard: React.FC<ReplyCardProps> = ({
+  reply, currentUserId: _uid, likeCount, isLiked, canReply,
+  onToggleLike, onReplyToThis, onViewProfile,
+}) => {
+  const [liking, setLiking] = useState(false);
+  const authorName = reply.is_anonymous
+    ? 'Anonymous Student'
+    : reply.author_profile?.full_name || 'Campus Student';
+
+  const handleLike = async () => {
+    setLiking(true);
+    try { await onToggleLike(); } finally { setLiking(false); }
+  };
+
+  return (
+    <div className="flex gap-2 text-xs">
+      <Avatar name={authorName} size="sm" />
+      <div className="flex-1 min-w-0 space-y-0.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {reply.is_anonymous ? (
+            <span className="font-semibold text-slate-500">{authorName}</span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onViewProfile(reply.created_by)}
+              className="font-semibold text-slate-700 hover:text-indigo-600 transition-colors"
+            >
+              {authorName}
+            </button>
+          )}
+          <span className="text-slate-400">·</span>
+          <span className="text-slate-400">{formatDate(reply.created_at)}</span>
+        </div>
+        <p className="text-slate-700 whitespace-pre-wrap break-words leading-relaxed">{reply.reply_text}</p>
+        <div className="flex items-center gap-3 pt-0.5 flex-wrap">
+          <button
+            type="button"
+            disabled={liking}
+            onClick={handleLike}
+            className={`flex items-center gap-1 font-semibold transition-colors ${
+              isLiked ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600'
+            }`}
+          >
+            👍{likeCount > 0 && <span>{likeCount}</span>}
+          </button>
+          {canReply && (
+            <button
+              type="button"
+              onClick={() => onReplyToThis(authorName)}
+              className="text-slate-400 hover:text-indigo-600 font-semibold transition-colors"
+            >
+              ↩ Reply
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ──────────────────────────────────────────
+// REPLY THREAD (collapsible, YouTube-style)
+// ──────────────────────────────────────────
+interface ReplyThreadProps {
   answerId: string;
   doubtId: string;
   currentUserId: string;
   replies: DoubtAnswerReplyWithProfile[];
+  replyLikes: DoubtReplyLike[];
   canReply: boolean;
   onReplyPosted: () => Promise<void>;
-}> = ({ answerId, doubtId, currentUserId, replies, canReply, onReplyPosted }) => {
+  onToggleReplyLike: (replyId: string) => Promise<void>;
+  onViewProfile: (userId: string) => void;
+}
+
+const ReplyThread: React.FC<ReplyThreadProps> = ({
+  answerId, doubtId, currentUserId, replies, replyLikes,
+  canReply, onReplyPosted, onToggleReplyLike, onViewProfile,
+}) => {
   const toast = useToast();
   const [expanded, setExpanded] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [replyAnon, setReplyAnon] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const answerReplies = replies.filter((r) => r.answer_id === answerId);
+  const handleReplyToReply = (authorName: string) => {
+    if (!canReply) return;
+    const mention = `@${authorName} `;
+    setReplyText(mention);
+    setShowForm(true);
+    setExpanded(true);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(mention.length, mention.length);
+      }
+    }, 60);
+  };
 
   const handleSubmit = async () => {
     if (!replyText.trim()) { setError('Reply cannot be empty.'); return; }
@@ -96,9 +262,8 @@ const ReplyThread: React.FC<{
       setReplyText('');
       setShowForm(false);
       setExpanded(true);
-      // Re-fetch all replies so count and list are accurate
       await onReplyPosted();
-      toast.success('Reply Posted', 'Your reply/cross-question is now live.');
+      toast.success('Reply Posted', 'Your reply is now live.');
     } catch {
       setError('Failed to post reply. Please try again.');
       toast.error('Reply Failed', 'Could not post your reply.');
@@ -107,56 +272,63 @@ const ReplyThread: React.FC<{
     }
   };
 
-  const replyAuthorName = (r: DoubtAnswerReplyWithProfile) => {
-    if (r.is_anonymous) return 'Anonymous Student';
-    return r.author_profile?.full_name || 'Campus Student';
-  };
+  const replyCount = replies.length;
 
   return (
-    <div className="mt-2 pl-3 border-l-2 border-slate-100 text-xs">
-      <div className="flex items-center gap-3 flex-wrap">
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="text-slate-500 hover:text-indigo-600 font-semibold py-0.5 transition-colors"
-        >
-          {answerReplies.length > 0
-            ? `${expanded ? '▲ Hide' : '▼ Show'} ${answerReplies.length} repl${answerReplies.length === 1 ? 'y' : 'ies'}`
-            : expanded ? '▲ Hide replies' : '💬 Replies (0)'}
-        </button>
+    <div className="mt-3 pl-3 border-l-2 border-slate-100 space-y-2">
+      {/* Toggle + Reply button row */}
+      <div className="flex items-center gap-3 flex-wrap text-xs">
+        {replyCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="text-slate-500 hover:text-indigo-600 font-semibold transition-colors"
+          >
+            {expanded
+              ? `▲ Hide ${replyCount} repl${replyCount === 1 ? 'y' : 'ies'}`
+              : `▼ Show ${replyCount} repl${replyCount === 1 ? 'y' : 'ies'}`}
+          </button>
+        )}
         {canReply && (
           <button
             type="button"
             onClick={() => { setShowForm((v) => !v); setExpanded(true); }}
-            className="text-indigo-500 hover:text-indigo-700 font-semibold py-0.5 transition-colors"
+            className="text-indigo-500 hover:text-indigo-700 font-semibold transition-colors"
           >
-            {showForm ? '✕ Cancel' : '+ Cross-question / Reply'}
+            {showForm ? '✕ Cancel' : '💬 Reply'}
           </button>
         )}
       </div>
 
-      {expanded && answerReplies.length > 0 && (
-        <div className="mt-2 space-y-2">
-          {answerReplies.map((r) => (
-            <div key={r.id} className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-0.5">
-              <p className="text-slate-700 whitespace-pre-wrap break-words leading-relaxed">{r.reply_text}</p>
-              <p className="text-[10px] text-slate-400">
-                <span className="font-semibold text-slate-500">{replyAuthorName(r)}</span>
-                {' · '}{formatDate(r.created_at)}
-              </p>
-            </div>
+      {/* Reply list */}
+      {expanded && replyCount > 0 && (
+        <div className="space-y-3">
+          {replies.map((r) => (
+            <ReplyCard
+              key={r.id}
+              reply={r}
+              currentUserId={currentUserId}
+              likeCount={replyLikes.filter((l) => l.reply_id === r.id).length}
+              isLiked={replyLikes.some((l) => l.reply_id === r.id && l.created_by === currentUserId)}
+              canReply={canReply}
+              onToggleLike={() => onToggleReplyLike(r.id)}
+              onReplyToThis={handleReplyToReply}
+              onViewProfile={onViewProfile}
+            />
           ))}
         </div>
       )}
 
-      {expanded && showForm && canReply && (
-        <div className="mt-2 space-y-2">
+      {/* Reply form */}
+      {showForm && canReply && (
+        <div className="space-y-2 pt-1">
           <textarea
+            ref={textareaRef}
             value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
+            onChange={(e) => { setReplyText(e.target.value); setError(''); }}
             rows={2}
-            placeholder="Write your cross-question or follow-up here..."
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs resize-y focus:outline-none focus:ring-1 focus:ring-indigo-400 focus:border-indigo-400"
+            placeholder="Write your follow-up or cross-question..."
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs resize-y focus:outline-none focus:ring-1 focus:ring-indigo-400 focus:border-indigo-400 transition-colors"
           />
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <label className="flex items-center gap-1.5 cursor-pointer">
@@ -185,62 +357,95 @@ const ReplyThread: React.FC<{
 };
 
 // ──────────────────────────────────────────
-// ANSWER CARD
+// ANSWER CARD (YouTube-style)
 // ──────────────────────────────────────────
-const AnswerCard: React.FC<{
+interface AnswerCardProps {
   answer: DoubtAnswerWithProfile;
   doubt: DoubtPostWithProfile;
   currentUserId: string;
-  existingRating?: DoubtAnswerRating;
-  avgRatingValue: number | null;
-  ratingCount: number;
-  replies: DoubtAnswerReplyWithProfile[];
+  ratings: DoubtAnswerRating[];           // filtered for this answer
+  replies: DoubtAnswerReplyWithProfile[]; // filtered for this answer
+  answerLikes: DoubtAnswerLike[];         // full array — card filters by answer_id
+  replyLikes: DoubtReplyLike[];
   canRate: boolean;
-  /** True only when: isCreator + doubt not closed + answer.is_accepted === false */
   canMark: boolean;
+  canPin: boolean;
   canReply: boolean;
   onMarkAccepted: (answerId: string) => Promise<void>;
+  onTogglePin: (answerId: string, currentlyPinned: boolean) => Promise<void>;
+  onToggleAnswerLike: (answerId: string) => Promise<void>;
   onRatingSubmitted: () => Promise<void>;
   onReplyPosted: () => Promise<void>;
-}> = ({
-  answer, doubt, currentUserId, existingRating, avgRatingValue, ratingCount, replies,
-  canRate, canMark, canReply, onMarkAccepted, onRatingSubmitted, onReplyPosted,
+  onToggleReplyLike: (replyId: string) => Promise<void>;
+  onViewProfile: (userId: string) => void;
+}
+
+const AnswerCard: React.FC<AnswerCardProps> = ({
+  answer, doubt, currentUserId,
+  ratings, replies, answerLikes, replyLikes,
+  canRate, canMark, canPin, canReply,
+  onMarkAccepted, onTogglePin, onToggleAnswerLike,
+  onRatingSubmitted, onReplyPosted, onToggleReplyLike, onViewProfile,
 }) => {
   const toast = useToast();
-  const TRUNCATE_AT = 400;
-  const [expanded, setExpanded] = useState(false);
+  const TRUNCATE_AT = 500;
+  const [textExpanded, setTextExpanded] = useState(false);
   const [marking, setMarking] = useState(false);
-  const [ratingValue, setRatingValue] = useState(existingRating?.rating ?? 5);
-  const [ratingComment, setRatingComment] = useState(existingRating?.comment ?? '');
+  const [pinning, setPinning] = useState(false);
+  const [liking, setLiking] = useState(false);
+  const [showRatingForm, setShowRatingForm] = useState(false);
+  const [ratingValue, setRatingValue] = useState(5);
+  const [ratingComment, setRatingComment] = useState('');
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratingError, setRatingError] = useState('');
-  const [showRatingForm, setShowRatingForm] = useState(false);
 
-  // Sync rating inputs when existingRating changes (after parent re-fetches ratings)
-  useEffect(() => {
-    setRatingValue(existingRating?.rating ?? 5);
-    setRatingComment(existingRating?.comment ?? '');
-  }, [existingRating?.id, existingRating?.rating, existingRating?.comment]);
-
+  // Derived values
+  const myRating = ratings.find((r) => r.created_by === currentUserId);
+  const avgRatingValue =
+    ratings.length
+      ? Math.round((ratings.reduce((s, r) => s + r.rating, 0) / ratings.length) * 10) / 10
+      : null;
+  const ratingCount = ratings.length;
+  const likeCount = answerLikes.filter((l) => l.answer_id === answer.id).length;
+  const isLiked = answerLikes.some(
+    (l) => l.answer_id === answer.id && l.created_by === currentUserId
+  );
+  const isPinned = !!answer.is_pinned;
   const answererName = answer.answerer_profile?.full_name || 'Campus Student';
   const isTruncated = answer.answer_text.length > TRUNCATE_AT;
-  const displayText = isTruncated && !expanded
-    ? answer.answer_text.slice(0, TRUNCATE_AT) + '...'
-    : answer.answer_text;
+  const displayText =
+    isTruncated && !textExpanded
+      ? answer.answer_text.slice(0, TRUNCATE_AT) + '...'
+      : answer.answer_text;
+
+  // Sync rating form when myRating changes
+  useEffect(() => {
+    setRatingValue(myRating?.rating ?? 5);
+    setRatingComment(myRating?.comment ?? '');
+  }, [myRating?.id, myRating?.rating, myRating?.comment]);
 
   const handleMarkAccepted = async () => {
     setMarking(true);
-    try { await onMarkAccepted(answer.id); }
-    finally { setMarking(false); }
+    try { await onMarkAccepted(answer.id); } finally { setMarking(false); }
+  };
+
+  const handleTogglePin = async () => {
+    setPinning(true);
+    try { await onTogglePin(answer.id, isPinned); } finally { setPinning(false); }
+  };
+
+  const handleToggleLike = async () => {
+    setLiking(true);
+    try { await onToggleAnswerLike(answer.id); } finally { setLiking(false); }
   };
 
   const handleRatingSubmit = async () => {
     setRatingError('');
     setRatingSubmitting(true);
     try {
-      if (existingRating) {
-        await updateDoubtAnswerRating(existingRating.id, { rating: ratingValue, comment: ratingComment });
-        toast.success('Rating Updated', 'Your answer rating has been updated.');
+      if (myRating) {
+        await updateDoubtAnswerRating(myRating.id, { rating: ratingValue, comment: ratingComment });
+        toast.success('Rating Updated', 'Your rating has been updated.');
       } else {
         await rateDoubtAnswer({
           answer_id: answer.id,
@@ -253,74 +458,109 @@ const AnswerCard: React.FC<{
         toast.success('Answer Rated', 'Thank you for rating this answer!');
       }
       setShowRatingForm(false);
-      // Re-fetch ratings from parent for authoritative data
       await onRatingSubmitted();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      const userFriendlyMsg = msg.includes('no_self_rating') ? 'You cannot rate your own answer.' : 'Failed to submit rating.';
-      setRatingError(userFriendlyMsg);
-      toast.error('Rating Failed', userFriendlyMsg);
+      const friendly = msg.includes('no_self_rating')
+        ? 'You cannot rate your own answer.'
+        : 'Failed to submit rating.';
+      setRatingError(friendly);
+      toast.error('Rating Failed', friendly);
     } finally {
       setRatingSubmitting(false);
     }
   };
 
+  // Card border/bg depends on pinned > accepted > default
+  const cardClass = isPinned
+    ? 'border-amber-200 bg-amber-50/40'
+    : answer.is_accepted
+    ? 'border-emerald-300 bg-emerald-50/60'
+    : 'border-slate-200 bg-white';
+
   return (
-    <div className={`p-4 rounded-xl border space-y-3 transition-colors ${
-      answer.is_accepted
-        ? 'bg-emerald-50 border-emerald-300 shadow-sm'
-        : 'bg-white border-slate-200'
-    }`}>
-      {/* Accepted badge — shown whenever answer.is_accepted is true from DB */}
-      {answer.is_accepted && (
-        <div className="flex items-center gap-1.5 text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 w-fit">
-          <span className="text-sm font-bold">✅ Accepted Answer</span>
+    <div className={`rounded-xl border p-4 space-y-3 ${cardClass}`}>
+      {/* Header: avatar + name + meta */}
+      <div className="flex items-start gap-2.5">
+        <Avatar name={answererName} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap text-xs">
+            <button
+              type="button"
+              onClick={() => onViewProfile(answer.created_by)}
+              className="font-bold text-slate-800 hover:text-indigo-600 transition-colors"
+            >
+              {answererName}
+            </button>
+            {answer.answerer_profile?.department && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="text-slate-500">{answer.answerer_profile.department}</span>
+              </>
+            )}
+            {answer.answerer_profile?.year_of_study && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="text-slate-500">{answer.answerer_profile.year_of_study}</span>
+              </>
+            )}
+            <span className="text-slate-300">·</span>
+            <span className="text-slate-400">{formatDate(answer.created_at)}</span>
+          </div>
         </div>
-      )}
-
-      {/* Avg rating pill */}
-      {avgRatingValue !== null && (
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-            Avg rating: {avgRatingValue}/10
-          </span>
-          <span className="text-[10px] text-slate-400">
-            ({ratingCount} rating{ratingCount !== 1 ? 's' : ''})
-          </span>
-        </div>
-      )}
-
-      {/* Answerer + time */}
-      <div className="flex items-center gap-2 flex-wrap text-xs text-slate-500">
-        <span className="font-semibold text-slate-700">{answererName}</span>
-        {answer.answerer_profile?.department && (
-          <><span className="text-slate-300">·</span><span>{answer.answerer_profile.department}</span></>
-        )}
-        <span className="text-slate-300">·</span>
-        <span>{formatDate(answer.created_at)}</span>
       </div>
+
+      {/* Badges row */}
+      {(isPinned || answer.is_accepted || avgRatingValue !== null) && (
+        <div className="flex flex-wrap gap-1.5">
+          {isPinned && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 text-[10px] font-bold rounded-full">
+              📌 Pinned
+            </span>
+          )}
+          {answer.is_accepted && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 border border-emerald-300 text-emerald-700 text-[10px] font-bold rounded-full">
+              ✅ Accepted Answer
+            </span>
+          )}
+          {avgRatingValue !== null && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-600 text-[10px] font-semibold rounded-full">
+              ⭐ {avgRatingValue}/10
+              <span className="text-slate-400 font-normal">({ratingCount})</span>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Answer text */}
       <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap break-words">{displayText}</p>
       {isTruncated && (
-        <button type="button" onClick={() => setExpanded((v) => !v)}
-          className="text-indigo-500 hover:text-indigo-700 text-xs font-semibold transition-colors">
-          {expanded ? 'Show less ▲' : 'Show more ▼'}
+        <button
+          type="button"
+          onClick={() => setTextExpanded((v) => !v)}
+          className="text-xs text-indigo-500 hover:text-indigo-700 font-semibold transition-colors"
+        >
+          {textExpanded ? 'Show less ▲' : 'Show more ▼'}
         </button>
       )}
 
       {/* Existing rating display */}
-      {existingRating && !showRatingForm && (
-        <div className="flex items-center gap-2 text-xs flex-wrap">
+      {myRating && !showRatingForm && (
+        <div className="flex items-center gap-2 flex-wrap text-xs">
           <span className="px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded font-bold">
-            Your rating: {existingRating.rating}/10
+            Your rating: {myRating.rating}/10
           </span>
-          {existingRating.comment && (
-            <span className="text-slate-500 italic truncate max-w-[200px]">"{existingRating.comment}"</span>
+          {myRating.comment && (
+            <span className="text-slate-500 italic truncate max-w-[200px]">
+              "{myRating.comment}"
+            </span>
           )}
           {canRate && (
-            <button type="button" onClick={() => setShowRatingForm(true)}
-              className="text-indigo-500 hover:text-indigo-700 font-semibold underline">
+            <button
+              type="button"
+              onClick={() => setShowRatingForm(true)}
+              className="text-indigo-500 hover:text-indigo-700 font-semibold underline"
+            >
               Edit Rating
             </button>
           )}
@@ -328,55 +568,107 @@ const AnswerCard: React.FC<{
       )}
 
       {/* Rating form */}
-      {canRate && showRatingForm && (
+      {showRatingForm && canRate && (
         <div className="border border-amber-200 rounded-xl p-3 space-y-2.5 bg-amber-50/40">
           <p className="text-xs font-bold text-slate-700">
-            {existingRating ? 'Update your rating' : 'Rate this answer (1–10)'}
+            {myRating ? 'Update your rating' : 'Rate this answer (1–10)'}
           </p>
           <RatingControl value={ratingValue} onChange={setRatingValue} disabled={ratingSubmitting} />
           <input
-            type="text" value={ratingComment} onChange={(e) => setRatingComment(e.target.value)}
+            type="text"
+            value={ratingComment}
+            onChange={(e) => setRatingComment(e.target.value)}
             placeholder="Optional comment (e.g. Very clear explanation)"
             className="w-full px-3 py-2 text-xs border border-amber-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors"
           />
           {ratingError && <p className="text-xs text-red-600">{ratingError}</p>}
           <div className="flex gap-2">
-            <button type="button" onClick={() => { setShowRatingForm(false); setRatingError(''); }}
-              className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 font-semibold transition-colors">
+            <button
+              type="button"
+              onClick={() => { setShowRatingForm(false); setRatingError(''); }}
+              className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 font-semibold transition-colors"
+            >
               Cancel
             </button>
-            <button type="button" disabled={ratingSubmitting} onClick={handleRatingSubmit}
-              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">
-              {ratingSubmitting ? 'Saving...' : existingRating ? 'Update Rating' : 'Submit Rating'}
+            <button
+              type="button"
+              disabled={ratingSubmitting}
+              onClick={handleRatingSubmit}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+            >
+              {ratingSubmitting ? 'Saving...' : myRating ? 'Update Rating' : 'Submit Rating'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Rate button (no existing rating, no form) */}
-      {canRate && !showRatingForm && !existingRating && (
-        <button type="button" onClick={() => setShowRatingForm(true)}
-          className="text-xs text-amber-600 hover:text-amber-800 font-semibold transition-colors">
-          ⭐ Rate this answer
+      {/* Action row */}
+      <div className="flex items-center gap-2 flex-wrap text-xs">
+        {/* Like button */}
+        <button
+          type="button"
+          disabled={liking}
+          onClick={handleToggleLike}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold transition-all ${
+            isLiked
+              ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+              : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600'
+          } disabled:opacity-60`}
+        >
+          👍 {isLiked ? 'Liked' : 'Like'}{likeCount > 0 && <span>· {likeCount}</span>}
         </button>
-      )}
 
-      {/* Accept button — hidden if answer.is_accepted is true OR canMark is false */}
-      {canMark && (
-        <button type="button" disabled={marking} onClick={handleMarkAccepted}
-          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">
-          {marking ? 'Marking...' : '✅ Accept Answer'}
-        </button>
-      )}
+        {/* Rate button (no existing rating) */}
+        {canRate && !showRatingForm && !myRating && (
+          <button
+            type="button"
+            onClick={() => setShowRatingForm(true)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold transition-colors"
+          >
+            ⭐ Rate
+          </button>
+        )}
 
-      {/* Replies */}
+        {/* Accept button */}
+        {canMark && (
+          <button
+            type="button"
+            disabled={marking}
+            onClick={handleMarkAccepted}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 font-semibold transition-colors"
+          >
+            {marking ? 'Accepting...' : '✅ Accept'}
+          </button>
+        )}
+
+        {/* Pin / Unpin button */}
+        {canPin && (
+          <button
+            type="button"
+            disabled={pinning}
+            onClick={handleTogglePin}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border font-semibold transition-colors disabled:opacity-60 ${
+              isPinned
+                ? 'bg-amber-100 border-amber-300 text-amber-700 hover:bg-amber-50'
+                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700'
+            }`}
+          >
+            {pinning ? '...' : isPinned ? '📌 Unpin' : '📌 Pin'}
+          </button>
+        )}
+      </div>
+
+      {/* Reply thread */}
       <ReplyThread
         answerId={answer.id}
         doubtId={doubt.id}
         currentUserId={currentUserId}
         replies={replies}
+        replyLikes={replyLikes}
         canReply={canReply}
         onReplyPosted={onReplyPosted}
+        onToggleReplyLike={onToggleReplyLike}
+        onViewProfile={onViewProfile}
       />
     </div>
   );
@@ -385,6 +677,14 @@ const AnswerCard: React.FC<{
 // ──────────────────────────────────────────
 // DOUBT DETAILS MODAL (main export)
 // ──────────────────────────────────────────
+interface DoubtDetailsModalProps {
+  doubt: DoubtPostWithProfile;
+  currentUserId: string;
+  onClose: () => void;
+  onDoubtUpdated: (updated: DoubtPostWithProfile) => void;
+  onDoubtDeleted?: (doubtId: string) => void;
+}
+
 export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
   doubt: initialDoubt,
   currentUserId,
@@ -394,12 +694,14 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
 }) => {
   const toast = useToast();
 
-  // Local doubt state — synced from initialDoubt only when doubt ID changes
   const [doubt, setDoubt] = useState<DoubtPostWithProfile>(initialDoubt);
   const [answers, setAnswers] = useState<DoubtAnswerWithProfile[]>([]);
   const [ratings, setRatings] = useState<DoubtAnswerRating[]>([]);
   const [replies, setReplies] = useState<DoubtAnswerReplyWithProfile[]>([]);
+  const [answerLikes, setAnswerLikes] = useState<DoubtAnswerLike[]>([]);
+  const [replyLikes, setReplyLikes] = useState<DoubtReplyLike[]>([]);
   const [loadingAnswers, setLoadingAnswers] = useState(true);
+  const [sortOrder, setSortOrder] = useState<'top' | 'newest'>('top');
   const [answerText, setAnswerText] = useState('');
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [answerError, setAnswerError] = useState('');
@@ -408,60 +710,65 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [viewProfileUserId, setViewProfileUserId] = useState<string | null>(null);
-
-  // Track whether a mutation is in-flight so we don't allow concurrent refreshes
   const mutatingRef = useRef(false);
 
-  // ── Derived permissions (computed from current local doubt state) ──
+  // ── Permissions ──
   const isCreator = doubt.created_by === currentUserId;
   const canAnswer = doubt.status === 'open' || doubt.status === 'answered';
-  const canReply = doubt.status === 'open' || doubt.status === 'answered';
-  // Creator can accept on open, answered, or solved (NOT closed)
-  const canMarkAnswers = isCreator && (
-    doubt.status === 'open' || doubt.status === 'answered' || doubt.status === 'solved'
-  );
+  // Replies allowed on open, answered, solved — only blocked on closed
+  const canReply = doubt.status !== 'closed';
+  // Creators can accept on open/answered/solved (not closed)
+  const canMarkAnswers = isCreator && doubt.status !== 'closed';
+  // Creators can pin on open/answered/solved (not closed)
+  const canPin = isCreator && doubt.status !== 'closed';
   const canDelete =
     isCreator &&
     (doubt.status === 'open' || doubt.status === 'closed') &&
     !loadingAnswers &&
     answers.length === 0;
 
-  // ── Derived counters (update automatically when answers/replies change) ──
-  const totalAnswers = answers.length;
-  const acceptedAnswersCount = answers.filter((a) => a.is_accepted).length;
-  const totalReplies = replies.length;
+  // ── Sorted answers (memoised) ──
+  const sortedAnswers = useMemo(
+    () => sortAnswers(answers, sortOrder, ratings, answerLikes),
+    [answers, sortOrder, ratings, answerLikes]
+  );
 
-  // ── Full data load — fetches answers, ratings, replies fresh from Supabase ──
+  // ── Counters ──
+  const totalAnswers = answers.length;
+  const acceptedCount = answers.filter((a) => a.is_accepted).length;
+  const pinnedCount = answers.filter((a) => !!a.is_pinned).length;
+  const totalReplies = replies.length;
+  const totalAnswerLikes = answerLikes.length;
+
+  // ── Load all data (graceful — allSettled handles missing tables) ──
   const loadData = useCallback(async () => {
     setLoadingAnswers(true);
     try {
-      const [a, r, rp] = await Promise.all([
+      const [r0, r1, r2, r3, r4] = await Promise.allSettled([
         getAnswersForDoubt(doubt.id),
         getRatingsForDoubt(doubt.id),
         getRepliesForDoubt(doubt.id),
+        getAnswerLikesForDoubt(doubt.id),
+        getReplyLikesForDoubt(doubt.id),
       ]);
-      setAnswers(a);
-      setRatings(r);
-      setReplies(rp);
+      if (r0.status === 'fulfilled') setAnswers(r0.value);
+      if (r1.status === 'fulfilled') setRatings(r1.value);
+      if (r2.status === 'fulfilled') setReplies(r2.value);
+      if (r3.status === 'fulfilled') setAnswerLikes(r3.value);
+      if (r4.status === 'fulfilled') setReplyLikes(r4.value);
     } finally {
       setLoadingAnswers(false);
     }
   }, [doubt.id]);
 
-  // Fetch on mount and whenever doubt ID changes
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  // Sync doubt STATUS from parent (e.g. board-level close/reopen) but ONLY when
-  // we are not in the middle of a local mutation to avoid stomping our own updates.
+  // Sync initialDoubt changes without stomping in-flight mutations
   useEffect(() => {
     if (mutatingRef.current) return;
     if (initialDoubt.id !== doubt.id) {
-      // Different doubt opened — full reset
       setDoubt(initialDoubt);
     } else {
-      // Same doubt — only pull in status/solved_answer_id changes from parent
       setDoubt((prev) => ({
         ...prev,
         status: initialDoubt.status,
@@ -471,50 +778,124 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDoubt]);
 
-  // Propagate local doubt state changes back to the parent board
-  const applyDoubtUpdate = useCallback((updated: DoubtPostWithProfile) => {
-    setDoubt(updated);
-    onDoubtUpdated(updated);
-  }, [onDoubtUpdated]);
+  const applyDoubtUpdate = useCallback(
+    (updated: DoubtPostWithProfile) => { setDoubt(updated); onDoubtUpdated(updated); },
+    [onDoubtUpdated]
+  );
 
-  // ── Refresh helpers (can be called by child components) ──
+  // ── Partial refresh helpers ──
+  const refreshAnswers = useCallback(async () => {
+    try { const a = await getAnswersForDoubt(doubt.id); setAnswers(a); } catch { /* ignore */ }
+  }, [doubt.id]);
+
   const refreshRatings = useCallback(async () => {
-    const r = await getRatingsForDoubt(doubt.id);
-    setRatings(r);
+    try { const r = await getRatingsForDoubt(doubt.id); setRatings(r); } catch { /* ignore */ }
   }, [doubt.id]);
 
   const refreshReplies = useCallback(async () => {
-    const rp = await getRepliesForDoubt(doubt.id);
-    setReplies(rp);
+    try { const rp = await getRepliesForDoubt(doubt.id); setReplies(rp); } catch { /* ignore */ }
+  }, [doubt.id]);
+
+  const refreshAnswerLikes = useCallback(async () => {
+    try { const al = await getAnswerLikesForDoubt(doubt.id); setAnswerLikes(al); } catch { /* ignore */ }
+  }, [doubt.id]);
+
+  const refreshReplyLikes = useCallback(async () => {
+    try { const rl = await getReplyLikesForDoubt(doubt.id); setReplyLikes(rl); } catch { /* ignore */ }
   }, [doubt.id]);
 
   // ── ACCEPT ANSWER ──
-  const handleMarkAccepted = async (answerId: string) => {
+  const handleMarkAccepted = useCallback(async (answerId: string) => {
     mutatingRef.current = true;
     try {
       await markDoubtSolved(doubt.id, answerId);
-
-      // Re-fetch authoritative answers from DB — this is the single source of truth
-      // for is_accepted flags. Never rely solely on optimistic state.
-      const freshAnswers = await getAnswersForDoubt(doubt.id);
-      setAnswers(freshAnswers);
-
-      // Update local + parent doubt status to 'solved'
-      const updated = { ...doubt, status: 'solved' as const };
-      applyDoubtUpdate(updated);
-
-      toast.success('Answer Accepted', 'You marked this answer as accepted! Doubt is now solved.');
+      await refreshAnswers();
+      applyDoubtUpdate({ ...doubt, status: 'solved' });
+      toast.success('Answer Accepted', 'Marked as accepted! Doubt is now solved.');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Surface descriptive RLS/policy error so user can apply the SQL patch
-      toast.error('Accept Failed', msg.includes('policy') ? msg : 'Could not accept answer. Please try again.');
+      toast.error('Accept Failed', msg.includes('policy') ? msg : 'Could not accept answer.');
     } finally {
       mutatingRef.current = false;
     }
-  };
+  }, [doubt, refreshAnswers, applyDoubtUpdate, toast]);
+
+  // ── TOGGLE PIN ──
+  const handleTogglePin = useCallback(async (answerId: string, currentlyPinned: boolean) => {
+    try {
+      await toggleAnswerPin(answerId, doubt.id, !currentlyPinned);
+      await refreshAnswers();
+      toast.success(
+        currentlyPinned ? 'Answer Unpinned' : 'Answer Pinned',
+        currentlyPinned ? 'Removed from pinned.' : 'Answer is now pinned to the top.'
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(
+        'Pin Failed',
+        msg.includes('policy') || msg.includes('patch')
+          ? 'Apply supabase/phase3-doubt-likes-pins-patch.sql to enable pinning.'
+          : 'Could not pin answer. Please try again.'
+      );
+    }
+  }, [doubt.id, refreshAnswers, toast]);
+
+  // ── TOGGLE ANSWER LIKE (optimistic) ──
+  const handleToggleAnswerLike = useCallback(async (answerId: string) => {
+    const isLiked = answerLikes.some(
+      (l) => l.answer_id === answerId && l.created_by === currentUserId
+    );
+    // Optimistic update
+    if (isLiked) {
+      setAnswerLikes((prev) =>
+        prev.filter((l) => !(l.answer_id === answerId && l.created_by === currentUserId))
+      );
+    } else {
+      setAnswerLikes((prev) => [
+        ...prev,
+        { id: `opt-${Date.now()}`, answer_id: answerId, doubt_id: doubt.id, created_by: currentUserId, created_at: new Date().toISOString() },
+      ]);
+    }
+    try {
+      await toggleAnswerLike(answerId, doubt.id, currentUserId, isLiked);
+      await refreshAnswerLikes();
+    } catch (err: unknown) {
+      await refreshAnswerLikes(); // revert
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(
+        'Like Failed',
+        msg || 'Apply the SQL patch to enable likes.'
+      );
+    }
+  }, [answerLikes, currentUserId, doubt.id, refreshAnswerLikes, toast]);
+
+  // ── TOGGLE REPLY LIKE (optimistic) ──
+  const handleToggleReplyLike = useCallback(async (replyId: string) => {
+    const isLiked = replyLikes.some(
+      (l) => l.reply_id === replyId && l.created_by === currentUserId
+    );
+    if (isLiked) {
+      setReplyLikes((prev) =>
+        prev.filter((l) => !(l.reply_id === replyId && l.created_by === currentUserId))
+      );
+    } else {
+      setReplyLikes((prev) => [
+        ...prev,
+        { id: `opt-${Date.now()}`, reply_id: replyId, doubt_id: doubt.id, created_by: currentUserId, created_at: new Date().toISOString() },
+      ]);
+    }
+    try {
+      await toggleReplyLike(replyId, doubt.id, currentUserId, isLiked);
+      await refreshReplyLikes();
+    } catch (err: unknown) {
+      await refreshReplyLikes();
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error('Like Failed', msg || 'Apply the SQL patch to enable reply likes.');
+    }
+  }, [replyLikes, currentUserId, doubt.id, refreshReplyLikes, toast]);
 
   // ── POST ANSWER ──
-  const handleSubmitAnswer = async () => {
+  const handleSubmitAnswer = useCallback(async () => {
     if (!answerText.trim()) { setAnswerError('Answer cannot be empty.'); return; }
     setAnswerError('');
     setSubmittingAnswer(true);
@@ -522,12 +903,9 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     try {
       await createAnswer({ doubt_id: doubt.id, answer_text: answerText, created_by: currentUserId });
       setAnswerText('');
-      // Full refresh — DB trigger may have flipped status to 'answered'
       await loadData();
-      if (doubt.status === 'open') {
-        applyDoubtUpdate({ ...doubt, status: 'answered' as const });
-      }
-      toast.success('Answer Submitted', 'Your answer has been posted successfully.');
+      if (doubt.status === 'open') applyDoubtUpdate({ ...doubt, status: 'answered' });
+      toast.success('Answer Submitted', 'Your answer has been posted!');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setAnswerError('Failed to post answer. Please try again.');
@@ -536,28 +914,25 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
       setSubmittingAnswer(false);
       mutatingRef.current = false;
     }
-  };
+  }, [answerText, doubt, currentUserId, loadData, applyDoubtUpdate, toast]);
 
   // ── CLOSE DOUBT ──
-  const handleClose = async () => {
-    if (!window.confirm('Close this doubt? Students will no longer be able to answer.')) return;
+  const handleClose = useCallback(async () => {
+    if (!window.confirm('Close this doubt? Students will no longer be able to answer or reply.')) return;
     setClosing(true);
     mutatingRef.current = true;
     try {
       await closeDoubt(doubt.id);
-      applyDoubtUpdate({ ...doubt, status: 'closed' as const });
+      applyDoubtUpdate({ ...doubt, status: 'closed' });
       toast.success('Doubt Closed', 'The doubt post has been closed.');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error('Close Failed', msg || 'Could not close doubt.');
-    } finally {
-      setClosing(false);
-      mutatingRef.current = false;
-    }
-  };
+    } finally { setClosing(false); mutatingRef.current = false; }
+  }, [doubt, applyDoubtUpdate, toast]);
 
   // ── REOPEN DOUBT ──
-  const handleReopen = async () => {
+  const handleReopen = useCallback(async () => {
     if (!window.confirm('Reopen this doubt so students can answer again?')) return;
     setReopening(true);
     mutatingRef.current = true;
@@ -570,14 +945,11 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error('Reopen Failed', msg || 'Could not reopen doubt.');
-    } finally {
-      setReopening(false);
-      mutatingRef.current = false;
-    }
-  };
+    } finally { setReopening(false); mutatingRef.current = false; }
+  }, [doubt, answers, applyDoubtUpdate, loadData, toast]);
 
   // ── DELETE DOUBT ──
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     setDeleteError('');
     if (answers.length > 0) {
       setDeleteError('Cannot delete: this doubt has answers. Please close it instead.');
@@ -595,25 +967,17 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('policy') || msg.includes('permission') || msg.includes('violates')) {
-        setDeleteError('Delete blocked by database policy. The doubt may already have answers or an invalid status.');
-      } else {
-        setDeleteError('Failed to delete. Please try again or contact support.');
-      }
+      setDeleteError(
+        msg.includes('policy') || msg.includes('permission')
+          ? 'Delete blocked by database policy.'
+          : 'Failed to delete. Please try again.'
+      );
     } finally { setDeleting(false); }
-  };
+  }, [doubt, answers, onDoubtDeleted, onClose]);
 
-  // ── HELPERS ──
-  const avgRating = (answerId: string): number | null => {
-    const r = ratings.filter((rt) => rt.answer_id === answerId);
-    if (r.length === 0) return null;
-    return Math.round((r.reduce((s, rt) => s + rt.rating, 0) / r.length) * 10) / 10;
-  };
-
+  // ── HEADER ASKER NAME ──
   const HeaderAskerName = () => {
-    if (doubt.is_anonymous) {
-      return <span className="font-semibold">Anonymous Student</span>;
-    }
+    if (doubt.is_anonymous) return <span className="font-semibold">Anonymous Student</span>;
     const name = doubt.creator_profile?.full_name || 'Campus Student';
     return (
       <button
@@ -626,7 +990,7 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     );
   };
 
-  // ──────────────────────────────────────────
+  // ────────────────────────────────────────
   return (
     <>
       <div
@@ -653,8 +1017,7 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
               </div>
               <h3 className="font-bold text-lg text-slate-900 leading-snug break-words">{doubt.title}</h3>
               <p className="text-xs text-slate-500">
-                By <HeaderAskerName />
-                {' · '}{formatDate(doubt.created_at)}
+                By <HeaderAskerName /> · {formatDate(doubt.created_at)}
               </p>
             </div>
             <button
@@ -666,12 +1029,14 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
           </div>
 
           {/* ── Scrollable body ── */}
-          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
+          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
 
-            {/* Description */}
+            {/* Doubt description */}
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Doubt</h4>
-              <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap break-words">{doubt.description}</p>
+              <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap break-words">
+                {doubt.description}
+              </p>
               {doubt.tags && doubt.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {doubt.tags.map((t) => (
@@ -683,20 +1048,30 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
               )}
             </div>
 
-            {/* Answer / reply counters */}
+            {/* Counters */}
             {!loadingAnswers && (
               <div className="flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 text-[11px] font-bold rounded-full">
                   💬 {totalAnswers} Answer{totalAnswers !== 1 ? 's' : ''}
                 </span>
-                {acceptedAnswersCount > 0 && (
+                {acceptedCount > 0 && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold rounded-full">
-                    ✅ {acceptedAnswersCount} Accepted
+                    ✅ {acceptedCount} Accepted
+                  </span>
+                )}
+                {pinnedCount > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold rounded-full">
+                    📌 {pinnedCount} Pinned
                   </span>
                 )}
                 {totalReplies > 0 && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-600 text-[11px] font-bold rounded-full">
                     🗨️ {totalReplies} Repl{totalReplies !== 1 ? 'ies' : 'y'}
+                  </span>
+                )}
+                {totalAnswerLikes > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-bold rounded-full">
+                    👍 {totalAnswerLikes} Like{totalAnswerLikes !== 1 ? 's' : ''}
                   </span>
                 )}
               </div>
@@ -707,20 +1082,29 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2">
                   {(doubt.status === 'open' || doubt.status === 'answered') && (
-                    <button onClick={handleClose} disabled={closing}
-                      className="px-4 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 text-xs font-bold rounded-lg transition-colors">
+                    <button
+                      onClick={handleClose}
+                      disabled={closing}
+                      className="px-4 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 text-xs font-bold rounded-lg transition-colors"
+                    >
                       {closing ? 'Closing...' : '🔒 Close Doubt'}
                     </button>
                   )}
                   {doubt.status === 'closed' && (
-                    <button onClick={handleReopen} disabled={reopening}
-                      className="px-4 py-1.5 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-60 text-emerald-700 text-xs font-bold rounded-lg transition-colors">
+                    <button
+                      onClick={handleReopen}
+                      disabled={reopening}
+                      className="px-4 py-1.5 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-60 text-emerald-700 text-xs font-bold rounded-lg transition-colors"
+                    >
                       {reopening ? 'Reopening...' : '🔓 Reopen Doubt'}
                     </button>
                   )}
                   {canDelete && (
-                    <button onClick={handleDelete} disabled={deleting}
-                      className="px-4 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-500 text-xs font-bold rounded-lg transition-colors">
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="px-4 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-500 text-xs font-bold rounded-lg transition-colors"
+                    >
                       {deleting ? 'Deleting...' : '🗑 Delete Doubt'}
                     </button>
                   )}
@@ -743,57 +1127,79 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-semibold text-center">
                 ✅ This doubt has been solved!{' '}
                 {isCreator
-                  ? 'New answers are closed, but you can still accept any existing answer below.'
-                  : 'An answer has been accepted by the asker.'}
+                  ? 'You can still accept more answers or pin helpful ones. Students can still add follow-up questions.'
+                  : 'An answer was accepted. You can still add follow-up replies below.'}
               </div>
             )}
 
-            {/* Answers */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                {loadingAnswers
-                  ? 'Loading answers...'
-                  : totalAnswers === 0 ? 'No answers yet' : `${totalAnswers} Answer${totalAnswers !== 1 ? 's' : ''}`}
-              </h4>
+            {/* ── Answers section ── */}
+            <div className="space-y-4">
+              {/* Sort control + heading */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {loadingAnswers
+                    ? 'Loading answers...'
+                    : `${totalAnswers} Answer${totalAnswers !== 1 ? 's' : ''}`}
+                </h4>
+                {!loadingAnswers && totalAnswers > 1 && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Sort:</span>
+                    <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                      {(['top', 'newest'] as const).map((ord) => (
+                        <button
+                          key={ord}
+                          type="button"
+                          onClick={() => setSortOrder(ord)}
+                          className={`px-3 py-1 text-[11px] font-bold transition-colors ${
+                            sortOrder === ord
+                              ? 'bg-indigo-600 text-white'
+                              : 'text-slate-500 hover:bg-slate-50'
+                          } ${ord === 'newest' ? 'border-l border-slate-200' : ''}`}
+                        >
+                          {ord === 'top' ? '🔥 Top' : '🕒 Newest'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {loadingAnswers ? (
-                <div className="text-center py-6 text-slate-400 text-sm">Loading answers...</div>
+                <div className="text-center py-8 text-slate-400 text-sm">Loading answers...</div>
               ) : totalAnswers === 0 ? (
-                <div className="text-center py-6 text-slate-400 text-sm">Be the first to help!</div>
+                <div className="text-center py-8">
+                  <p className="text-3xl mb-2">🤔</p>
+                  <p className="text-slate-400 text-sm">No answers yet. Be the first to help!</p>
+                </div>
               ) : (
                 <div className="space-y-4">
-                  {answers.map((answer) => {
-                    const myRating = ratings.find((r) => r.answer_id === answer.id && r.created_by === currentUserId);
-                    const avgVal = avgRating(answer.id);
-                    const answerReplies = replies.filter((r) => r.answer_id === answer.id);
-                    const ratingCount = ratings.filter((r) => r.answer_id === answer.id).length;
-
-                    // canMark: only when creator + doubt not closed + THIS answer not already accepted
-                    const canMarkThis = canMarkAnswers && !answer.is_accepted;
-
-                    return (
-                      <AnswerCard
-                        key={answer.id}
-                        answer={answer}
-                        doubt={doubt}
-                        currentUserId={currentUserId}
-                        existingRating={myRating}
-                        avgRatingValue={avgVal}
-                        ratingCount={ratingCount}
-                        replies={answerReplies}
-                        canRate={
-                          isCreator &&
-                          answer.created_by !== currentUserId &&
-                          (doubt.status === 'answered' || doubt.status === 'solved')
-                        }
-                        canMark={canMarkThis}
-                        canReply={canReply}
-                        onMarkAccepted={handleMarkAccepted}
-                        onRatingSubmitted={refreshRatings}
-                        onReplyPosted={refreshReplies}
-                      />
-                    );
-                  })}
+                  {sortedAnswers.map((answer) => (
+                    <AnswerCard
+                      key={answer.id}
+                      answer={answer}
+                      doubt={doubt}
+                      currentUserId={currentUserId}
+                      ratings={ratings.filter((r) => r.answer_id === answer.id)}
+                      replies={replies.filter((r) => r.answer_id === answer.id)}
+                      answerLikes={answerLikes}
+                      replyLikes={replyLikes}
+                      canRate={
+                        isCreator &&
+                        answer.created_by !== currentUserId &&
+                        (doubt.status === 'answered' || doubt.status === 'solved')
+                      }
+                      canMark={canMarkAnswers && !answer.is_accepted}
+                      canPin={canPin}
+                      canReply={canReply}
+                      onMarkAccepted={handleMarkAccepted}
+                      onTogglePin={handleTogglePin}
+                      onToggleAnswerLike={handleToggleAnswerLike}
+                      onRatingSubmitted={refreshRatings}
+                      onReplyPosted={refreshReplies}
+                      onToggleReplyLike={handleToggleReplyLike}
+                      onViewProfile={(uid) => setViewProfileUserId(uid)}
+                    />
+                  ))}
                 </div>
               )}
             </div>

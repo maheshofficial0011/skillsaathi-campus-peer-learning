@@ -4,6 +4,8 @@ import type {
   DoubtAnswerWithProfile,
   DoubtAnswerRating,
   DoubtAnswerReplyWithProfile,
+  DoubtAnswerLike,
+  DoubtReplyLike,
 } from '../types';
 
 // ──────────────────────────────────────────
@@ -341,8 +343,7 @@ export const getAnswersForDoubt = async (doubtId: string): Promise<DoubtAnswerWi
         answerer_profile:profiles!doubt_answers_created_by_fkey(full_name, department, year_of_study)
       `)
       .eq('doubt_id', doubtId)
-      .order('is_accepted', { ascending: false })
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true }); // client-side sort handles pinned/accepted/likes
 
     if (error) throw error;
     return (data || []) as DoubtAnswerWithProfile[];
@@ -557,6 +558,141 @@ export const updateAnswerReply = async (
     return data as DoubtAnswerReplyWithProfile;
   } catch (err) {
     console.error('Error updating reply:', err);
+    throw err;
+  }
+};
+
+// ──────────────────────────────────────────
+// ANSWER LIKES (Phase 3 YouTube upgrade)
+// ──────────────────────────────────────────
+
+/**
+ * Fetch all likes for answers belonging to a doubt.
+ * Returns [] gracefully if table does not exist yet (patch not applied).
+ */
+export const getAnswerLikesForDoubt = async (doubtId: string): Promise<DoubtAnswerLike[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('doubt_answer_likes')
+      .select('*')
+      .eq('doubt_id', doubtId);
+    if (error) throw error;
+    return (data || []) as DoubtAnswerLike[];
+  } catch (err) {
+    console.error('Error fetching answer likes:', err);
+    return [];
+  }
+};
+
+/**
+ * Toggle a like on an answer.
+ * Pass currentlyLiked=true to unlike, false to like.
+ */
+export const toggleAnswerLike = async (
+  answerId: string,
+  doubtId: string,
+  userId: string,
+  currentlyLiked: boolean
+): Promise<void> => {
+  if (currentlyLiked) {
+    const { error } = await supabase
+      .from('doubt_answer_likes')
+      .delete()
+      .eq('answer_id', answerId)
+      .eq('created_by', userId);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('doubt_answer_likes')
+      .insert({ answer_id: answerId, doubt_id: doubtId, created_by: userId });
+    if (error) throw error;
+  }
+};
+
+// ──────────────────────────────────────────
+// REPLY LIKES (Phase 3 YouTube upgrade)
+// ──────────────────────────────────────────
+
+/**
+ * Fetch all likes for replies belonging to a doubt.
+ * Returns [] gracefully if table does not exist yet.
+ */
+export const getReplyLikesForDoubt = async (doubtId: string): Promise<DoubtReplyLike[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('doubt_reply_likes')
+      .select('*')
+      .eq('doubt_id', doubtId);
+    if (error) throw error;
+    return (data || []) as DoubtReplyLike[];
+  } catch (err) {
+    console.error('Error fetching reply likes:', err);
+    return [];
+  }
+};
+
+/**
+ * Toggle a like on a reply.
+ * Pass currentlyLiked=true to unlike, false to like.
+ */
+export const toggleReplyLike = async (
+  replyId: string,
+  doubtId: string,
+  userId: string,
+  currentlyLiked: boolean
+): Promise<void> => {
+  if (currentlyLiked) {
+    const { error } = await supabase
+      .from('doubt_reply_likes')
+      .delete()
+      .eq('reply_id', replyId)
+      .eq('created_by', userId);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('doubt_reply_likes')
+      .insert({ reply_id: replyId, doubt_id: doubtId, created_by: userId });
+    if (error) throw error;
+  }
+};
+
+// ──────────────────────────────────────────
+// PIN / UNPIN ANSWER (Phase 3 YouTube upgrade)
+// ──────────────────────────────────────────
+
+/**
+ * Toggle is_pinned on a specific answer.
+ * Requires the 'Doubt creator can pin answers' RLS policy
+ * (applied via phase3-doubt-likes-pins-patch.sql).
+ * Throws a descriptive error if 0 rows were updated (RLS blocked it or column missing).
+ */
+export const toggleAnswerPin = async (
+  answerId: string,
+  doubtId: string,
+  shouldPin: boolean
+): Promise<boolean> => {
+  try {
+    const { data: updated, error } = await supabase
+      .from('doubt_answers')
+      .update({
+        is_pinned: shouldPin,
+        pinned_at: shouldPin ? new Date().toISOString() : null,
+      })
+      .eq('id', answerId)
+      .eq('doubt_id', doubtId)
+      .select('id, is_pinned');
+
+    if (error) throw error;
+
+    if (!updated || updated.length === 0) {
+      throw new Error(
+        'Pin update failed: the database policy blocked this update. ' +
+        'Apply supabase/phase3-doubt-likes-pins-patch.sql to enable pinning.'
+      );
+    }
+    return true;
+  } catch (err) {
+    console.error('Error toggling answer pin:', err);
     throw err;
   }
 };
