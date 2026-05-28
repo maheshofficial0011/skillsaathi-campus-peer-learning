@@ -210,17 +210,35 @@ export const closeDoubt = async (doubtId: string): Promise<boolean> => {
  * Mark a doubt as solved by accepting a specific answer.
  * Supports multiple accepted answers — does NOT unset other answers.
  * Sets solved_answer_id only if not already set (preserves the first accepted answer).
+ *
+ * IMPORTANT: The RLS policy "Doubt creator can accept an answer" must allow
+ * UPDATE when dp.status IN ('open', 'answered', 'solved'). If the Supabase
+ * patch phase3-accept-answer-fix.sql has not been applied, accepting a second
+ * answer on a solved doubt will silently fail. This function now detects that
+ * condition and throws a descriptive error.
  */
 export const markDoubtSolved = async (doubtId: string, answerId: string): Promise<boolean> => {
   try {
-    // Step 1: mark this specific answer as accepted (others untouched)
-    const { error: answerError } = await supabase
+    // Step 1: mark this specific answer as accepted.
+    // Use .select() so we can verify that the row was actually updated.
+    // If the RLS USING clause blocks the update, Supabase returns 0 rows (no error).
+    const { data: updatedRows, error: answerError } = await supabase
       .from('doubt_answers')
       .update({ is_accepted: true })
       .eq('id', answerId)
-      .eq('doubt_id', doubtId);
+      .eq('doubt_id', doubtId)
+      .select('id, is_accepted');
 
     if (answerError) throw answerError;
+
+    // If 0 rows were returned, the RLS policy blocked the update silently.
+    if (!updatedRows || updatedRows.length === 0) {
+      throw new Error(
+        'Accept answer failed: the database policy blocked this update. ' +
+        'This usually means the doubt status is "solved" and the RLS policy ' +
+        'needs to be updated. Please apply supabase/phase3-accept-answer-fix.sql.'
+      );
+    }
 
     // Step 2: set doubt to solved. Only update solved_answer_id if currently null.
     const { data: existingDoubt } = await supabase
@@ -246,6 +264,7 @@ export const markDoubtSolved = async (doubtId: string, answerId: string): Promis
     throw err;
   }
 };
+
 
 /**
  * Reopen a closed doubt so students can answer again.
