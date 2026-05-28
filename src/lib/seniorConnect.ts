@@ -5,6 +5,7 @@ import type {
   SeniorGuidanceStatus,
   GuidanceMode,
   SeniorGuidanceFeedback,
+  SeniorGuidanceFeedbackWithProfiles,
 } from '../types';
 
 // ──────────────────────────────────────────
@@ -455,6 +456,35 @@ export const getSeniorFeedbackReceived = async (
     return (data || []) as SeniorGuidanceFeedback[];
   } catch (err) {
     console.error('getSeniorFeedbackReceived error:', err);
+    return [];
+  }
+};
+
+/**
+ * Fetch all feedback reviews received by a senior mentor including reviewer profile details and request details.
+ */
+export const getSeniorFeedbackReceivedWithProfiles = async (
+  seniorId: string
+): Promise<SeniorGuidanceFeedbackWithProfiles[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('senior_guidance_feedback')
+      .select(`
+        *,
+        requester_profile:profiles!senior_guidance_feedback_created_by_fkey(
+          full_name, department, year_of_study
+        ),
+        guidance_request:senior_guidance_requests!senior_guidance_feedback_request_id_fkey(
+          topic
+        )
+      `)
+      .eq('senior_id', seniorId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []) as SeniorGuidanceFeedbackWithProfiles[];
+  } catch (err) {
+    console.error('getSeniorFeedbackReceivedWithProfiles error:', err);
     return [];
   }
 };

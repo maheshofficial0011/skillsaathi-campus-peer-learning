@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentProfile, upsertCurrentProfile } from '../lib/profiles';
 import { getReviewsReceived, getDoubtContributionStats } from '../lib/profileStats';
-import { getSeniorMentorStats, getSeniorFeedbackReceived } from '../lib/seniorConnect';
+import { getSeniorMentorStats, getSeniorFeedbackReceivedWithProfiles } from '../lib/seniorConnect';
 import type { SeniorMentorStats } from '../lib/seniorConnect';
-import type { Profile, YearOfStudy, SeniorGuidanceFeedback } from '../types';
+import type { Profile, YearOfStudy, SeniorGuidanceFeedbackWithProfiles } from '../types';
 import type { ReviewItem, DoubtContributionStats } from '../lib/profileStats';
 import { DEPARTMENTS } from '../lib/departments';
 import { PublicProfileModal } from '../components/profile/PublicProfileModal';
@@ -55,7 +55,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
   const [mentorStats, setMentorStats] = useState<SeniorMentorStats | null>(null);
-  const [seniorFeedback, setSeniorFeedback] = useState<SeniorGuidanceFeedback[]>([]);
+  const [seniorFeedback, setSeniorFeedback] = useState<SeniorGuidanceFeedbackWithProfiles[]>([]);
 
   const completeness = useMemo(() => {
     if (!profile) return { percent: 0, missing: [] as { name: string; label: string }[] };
@@ -150,7 +150,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
         if (data.is_senior_mentor) {
           const ms = await getSeniorMentorStats(userId);
           setMentorStats(ms);
-          const fb = await getSeniorFeedbackReceived(userId);
+          const fb = await getSeniorFeedbackReceivedWithProfiles(userId);
           setSeniorFeedback(fb);
         }
       }
@@ -970,6 +970,62 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                   </div>
                 </div>
               </div>
+
+              {/* Top Best Mentor Reviews Summary (Capped to top 3) */}
+              {seniorFeedback.length > 0 && (() => {
+                const sortedMentorReviews = [...seniorFeedback].sort((a, b) => {
+                  if (b.rating !== a.rating) return b.rating - a.rating;
+                  if (b.helpful !== a.helpful) return (b.helpful ? 1 : 0) - (a.helpful ? 1 : 0);
+                  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                });
+                const topMentorReviews = sortedMentorReviews.slice(0, 3);
+                
+                return (
+                  <div className="pt-4 border-t border-violet-200 space-y-3">
+                    <p className="text-xs font-bold text-violet-800 uppercase tracking-wider block">
+                      ⭐ Top Received Mentor Reviews
+                    </p>
+                    <div className="space-y-2">
+                      {topMentorReviews.map((rev) => {
+                        const requestTopic = rev.guidance_request?.topic || '';
+                        return (
+                          <div key={rev.id} className="p-3 bg-white rounded-xl border border-violet-100 space-y-1.5 text-xs text-left shadow-sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-violet-800">Anonymous Junior</span>
+                              <span className="text-[10px] text-slate-400">
+                                {new Date(rev.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="flex gap-0.5">
+                                {[1, 2, 3, 4, 5].map((s) => (
+                                  <span key={s} className={s <= rev.rating ? 'text-amber-400' : 'text-slate-200'}>★</span>
+                                ))}
+                              </div>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                rev.helpful ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'
+                              }`}>
+                                {rev.helpful ? '👍 Helpful Session' : '👎 Not Helpful'}
+                              </span>
+                            </div>
+                            {requestTopic && (
+                              <p className="text-[11px] text-slate-500">For Topic: <span className="font-semibold">{requestTopic}</span></p>
+                            )}
+                            {rev.comment && (
+                              <p className="text-xs text-slate-700 italic leading-relaxed">"{rev.comment}"</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {sortedMentorReviews.length > 3 && (
+                      <p className="text-[11px] text-violet-600 font-semibold italic text-center pt-1">
+                        💡 View all received mentor reviews in Senior Connect dashboard.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })()}

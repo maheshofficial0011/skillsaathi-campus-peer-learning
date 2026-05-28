@@ -264,7 +264,7 @@ export const getPublicProfileStats = async (userId: string): Promise<PublicProfi
       solvedCount: solvedResult.error ? 0 : (solvedResult.count ?? 0),
       averageRating,
       reviewCount,
-      recentReviews: reviews.slice(0, 5),
+      recentReviews: reviews,
       doubtStats,
     };
   } catch (err) {

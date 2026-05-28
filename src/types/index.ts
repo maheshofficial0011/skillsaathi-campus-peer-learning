@@ -271,3 +271,14 @@ export interface SeniorGuidanceFeedback {
   created_at: string;
   updated_at: string;
 }
+
+export interface SeniorGuidanceFeedbackWithProfiles extends SeniorGuidanceFeedback {
+  requester_profile?: {
+    full_name: string;
+    department: string;
+    year_of_study: string;
+  } | null;
+  guidance_request?: {
+    topic: string;
+  } | null;
+}

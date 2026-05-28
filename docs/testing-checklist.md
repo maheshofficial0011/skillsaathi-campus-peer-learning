@@ -227,3 +227,48 @@ Use this checklist to perform regression testing and ensure full readiness of al
   - While that request is still `pending` or `accepted`, try to send another guidance request to Senior B.
   - Verify that both the API check and the database index constraint block the duplicate request, showing a clear warning toast `"You already have an active guidance request with this senior"`.
 
+---
+
+## ⭐ 11. Phase 4.6 - Review Display & Mentor Review Management Polish
+
+- [ ] **Mentor Dashboard Received Reviews**:
+  - Log in as a Senior Mentor who has received reviews from juniors.
+  - Navigate to **Senior Connect** -> **Mentor Dashboard** (Tab 3).
+  - Verify that a dedicated **⭐ Reviews Received** section is visible.
+  - Check that if there are no reviews, a clean empty state card is displayed: `"No mentor reviews yet. Complete guidance sessions to receive reviews."`
+  - If reviews exist, verify that each review card contains:
+    * Reviewer's real public name (e.g. `Jane Doe`), department, and year of study (due to the completed guidance session connection).
+    * Rating stars (1–5).
+    * Helpfulness badge (`👍 Helpful`).
+    * Guidance request topic (e.g. `Resume Review`).
+    * Date and comment content.
+  - Verify that reviewer email and reviewer UUID are strictly HIDDEN and not leaked.
+  - Click **View Profile** on a review card. Verify that the `PublicProfileModal` for the junior opens correctly.
+
+- [ ] **Public Profile Modal Refactored Reviews**:
+  - Open any user's public profile modal (who is a senior mentor with > 3 reviews).
+  - Verify that reviews are organized into two separate compact sections: **Senior Guidance Reviews** and **Peer Help Reviews**.
+  - Verify that **Senior Guidance Reviews** are strictly anonymous, showing `"Anonymous Junior"` as the reviewer, and never leak email, UUID, phone, or WhatsApp details.
+  - Verify that reviews in both sections are sorted by quality (best-first):
+    1. Rating (1–5) descending.
+    2. Helpful (`true`) first.
+    3. Created_at date descending.
+  - Verify that both sections initially display a maximum of `3` reviews.
+  - If a section has more than 3 reviews, verify that a **Show more peer reviews** / **Show more mentor reviews** button is visible.
+  - Click the show more button. Verify the list expands to show all reviews in that section, and the button text changes to **Show fewer reviews**.
+  - Click **Show fewer reviews**. Verify the list collapses back to 3 reviews.
+
+- [ ] **User's Own Profile Page (ProfilePage) Review Summaries**:
+  - Log in and navigate to **My Profile**.
+  - Locate the **Senior Mentor Impact** card.
+  - Verify that a **⭐ Top Received Mentor Reviews** section is rendered.
+  - Check that it lists up to the top 3 best mentor reviews (sorted quality-first) anonymously.
+  - Verify that if you have more than 3 reviews, a footnote is displayed: `"💡 View all received mentor reviews in Senior Connect dashboard."`
+
+- [ ] **Reputation Systems Separation**:
+  - Verify that there is no combined global score or mixed ratings:
+    * **Peer Help Reviews** use a 1-5 star scale (Trust Score %).
+    * **Senior Guidance Reviews** use a separate 1-5 star scale (Average Mentor Rating).
+    * **Doubt Contribution Ratings** use a 1-10 scale (Average Doubt Answer Rating).
+  - Double check that doubt scores or peer help ratings never leak into the senior mentor rating averages, keeping the three modules strictly independent.
+

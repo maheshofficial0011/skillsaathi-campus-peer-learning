@@ -15,7 +15,7 @@ import {
   updateGuidanceRequestStatus,
   getSharedContactDetails,
   getSeniorFeedbackForRequest,
-  getSeniorFeedbackReceived,
+  getSeniorFeedbackReceivedWithProfiles,
   upsertSeniorGuidanceFeedbackForRequest,
   MENTOR_TOPICS,
   GUIDANCE_MODES,
@@ -28,6 +28,7 @@ import type {
   SeniorGuidanceStatus,
   GuidanceMode,
   SeniorGuidanceFeedback,
+  SeniorGuidanceFeedbackWithProfiles,
 } from '../types';
 
 // ──────────────────────────────────────────
@@ -1263,7 +1264,7 @@ export const SeniorConnectPage: React.FC = () => {
   } | null>(null);
 
   // Mentor dashboard reviews state
-  const [receivedReviews, setReceivedReviews] = useState<SeniorGuidanceFeedback[]>([]);
+  const [receivedReviews, setReceivedReviews] = useState<SeniorGuidanceFeedbackWithProfiles[]>([]);
 
   // ── Data loading ──
   const loadMentors = useCallback(async () => {
@@ -1285,7 +1286,7 @@ export const SeniorConnectPage: React.FC = () => {
 
   const loadFeedback = useCallback(async () => {
     if (!userId) return;
-    try { setReceivedReviews(await getSeniorFeedbackReceived(userId)); } catch (err) { console.error('Error loading feedback:', err); }
+    try { setReceivedReviews(await getSeniorFeedbackReceivedWithProfiles(userId)); } catch (err) { console.error('Error loading feedback:', err); }
   }, [userId]);
 
   // Determine if current user is a mentor — fetch own profile
@@ -1838,6 +1839,79 @@ export const SeniorConnectPage: React.FC = () => {
                       onViewProfile={(uid) => setViewProfileUserId(uid)}
                     />
                   ))
+                )}
+              </div>
+
+              {/* ⭐ Reviews Received */}
+              <div className="space-y-3 pt-4 border-t border-slate-100">
+                <h3 className="text-sm font-bold text-slate-700">⭐ Reviews Received</h3>
+                {receivedReviews.length === 0 ? (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 text-center text-slate-500 text-xs font-medium">
+                    No mentor reviews yet. Complete guidance sessions to receive reviews.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {receivedReviews.map((rev) => {
+                      const reviewerName = rev.requester_profile?.full_name || 'Campus Student';
+                      const reviewerDept = rev.requester_profile?.department || '';
+                      const reviewerYear = rev.requester_profile?.year_of_study || '';
+                      const requestTopic = rev.guidance_request?.topic || '';
+                      
+                      return (
+                        <div key={rev.id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between space-y-3 hover:shadow-md transition-all">
+                          <div className="space-y-2">
+                            {/* Reviewer Meta & Action */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h4 className="font-bold text-slate-900 text-xs">{reviewerName}</h4>
+                                {(reviewerDept || reviewerYear) && (
+                                  <p className="text-[10px] text-slate-500">
+                                    {reviewerDept} {reviewerDept && reviewerYear && '·'} {reviewerYear}
+                                  </p>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setViewProfileUserId(rev.created_by)}
+                                className="px-2.5 py-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors shrink-0"
+                              >
+                                View Profile
+                              </button>
+                            </div>
+
+                            {/* Rating Stars & Helpful Flag & Date */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="flex text-amber-400 text-xs font-bold">
+                                {Array.from({ length: 5 }).map((_, idx) => (
+                                  <span key={idx}>{idx < rev.rating ? '★' : '☆'}</span>
+                                ))}
+                              </div>
+                              {rev.helpful && (
+                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                                  👍 Helpful
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-400">
+                                {formatDate(rev.created_at)}
+                              </span>
+                            </div>
+
+                            {/* Guidance Request Topic */}
+                            {requestTopic && (
+                              <div className="text-[10px] font-semibold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 inline-block">
+                                Topic: {requestTopic}
+                              </div>
+                            )}
+
+                            {/* Comment */}
+                            <p className="text-xs text-slate-600 leading-relaxed italic">
+                              {rev.comment ? `"${rev.comment}"` : 'No comment was added with this review.'}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </>

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { getPublicProfileStats } from '../../lib/profileStats';
 import type { PublicProfileStats, ReviewItem } from '../../lib/profileStats';
-import { getSeniorMentorStats, getSeniorFeedbackReceived } from '../../lib/seniorConnect';
+import { getSeniorMentorStats, getSeniorFeedbackReceivedWithProfiles } from '../../lib/seniorConnect';
 import type { SeniorMentorStats } from '../../lib/seniorConnect';
-import type { SeniorGuidanceFeedback } from '../../types';
+import type { SeniorGuidanceFeedbackWithProfiles } from '../../types';
 
 interface PublicProfileModalProps {
   userId: string;
@@ -97,9 +97,12 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
   const [history, setHistory] = useState<string[]>([]);
   const [stats, setStats] = useState<PublicProfileStats | null>(null);
   const [mentorStats, setMentorStats] = useState<SeniorMentorStats | null>(null);
-  const [seniorFeedback, setSeniorFeedback] = useState<SeniorGuidanceFeedback[]>([]);
+  const [seniorFeedback, setSeniorFeedback] = useState<SeniorGuidanceFeedbackWithProfiles[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [showAllPeerReviews, setShowAllPeerReviews] = useState(false);
+  const [showAllMentorReviews, setShowAllMentorReviews] = useState(false);
 
   const overlayZ = layer === 'top' ? 'z-[1000]' : 'z-[900]';
   const contentZ = layer === 'top' ? 'z-[1010]' : 'z-[910]';
@@ -111,11 +114,13 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
     setStats(null);
     setMentorStats(null);
     setSeniorFeedback([]);
+    setShowAllPeerReviews(false);
+    setShowAllMentorReviews(false);
 
     Promise.all([
       getPublicProfileStats(activeUserId),
       getSeniorMentorStats(activeUserId),
-      getSeniorFeedbackReceived(activeUserId),
+      getSeniorFeedbackReceivedWithProfiles(activeUserId),
     ]).then(([profileResult, mentorResult, feedbackResult]) => {
       if (cancelled) return;
       if (!profileResult) {
@@ -148,6 +153,20 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
     setActiveUserId(prev);
   };
 
+  const sortReviewsBestFirst = <T extends { rating: number; helpful: boolean; created_at: string }>(
+    reviews: T[]
+  ): T[] => {
+    return [...reviews].sort((a, b) => {
+      if (b.rating !== a.rating) {
+        return b.rating - a.rating;
+      }
+      if (b.helpful !== a.helpful) {
+        return (b.helpful ? 1 : 0) - (a.helpful ? 1 : 0);
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  };
+
   const badgeMeta = stats ? getBadgeMeta(stats.profile.badge_level, stats.profile.trust_score, stats.solvedCount) : null;
   const ds = stats?.doubtStats;
 
@@ -158,25 +177,48 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
   const hasDoubtContributions = ds && (ds.doubtsAnswered > 0 || ds.acceptedAnswers > 0 || ds.answerRatingsReceived > 0);
   const hasHelpReputation = stats && (stats.reviewCount > 0 || stats.solvedCount > 0);
 
-  const SeniorReviewCard: React.FC<{ rev: SeniorGuidanceFeedback }> = ({ rev }) => (
-    <div className="p-3 bg-violet-50/50 rounded-xl border border-violet-100 space-y-1.5 text-xs text-left">
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-bold text-violet-850">Anonymous Junior</span>
-        <span className="text-[10px] text-slate-400">{formatDate(rev.created_at)}</span>
+  const sortedPeerReviews = useMemo(() => {
+    if (!stats?.recentReviews) return [];
+    return sortReviewsBestFirst(stats.recentReviews);
+  }, [stats?.recentReviews]);
+
+  const displayedPeerReviews = useMemo(() => {
+    return showAllPeerReviews ? sortedPeerReviews : sortedPeerReviews.slice(0, 3);
+  }, [sortedPeerReviews, showAllPeerReviews]);
+
+  const sortedMentorReviews = useMemo(() => {
+    return sortReviewsBestFirst(seniorFeedback);
+  }, [seniorFeedback]);
+
+  const displayedMentorReviews = useMemo(() => {
+    return showAllMentorReviews ? sortedMentorReviews : sortedMentorReviews.slice(0, 3);
+  }, [sortedMentorReviews, showAllMentorReviews]);
+
+  const SeniorReviewCard: React.FC<{ rev: SeniorGuidanceFeedbackWithProfiles }> = ({ rev }) => {
+    const requestTopic = rev.guidance_request?.topic || '';
+    return (
+      <div className="p-3 bg-violet-50/50 rounded-xl border border-violet-100 space-y-1.5 text-xs text-left">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-bold text-violet-850">Anonymous Junior</span>
+          <span className="text-[10px] text-slate-400">{formatDate(rev.created_at)}</span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <StarRow rating={rev.rating} />
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+            rev.helpful ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-650 border-red-250'
+          }`}>
+            {rev.helpful ? '👍 Helpful Session' : '👎 Not Helpful'}
+          </span>
+        </div>
+        {requestTopic && (
+          <p className="text-[11px] text-slate-500">For Topic: <span className="font-semibold">{requestTopic}</span></p>
+        )}
+        {rev.comment && (
+          <p className="text-xs text-slate-700 italic leading-relaxed">"{rev.comment}"</p>
+        )}
       </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        <StarRow rating={rev.rating} />
-        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-          rev.helpful ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'
-        }`}>
-          {rev.helpful ? '👍 Helpful Session' : '👎 Not Helpful'}
-        </span>
-      </div>
-      {rev.comment && (
-        <p className="text-xs text-slate-700 italic leading-relaxed">"{rev.comment}"</p>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <div
@@ -335,20 +377,6 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
                       </p>
                     )}
                   </div>
-
-                  {/* Recent Mentor Reviews up to 3 */}
-                  {seniorFeedback.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-violet-100 space-y-2">
-                      <p className="text-[10px] font-bold text-violet-800 uppercase tracking-wider text-left">
-                        Recent Guidance Reviews
-                      </p>
-                      <div className="space-y-2">
-                        {seniorFeedback.slice(0, 3).map((rev) => (
-                          <SeniorReviewCard key={rev.id} rev={rev} />
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -485,18 +513,54 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
                 </div>
               )}
 
-              {/* Recent Help Reviews */}
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                  Recent Peer Help Reviews ({stats.reviewCount})
+              {/* Senior Guidance Reviews (if senior mentor) */}
+              {stats.profile.is_senior_mentor && (
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Senior Guidance Reviews ({seniorFeedback.length})
+                  </p>
+                  {seniorFeedback.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">No senior guidance reviews yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {displayedMentorReviews.map((rev) => (
+                        <SeniorReviewCard key={rev.id} rev={rev} />
+                      ))}
+                      {sortedMentorReviews.length > 3 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllMentorReviews(!showAllMentorReviews)}
+                          className="text-xs font-bold text-indigo-600 hover:text-indigo-850 hover:underline pt-1 focus:outline-none"
+                        >
+                          {showAllMentorReviews ? 'Show fewer reviews' : 'Show more mentor reviews'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Peer Help Reviews */}
+              <div className="space-y-3 pt-3 border-t border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Peer Help Reviews ({stats.reviewCount})
                 </p>
                 {stats.recentReviews.length === 0 ? (
                   <p className="text-xs text-slate-400 italic">No peer help reviews yet.</p>
                 ) : (
                   <div className="space-y-2">
-                    {stats.recentReviews.map((rev) => (
+                    {displayedPeerReviews.map((rev) => (
                       <ReviewCard key={rev.id} rev={rev} onViewReviewer={handleViewReviewer} />
                     ))}
+                    {sortedPeerReviews.length > 3 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllPeerReviews(!showAllPeerReviews)}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-850 hover:underline pt-1 focus:outline-none"
+                      >
+                        {showAllPeerReviews ? 'Show fewer reviews' : 'Show more peer reviews'}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

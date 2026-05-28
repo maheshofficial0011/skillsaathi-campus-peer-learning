@@ -244,6 +244,36 @@ Phase 4.5 refines the Senior Connect quality assurance, request safety, and avai
 
 *Note: Fully featured real-time in-app chat and push notifications are planned as part of the future learning circles module.*
 
+---
+
+## ⭐ Phase 4.6: Review Display & Mentor Review Management Polish
+
+Phase 4.6 enhances platform credibility and profile layout quality by upgrading review visibility, sorting, and privacy settings before launching Learning Circles:
+
+1. **Mentor Dashboard Reviews Section ("⭐ Reviews Received")**:
+   - Added a new, dedicated feedback dashboard panel for senior mentors to view all reviews and ratings given by juniors after completed guidance sessions.
+   - For connected users (requester and mentor in a completed session), mentors can view the reviewer's real public name, department, year of study, and topic of request.
+   - Clicking **View Reviewer Profile** safely opens the junior's public profile modal.
+   - Securely isolates contact details: reviewer email, UUID, or private contact fields are never exposed inside dashboard review cards.
+
+2. **Refactored Public Profiles ("PublicProfileModal")**:
+   - Refactored reviews into two separate, compact sections: **Senior Guidance Reviews** and **Peer Help Reviews**.
+   - Displays reviews sorted by quality (best-first):
+     1. Star rating descending
+     2. Helpful true first
+     3. Date created descending (newest first)
+   - Capped initial reviews display count to a maximum of `3` per section, ensuring public profiles remain visually clean and do not grow excessively long.
+   - Built smooth, separate expand/collapse controls (**Show more reviews** / **Show fewer reviews**) for each review section.
+   - Strict public anonymity: displays all senior guidance reviews publicly under `"Anonymous Junior"`, with absolutely no reviewer email/UUID leaks.
+
+3. **User's Own Profile Summaries (ProfilePage)**:
+   - Added a **⭐ Top Received Mentor Reviews** section inside the Senior Mentor Impact card.
+   - Automatically displays up to the top 3 best mentor reviews (sorted quality-first) on the user's own profile page.
+   - Adds a redirection footnote if more than 3 reviews exist: `"View all received mentor reviews in Senior Connect dashboard."`
+
+4. **Strict Reputation Separation**:
+   - Ratings and impact scores are strictly segregated: Peer Help trust score/ratings, Senior Mentor average rating, and Doubt answer scores (1-10) remain independent.
+
 ### Verification Checklist & Docs
 
 All verification procedures and manual testing checklists are detailed in [docs/testing-checklist.md](./docs/testing-checklist.md).
