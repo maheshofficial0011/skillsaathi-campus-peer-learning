@@ -30,8 +30,11 @@ import { PublicProfileModal } from '../profile/PublicProfileModal';
 import { useToast } from '../../hooks/useToast';
 
 // ──────────────────────────────────────────
-// HELPERS
+// CONSTANTS & HELPERS
 // ──────────────────────────────────────────
+
+/** Number of replies shown before "Show more replies" */
+const REPLIES_INITIALLY_VISIBLE = 3;
 
 const formatDate = (d: string) =>
   new Date(d).toLocaleDateString(undefined, {
@@ -65,15 +68,12 @@ const sortAnswers = (
   answerLikes: DoubtAnswerLike[]
 ): DoubtAnswerWithProfile[] =>
   [...answers].sort((a, b) => {
-    // Pinned always first regardless of sort
     const aPinned = !!a.is_pinned;
     const bPinned = !!b.is_pinned;
     if (aPinned !== bPinned) return bPinned ? 1 : -1;
-
     if (order === 'newest') {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     }
-
     // Top sort: accepted → likes → avg rating → newest
     if (a.is_accepted !== b.is_accepted) return b.is_accepted ? 1 : -1;
     const aLikes = answerLikes.filter((l) => l.answer_id === a.id).length;
@@ -90,22 +90,22 @@ const sortAnswers = (
 // ──────────────────────────────────────────
 // AVATAR
 // ──────────────────────────────────────────
-const Avatar: React.FC<{ name: string; size?: 'sm' | 'md' }> = ({ name, size = 'md' }) => {
+const Avatar: React.FC<{ name: string; size?: 'xs' | 'sm' | 'md' }> = ({ name, size = 'md' }) => {
   const initial = name ? name.charAt(0).toUpperCase() : '?';
   const color = getAvatarColor(name);
+  const sizeClass =
+    size === 'xs' ? 'w-5 h-5 text-[9px]' :
+    size === 'sm' ? 'w-6 h-6 text-[10px]' :
+                   'w-8 h-8 text-xs';
   return (
-    <div
-      className={`shrink-0 rounded-full flex items-center justify-center font-bold select-none ${color} ${
-        size === 'sm' ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-xs'
-      }`}
-    >
+    <div className={`shrink-0 rounded-full flex items-center justify-center font-bold select-none ${color} ${sizeClass}`}>
       {initial}
     </div>
   );
 };
 
 // ──────────────────────────────────────────
-// RATING CONTROL
+// RATING CONTROL (1–10)
 // ──────────────────────────────────────────
 const RatingControl: React.FC<{
   value: number;
@@ -132,7 +132,100 @@ const RatingControl: React.FC<{
 );
 
 // ──────────────────────────────────────────
-// REPLY CARD (single reply in thread)
+// INLINE REPLY COMPOSER
+// ──────────────────────────────────────────
+interface ReplyComposerProps {
+  answerId: string;
+  doubtId: string;
+  currentUserId: string;
+  initialText?: string;
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+  onPosted: () => Promise<void>;
+  onCancel: () => void;
+}
+
+const ReplyComposer: React.FC<ReplyComposerProps> = ({
+  answerId, doubtId, currentUserId, initialText = '', textareaRef, onPosted, onCancel,
+}) => {
+  const toast = useToast();
+  const [text, setText] = useState(initialText);
+  const [anon, setAnon] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const localRef = useRef<HTMLTextAreaElement>(null);
+  const ref = textareaRef || localRef;
+
+  // When initial text changes (e.g. @mention prefill), sync it
+  useEffect(() => { setText(initialText); }, [initialText]);
+
+  const handleSubmit = async () => {
+    if (!text.trim()) { setError('Reply cannot be empty.'); return; }
+    setError('');
+    setSubmitting(true);
+    try {
+      await createAnswerReply({
+        answer_id: answerId,
+        doubt_id: doubtId,
+        reply_text: text,
+        created_by: currentUserId,
+        is_anonymous: anon,
+      });
+      setText('');
+      await onPosted();
+      toast.success('Reply Posted', 'Your reply is now live.');
+    } catch {
+      setError('Failed to post reply. Please try again.');
+      toast.error('Reply Failed', 'Could not post your reply.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 mt-2">
+      <textarea
+        ref={ref as React.RefObject<HTMLTextAreaElement>}
+        value={text}
+        onChange={(e) => { setText(e.target.value); setError(''); }}
+        rows={2}
+        placeholder="Write your follow-up or cross-question…"
+        className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-indigo-400 focus:border-indigo-400 transition-colors"
+      />
+      {error && <p className="text-red-500 text-[10px]">{error}</p>}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={anon}
+            onChange={(e) => setAnon(e.target.checked)}
+            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          <span className="text-slate-500 text-[11px]">Reply anonymously</span>
+        </label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-3 py-1 text-[11px] font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={submitting || !text.trim()}
+            onClick={handleSubmit}
+            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[11px] font-bold rounded-md transition-colors"
+          >
+            {submitting ? 'Posting…' : 'Reply'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ──────────────────────────────────────────
+// REPLY CARD (single reply)
 // ──────────────────────────────────────────
 interface ReplyCardProps {
   reply: DoubtAnswerReplyWithProfile;
@@ -150,7 +243,8 @@ const ReplyCard: React.FC<ReplyCardProps> = ({
   onToggleLike, onReplyToThis, onViewProfile,
 }) => {
   const [liking, setLiking] = useState(false);
-  const authorName = reply.is_anonymous
+  const isAnon = reply.is_anonymous;
+  const authorName = isAnon
     ? 'Anonymous Student'
     : reply.author_profile?.full_name || 'Campus Student';
 
@@ -160,11 +254,12 @@ const ReplyCard: React.FC<ReplyCardProps> = ({
   };
 
   return (
-    <div className="flex gap-2 text-xs">
-      <Avatar name={authorName} size="sm" />
-      <div className="flex-1 min-w-0 space-y-0.5">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {reply.is_anonymous ? (
+    <div className="flex gap-2 min-w-0">
+      <Avatar name={authorName} size="xs" />
+      <div className="flex-1 min-w-0">
+        {/* Author + date */}
+        <div className="flex items-baseline gap-1.5 flex-wrap text-[11px] leading-none mb-0.5">
+          {isAnon ? (
             <span className="font-semibold text-slate-500">{authorName}</span>
           ) : (
             <button
@@ -175,28 +270,30 @@ const ReplyCard: React.FC<ReplyCardProps> = ({
               {authorName}
             </button>
           )}
-          <span className="text-slate-400">·</span>
           <span className="text-slate-400">{formatDate(reply.created_at)}</span>
         </div>
-        <p className="text-slate-700 whitespace-pre-wrap break-words leading-relaxed">{reply.reply_text}</p>
-        <div className="flex items-center gap-3 pt-0.5 flex-wrap">
+        {/* Reply text */}
+        <p className="text-xs text-slate-700 whitespace-pre-wrap break-words leading-relaxed">{reply.reply_text}</p>
+        {/* Action row */}
+        <div className="flex items-center gap-3 mt-1 flex-wrap">
           <button
             type="button"
             disabled={liking}
             onClick={handleLike}
-            className={`flex items-center gap-1 font-semibold transition-colors ${
-              isLiked ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-600'
+            className={`flex items-center gap-1 text-[11px] font-semibold transition-colors ${
+              isLiked ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-500'
             }`}
           >
-            👍{likeCount > 0 && <span>{likeCount}</span>}
+            {isLiked ? '👍' : '👍'}{' '}
+            <span>{likeCount > 0 ? likeCount : ''}</span>
           </button>
           {canReply && (
             <button
               type="button"
               onClick={() => onReplyToThis(authorName)}
-              className="text-slate-400 hover:text-indigo-600 font-semibold transition-colors"
+              className="text-[11px] font-semibold text-slate-400 hover:text-indigo-500 transition-colors"
             >
-              ↩ Reply
+              Reply
             </button>
           )}
         </div>
@@ -206,7 +303,8 @@ const ReplyCard: React.FC<ReplyCardProps> = ({
 };
 
 // ──────────────────────────────────────────
-// REPLY THREAD (collapsible, YouTube-style)
+// REPLY THREAD
+// Handles: show/hide, show-more, reply composer, reply-to-reply mention
 // ──────────────────────────────────────────
 interface ReplyThreadProps {
   answerId: string;
@@ -215,6 +313,9 @@ interface ReplyThreadProps {
   replies: DoubtAnswerReplyWithProfile[];
   replyLikes: DoubtReplyLike[];
   canReply: boolean;
+  /** True when the composer should be opened from outside (e.g. action row Reply button) */
+  externalOpenComposer: boolean;
+  onExternalComposerHandled: () => void;
   onReplyPosted: () => Promise<void>;
   onToggleReplyLike: (replyId: string) => Promise<void>;
   onViewProfile: (userId: string) => void;
@@ -222,22 +323,38 @@ interface ReplyThreadProps {
 
 const ReplyThread: React.FC<ReplyThreadProps> = ({
   answerId, doubtId, currentUserId, replies, replyLikes,
-  canReply, onReplyPosted, onToggleReplyLike, onViewProfile,
+  canReply, externalOpenComposer, onExternalComposerHandled,
+  onReplyPosted, onToggleReplyLike, onViewProfile,
 }) => {
-  const toast = useToast();
   const [expanded, setExpanded] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [replyText, setReplyText] = useState('');
-  const [replyAnon, setReplyAnon] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [showAll, setShowAll] = useState(false);
+  const [showComposer, setShowComposer] = useState(false);
+  const [mentionText, setMentionText] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const replyCount = replies.length;
+  const hasMore = replyCount > REPLIES_INITIALLY_VISIBLE;
+  const visibleReplies = expanded
+    ? showAll ? replies : replies.slice(0, REPLIES_INITIALLY_VISIBLE)
+    : [];
+  const hiddenCount = replyCount - REPLIES_INITIALLY_VISIBLE;
+
+  // Open composer from outside (action row Reply button)
+  useEffect(() => {
+    if (externalOpenComposer) {
+      setMentionText('');
+      setShowComposer(true);
+      setExpanded(true);
+      onExternalComposerHandled();
+      setTimeout(() => textareaRef.current?.focus(), 60);
+    }
+  }, [externalOpenComposer, onExternalComposerHandled]);
 
   const handleReplyToReply = (authorName: string) => {
     if (!canReply) return;
     const mention = `@${authorName} `;
-    setReplyText(mention);
-    setShowForm(true);
+    setMentionText(mention);
+    setShowComposer(true);
     setExpanded(true);
     setTimeout(() => {
       if (textareaRef.current) {
@@ -247,63 +364,41 @@ const ReplyThread: React.FC<ReplyThreadProps> = ({
     }, 60);
   };
 
-  const handleSubmit = async () => {
-    if (!replyText.trim()) { setError('Reply cannot be empty.'); return; }
-    setError('');
-    setSubmitting(true);
-    try {
-      await createAnswerReply({
-        answer_id: answerId,
-        doubt_id: doubtId,
-        reply_text: replyText,
-        created_by: currentUserId,
-        is_anonymous: replyAnon,
-      });
-      setReplyText('');
-      setShowForm(false);
-      setExpanded(true);
-      await onReplyPosted();
-      toast.success('Reply Posted', 'Your reply is now live.');
-    } catch {
-      setError('Failed to post reply. Please try again.');
-      toast.error('Reply Failed', 'Could not post your reply.');
-    } finally {
-      setSubmitting(false);
-    }
+  const handlePosted = async () => {
+    setShowComposer(false);
+    setMentionText('');
+    setExpanded(true);
+    setShowAll(true); // show all so newly posted reply is visible
+    await onReplyPosted();
   };
 
-  const replyCount = replies.length;
+  const handleCancel = () => {
+    setShowComposer(false);
+    setMentionText('');
+  };
+
+  if (replyCount === 0 && !canReply) return null;
 
   return (
-    <div className="mt-3 pl-3 border-l-2 border-slate-100 space-y-2">
-      {/* Toggle + Reply button row */}
-      <div className="flex items-center gap-3 flex-wrap text-xs">
-        {replyCount > 0 && (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="text-slate-500 hover:text-indigo-600 font-semibold transition-colors"
-          >
-            {expanded
-              ? `▲ Hide ${replyCount} repl${replyCount === 1 ? 'y' : 'ies'}`
-              : `▼ Show ${replyCount} repl${replyCount === 1 ? 'y' : 'ies'}`}
-          </button>
-        )}
-        {canReply && (
-          <button
-            type="button"
-            onClick={() => { setShowForm((v) => !v); setExpanded(true); }}
-            className="text-indigo-500 hover:text-indigo-700 font-semibold transition-colors"
-          >
-            {showForm ? '✕ Cancel' : '💬 Reply'}
-          </button>
-        )}
-      </div>
+    // Vertical connector line: left-4 is avatar width/2, matches reply avatar offset
+    <div className="mt-2 ml-4 pl-3 border-l-2 border-slate-100">
+      {/* Show/hide toggle */}
+      {replyCount > 0 && (
+        <button
+          type="button"
+          onClick={() => { setExpanded((v) => !v); if (!expanded) setShowAll(false); }}
+          className="text-[11px] font-semibold text-indigo-500 hover:text-indigo-700 transition-colors"
+        >
+          {expanded
+            ? `▲ Hide replies`
+            : `▼ Show ${replyCount} repl${replyCount === 1 ? 'y' : 'ies'}`}
+        </button>
+      )}
 
-      {/* Reply list */}
+      {/* Replies list */}
       {expanded && replyCount > 0 && (
-        <div className="space-y-3">
-          {replies.map((r) => (
+        <div className="mt-2 space-y-3">
+          {visibleReplies.map((r) => (
             <ReplyCard
               key={r.id}
               reply={r}
@@ -316,48 +411,40 @@ const ReplyThread: React.FC<ReplyThreadProps> = ({
               onViewProfile={onViewProfile}
             />
           ))}
+
+          {/* Show more / show less */}
+          {hasMore && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="text-[11px] font-semibold text-indigo-500 hover:text-indigo-700 transition-colors"
+            >
+              {showAll
+                ? '▲ Show fewer replies'
+                : `▼ Show ${hiddenCount} more repl${hiddenCount === 1 ? 'y' : 'ies'}`}
+            </button>
+          )}
         </div>
       )}
 
-      {/* Reply form */}
-      {showForm && canReply && (
-        <div className="space-y-2 pt-1">
-          <textarea
-            ref={textareaRef}
-            value={replyText}
-            onChange={(e) => { setReplyText(e.target.value); setError(''); }}
-            rows={2}
-            placeholder="Write your follow-up or cross-question..."
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white text-xs resize-y focus:outline-none focus:ring-1 focus:ring-indigo-400 focus:border-indigo-400 transition-colors"
-          />
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={replyAnon}
-                onChange={(e) => setReplyAnon(e.target.checked)}
-                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-              />
-              <span className="text-slate-600 text-[11px] font-medium">Reply anonymously</span>
-            </label>
-            <button
-              type="button"
-              disabled={submitting}
-              onClick={handleSubmit}
-              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-[11px] font-bold rounded-lg transition-colors"
-            >
-              {submitting ? 'Posting...' : 'Post Reply'}
-            </button>
-          </div>
-          {error && <p className="text-red-500 text-[10px]">{error}</p>}
-        </div>
+      {/* Inline reply composer */}
+      {showComposer && canReply && (
+        <ReplyComposer
+          answerId={answerId}
+          doubtId={doubtId}
+          currentUserId={currentUserId}
+          initialText={mentionText}
+          textareaRef={textareaRef}
+          onPosted={handlePosted}
+          onCancel={handleCancel}
+        />
       )}
     </div>
   );
 };
 
 // ──────────────────────────────────────────
-// ANSWER CARD (YouTube-style)
+// ANSWER CARD (YouTube comment style)
 // ──────────────────────────────────────────
 interface AnswerCardProps {
   answer: DoubtAnswerWithProfile;
@@ -398,27 +485,25 @@ const AnswerCard: React.FC<AnswerCardProps> = ({
   const [ratingComment, setRatingComment] = useState('');
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratingError, setRatingError] = useState('');
+  // Triggers opening the reply composer from the action-row Reply button
+  const [openComposer, setOpenComposer] = useState(false);
 
   // Derived values
   const myRating = ratings.find((r) => r.created_by === currentUserId);
-  const avgRatingValue =
-    ratings.length
-      ? Math.round((ratings.reduce((s, r) => s + r.rating, 0) / ratings.length) * 10) / 10
-      : null;
+  const avgRatingValue = ratings.length
+    ? Math.round((ratings.reduce((s, r) => s + r.rating, 0) / ratings.length) * 10) / 10
+    : null;
   const ratingCount = ratings.length;
   const likeCount = answerLikes.filter((l) => l.answer_id === answer.id).length;
-  const isLiked = answerLikes.some(
-    (l) => l.answer_id === answer.id && l.created_by === currentUserId
-  );
+  const isLiked = answerLikes.some((l) => l.answer_id === answer.id && l.created_by === currentUserId);
   const isPinned = !!answer.is_pinned;
   const answererName = answer.answerer_profile?.full_name || 'Campus Student';
   const isTruncated = answer.answer_text.length > TRUNCATE_AT;
-  const displayText =
-    isTruncated && !textExpanded
-      ? answer.answer_text.slice(0, TRUNCATE_AT) + '...'
-      : answer.answer_text;
+  const displayText = isTruncated && !textExpanded
+    ? answer.answer_text.slice(0, TRUNCATE_AT) + '…'
+    : answer.answer_text;
 
-  // Sync rating form when myRating changes
+  // Sync rating form inputs
   useEffect(() => {
     setRatingValue(myRating?.rating ?? 5);
     setRatingComment(myRating?.comment ?? '');
@@ -428,12 +513,10 @@ const AnswerCard: React.FC<AnswerCardProps> = ({
     setMarking(true);
     try { await onMarkAccepted(answer.id); } finally { setMarking(false); }
   };
-
   const handleTogglePin = async () => {
     setPinning(true);
     try { await onTogglePin(answer.id, isPinned); } finally { setPinning(false); }
   };
-
   const handleToggleLike = async () => {
     setLiking(true);
     try { await onToggleAnswerLike(answer.id); } finally { setLiking(false); }
@@ -461,9 +544,7 @@ const AnswerCard: React.FC<AnswerCardProps> = ({
       await onRatingSubmitted();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      const friendly = msg.includes('no_self_rating')
-        ? 'You cannot rate your own answer.'
-        : 'Failed to submit rating.';
+      const friendly = msg.includes('no_self_rating') ? 'You cannot rate your own answer.' : 'Failed to submit rating.';
       setRatingError(friendly);
       toast.error('Rating Failed', friendly);
     } finally {
@@ -471,205 +552,210 @@ const AnswerCard: React.FC<AnswerCardProps> = ({
     }
   };
 
-  // Card border/bg depends on pinned > accepted > default
-  const cardClass = isPinned
-    ? 'border-amber-200 bg-amber-50/40'
+  // Left border color: pinned > accepted > default
+  const borderClass = isPinned
+    ? 'border-l-4 border-l-amber-400 border-slate-100'
     : answer.is_accepted
-    ? 'border-emerald-300 bg-emerald-50/60'
-    : 'border-slate-200 bg-white';
+    ? 'border-l-4 border-l-emerald-400 border-slate-100'
+    : 'border-slate-100';
 
   return (
-    <div className={`rounded-xl border p-4 space-y-3 ${cardClass}`}>
-      {/* Header: avatar + name + meta */}
-      <div className="flex items-start gap-2.5">
-        <Avatar name={answererName} />
+    <div className={`border rounded-xl p-4 space-y-3 bg-white ${borderClass}`}>
+      {/* ── Header: avatar + name + meta ── */}
+      <div className="flex items-start gap-3">
+        <Avatar name={answererName} size="md" />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap text-xs">
+          <div className="flex items-center gap-1.5 flex-wrap text-[12px] leading-snug">
             <button
               type="button"
               onClick={() => onViewProfile(answer.created_by)}
-              className="font-bold text-slate-800 hover:text-indigo-600 transition-colors"
+              className="font-semibold text-slate-800 hover:text-indigo-600 transition-colors"
             >
               {answererName}
             </button>
             {answer.answerer_profile?.department && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span className="text-slate-500">{answer.answerer_profile.department}</span>
-              </>
+              <span className="text-slate-400 text-[11px]">· {answer.answerer_profile.department}</span>
             )}
             {answer.answerer_profile?.year_of_study && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span className="text-slate-500">{answer.answerer_profile.year_of_study}</span>
-              </>
+              <span className="text-slate-400 text-[11px]">· {answer.answerer_profile.year_of_study}</span>
             )}
-            <span className="text-slate-300">·</span>
-            <span className="text-slate-400">{formatDate(answer.created_at)}</span>
+            <span className="text-slate-400 text-[11px]">· {formatDate(answer.created_at)}</span>
           </div>
+
+          {/* Badges inline under name */}
+          {(isPinned || answer.is_accepted || avgRatingValue !== null) && (
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {isPinned && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                  📌 Pinned by asker
+                </span>
+              )}
+              {answer.is_accepted && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                  ✅ Accepted Answer
+                </span>
+              )}
+              {avgRatingValue !== null && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">
+                  ⭐ {avgRatingValue}/10
+                  <span className="text-slate-400 ml-0.5">({ratingCount})</span>
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Badges row */}
-      {(isPinned || answer.is_accepted || avgRatingValue !== null) && (
-        <div className="flex flex-wrap gap-1.5">
-          {isPinned && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 text-[10px] font-bold rounded-full">
-              📌 Pinned
-            </span>
-          )}
-          {answer.is_accepted && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 border border-emerald-300 text-emerald-700 text-[10px] font-bold rounded-full">
-              ✅ Accepted Answer
-            </span>
-          )}
-          {avgRatingValue !== null && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-600 text-[10px] font-semibold rounded-full">
-              ⭐ {avgRatingValue}/10
-              <span className="text-slate-400 font-normal">({ratingCount})</span>
-            </span>
-          )}
-        </div>
-      )}
+      {/* ── Answer text ── */}
+      <div className="pl-11"> {/* indent to align with text under avatar */}
+        <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap break-words">{displayText}</p>
+        {isTruncated && (
+          <button
+            type="button"
+            onClick={() => setTextExpanded((v) => !v)}
+            className="text-xs text-indigo-500 hover:text-indigo-700 font-semibold mt-1 transition-colors"
+          >
+            {textExpanded ? 'Show less ▲' : 'Show more ▼'}
+          </button>
+        )}
 
-      {/* Answer text */}
-      <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap break-words">{displayText}</p>
-      {isTruncated && (
-        <button
-          type="button"
-          onClick={() => setTextExpanded((v) => !v)}
-          className="text-xs text-indigo-500 hover:text-indigo-700 font-semibold transition-colors"
-        >
-          {textExpanded ? 'Show less ▲' : 'Show more ▼'}
-        </button>
-      )}
-
-      {/* Existing rating display */}
-      {myRating && !showRatingForm && (
-        <div className="flex items-center gap-2 flex-wrap text-xs">
-          <span className="px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded font-bold">
-            Your rating: {myRating.rating}/10
-          </span>
-          {myRating.comment && (
-            <span className="text-slate-500 italic truncate max-w-[200px]">
-              "{myRating.comment}"
+        {/* Existing rating display */}
+        {myRating && !showRatingForm && (
+          <div className="flex items-center gap-2 flex-wrap text-[11px] mt-2">
+            <span className="px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded font-semibold">
+              Your rating: {myRating.rating}/10
             </span>
+            {myRating.comment && (
+              <span className="text-slate-400 italic truncate max-w-[200px]">"{myRating.comment}"</span>
+            )}
+            {canRate && (
+              <button
+                type="button"
+                onClick={() => setShowRatingForm(true)}
+                className="text-indigo-500 hover:text-indigo-700 font-semibold underline"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Rating form */}
+        {showRatingForm && canRate && (
+          <div className="border border-amber-200 rounded-xl p-3 space-y-2.5 bg-amber-50/50 mt-2">
+            <p className="text-xs font-bold text-slate-700">
+              {myRating ? 'Update your rating (1–10)' : 'Rate this answer (1–10)'}
+            </p>
+            <RatingControl value={ratingValue} onChange={setRatingValue} disabled={ratingSubmitting} />
+            <input
+              type="text"
+              value={ratingComment}
+              onChange={(e) => setRatingComment(e.target.value)}
+              placeholder="Optional comment…"
+              className="w-full px-3 py-2 text-xs border border-amber-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors"
+            />
+            {ratingError && <p className="text-xs text-red-600">{ratingError}</p>}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowRatingForm(false); setRatingError(''); }}
+                className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={ratingSubmitting}
+                onClick={handleRatingSubmit}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+              >
+                {ratingSubmitting ? 'Saving…' : myRating ? 'Update' : 'Submit Rating'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Action row ── */}
+        <div className="flex items-center gap-3 flex-wrap mt-2 text-[12px]">
+          {/* Like */}
+          <button
+            type="button"
+            disabled={liking}
+            onClick={handleToggleLike}
+            className={`flex items-center gap-1 font-semibold transition-colors ${
+              isLiked ? 'text-indigo-600' : 'text-slate-400 hover:text-indigo-500'
+            } disabled:opacity-60`}
+          >
+            <span>👍</span>
+            <span>{likeCount > 0 ? likeCount : ''}</span>
+          </button>
+
+          {/* Reply — opens the inline reply composer in ReplyThread */}
+          {canReply && (
+            <button
+              type="button"
+              onClick={() => setOpenComposer(true)}
+              className="font-semibold text-slate-400 hover:text-indigo-500 transition-colors"
+            >
+              Reply
+            </button>
           )}
-          {canRate && (
+
+          {/* Rate */}
+          {canRate && !showRatingForm && !myRating && (
             <button
               type="button"
               onClick={() => setShowRatingForm(true)}
-              className="text-indigo-500 hover:text-indigo-700 font-semibold underline"
+              className="font-semibold text-slate-400 hover:text-amber-600 transition-colors"
             >
-              Edit Rating
+              ⭐ Rate
+            </button>
+          )}
+
+          {/* Accept */}
+          {canMark && (
+            <button
+              type="button"
+              disabled={marking}
+              onClick={handleMarkAccepted}
+              className="font-semibold text-slate-400 hover:text-emerald-600 disabled:opacity-60 transition-colors"
+            >
+              {marking ? 'Accepting…' : '✅ Accept'}
+            </button>
+          )}
+
+          {/* Pin / Unpin */}
+          {canPin && (
+            <button
+              type="button"
+              disabled={pinning}
+              onClick={handleTogglePin}
+              className={`font-semibold transition-colors disabled:opacity-60 ${
+                isPinned
+                  ? 'text-amber-600 hover:text-amber-800'
+                  : 'text-slate-400 hover:text-amber-600'
+              }`}
+            >
+              {pinning ? '…' : isPinned ? '📌 Unpin' : '📌 Pin'}
             </button>
           )}
         </div>
-      )}
 
-      {/* Rating form */}
-      {showRatingForm && canRate && (
-        <div className="border border-amber-200 rounded-xl p-3 space-y-2.5 bg-amber-50/40">
-          <p className="text-xs font-bold text-slate-700">
-            {myRating ? 'Update your rating' : 'Rate this answer (1–10)'}
-          </p>
-          <RatingControl value={ratingValue} onChange={setRatingValue} disabled={ratingSubmitting} />
-          <input
-            type="text"
-            value={ratingComment}
-            onChange={(e) => setRatingComment(e.target.value)}
-            placeholder="Optional comment (e.g. Very clear explanation)"
-            className="w-full px-3 py-2 text-xs border border-amber-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-amber-400 transition-colors"
-          />
-          {ratingError && <p className="text-xs text-red-600">{ratingError}</p>}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => { setShowRatingForm(false); setRatingError(''); }}
-              className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 font-semibold transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={ratingSubmitting}
-              onClick={handleRatingSubmit}
-              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
-            >
-              {ratingSubmitting ? 'Saving...' : myRating ? 'Update Rating' : 'Submit Rating'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Action row */}
-      <div className="flex items-center gap-2 flex-wrap text-xs">
-        {/* Like button */}
-        <button
-          type="button"
-          disabled={liking}
-          onClick={handleToggleLike}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold transition-all ${
-            isLiked
-              ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-              : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600'
-          } disabled:opacity-60`}
-        >
-          👍 {isLiked ? 'Liked' : 'Like'}{likeCount > 0 && <span>· {likeCount}</span>}
-        </button>
-
-        {/* Rate button (no existing rating) */}
-        {canRate && !showRatingForm && !myRating && (
-          <button
-            type="button"
-            onClick={() => setShowRatingForm(true)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 font-semibold transition-colors"
-          >
-            ⭐ Rate
-          </button>
-        )}
-
-        {/* Accept button */}
-        {canMark && (
-          <button
-            type="button"
-            disabled={marking}
-            onClick={handleMarkAccepted}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 font-semibold transition-colors"
-          >
-            {marking ? 'Accepting...' : '✅ Accept'}
-          </button>
-        )}
-
-        {/* Pin / Unpin button */}
-        {canPin && (
-          <button
-            type="button"
-            disabled={pinning}
-            onClick={handleTogglePin}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border font-semibold transition-colors disabled:opacity-60 ${
-              isPinned
-                ? 'bg-amber-100 border-amber-300 text-amber-700 hover:bg-amber-50'
-                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700'
-            }`}
-          >
-            {pinning ? '...' : isPinned ? '📌 Unpin' : '📌 Pin'}
-          </button>
-        )}
+        {/* ── Reply thread ── */}
+        <ReplyThread
+          answerId={answer.id}
+          doubtId={doubt.id}
+          currentUserId={currentUserId}
+          replies={replies}
+          replyLikes={replyLikes}
+          canReply={canReply}
+          externalOpenComposer={openComposer}
+          onExternalComposerHandled={() => setOpenComposer(false)}
+          onReplyPosted={onReplyPosted}
+          onToggleReplyLike={onToggleReplyLike}
+          onViewProfile={onViewProfile}
+        />
       </div>
-
-      {/* Reply thread */}
-      <ReplyThread
-        answerId={answer.id}
-        doubtId={doubt.id}
-        currentUserId={currentUserId}
-        replies={replies}
-        replyLikes={replyLikes}
-        canReply={canReply}
-        onReplyPosted={onReplyPosted}
-        onToggleReplyLike={onToggleReplyLike}
-        onViewProfile={onViewProfile}
-      />
     </div>
   );
 };
@@ -715,11 +801,8 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
   // ── Permissions ──
   const isCreator = doubt.created_by === currentUserId;
   const canAnswer = doubt.status === 'open' || doubt.status === 'answered';
-  // Replies allowed on open, answered, solved — only blocked on closed
   const canReply = doubt.status !== 'closed';
-  // Creators can accept on open/answered/solved (not closed)
   const canMarkAnswers = isCreator && doubt.status !== 'closed';
-  // Creators can pin on open/answered/solved (not closed)
   const canPin = isCreator && doubt.status !== 'closed';
   const canDelete =
     isCreator &&
@@ -727,7 +810,7 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     !loadingAnswers &&
     answers.length === 0;
 
-  // ── Sorted answers (memoised) ──
+  // ── Sorted answers ──
   const sortedAnswers = useMemo(
     () => sortAnswers(answers, sortOrder, ratings, answerLikes),
     [answers, sortOrder, ratings, answerLikes]
@@ -740,7 +823,7 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
   const totalReplies = replies.length;
   const totalAnswerLikes = answerLikes.length;
 
-  // ── Load all data (graceful — allSettled handles missing tables) ──
+  // ── Load data ──
   const loadData = useCallback(async () => {
     setLoadingAnswers(true);
     try {
@@ -763,17 +846,13 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Sync initialDoubt changes without stomping in-flight mutations
+  // Sync initialDoubt without stomping mutations
   useEffect(() => {
     if (mutatingRef.current) return;
     if (initialDoubt.id !== doubt.id) {
       setDoubt(initialDoubt);
     } else {
-      setDoubt((prev) => ({
-        ...prev,
-        status: initialDoubt.status,
-        solved_answer_id: initialDoubt.solved_answer_id,
-      }));
+      setDoubt((prev) => ({ ...prev, status: initialDoubt.status, solved_answer_id: initialDoubt.solved_answer_id }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDoubt]);
@@ -783,28 +862,24 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     [onDoubtUpdated]
   );
 
-  // ── Partial refresh helpers ──
+  // ── Refresh helpers ──
   const refreshAnswers = useCallback(async () => {
-    try { const a = await getAnswersForDoubt(doubt.id); setAnswers(a); } catch { /* ignore */ }
+    try { setAnswers(await getAnswersForDoubt(doubt.id)); } catch { /* ignore */ }
   }, [doubt.id]);
-
   const refreshRatings = useCallback(async () => {
-    try { const r = await getRatingsForDoubt(doubt.id); setRatings(r); } catch { /* ignore */ }
+    try { setRatings(await getRatingsForDoubt(doubt.id)); } catch { /* ignore */ }
   }, [doubt.id]);
-
   const refreshReplies = useCallback(async () => {
-    try { const rp = await getRepliesForDoubt(doubt.id); setReplies(rp); } catch { /* ignore */ }
+    try { setReplies(await getRepliesForDoubt(doubt.id)); } catch { /* ignore */ }
   }, [doubt.id]);
-
   const refreshAnswerLikes = useCallback(async () => {
-    try { const al = await getAnswerLikesForDoubt(doubt.id); setAnswerLikes(al); } catch { /* ignore */ }
+    try { setAnswerLikes(await getAnswerLikesForDoubt(doubt.id)); } catch { /* ignore */ }
   }, [doubt.id]);
-
   const refreshReplyLikes = useCallback(async () => {
-    try { const rl = await getReplyLikesForDoubt(doubt.id); setReplyLikes(rl); } catch { /* ignore */ }
+    try { setReplyLikes(await getReplyLikesForDoubt(doubt.id)); } catch { /* ignore */ }
   }, [doubt.id]);
 
-  // ── ACCEPT ANSWER ──
+  // ── ACCEPT ──
   const handleMarkAccepted = useCallback(async (answerId: string) => {
     mutatingRef.current = true;
     try {
@@ -815,74 +890,57 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error('Accept Failed', msg.includes('policy') ? msg : 'Could not accept answer.');
-    } finally {
-      mutatingRef.current = false;
-    }
+    } finally { mutatingRef.current = false; }
   }, [doubt, refreshAnswers, applyDoubtUpdate, toast]);
 
-  // ── TOGGLE PIN ──
+  // ── PIN ──
   const handleTogglePin = useCallback(async (answerId: string, currentlyPinned: boolean) => {
     try {
       await toggleAnswerPin(answerId, doubt.id, !currentlyPinned);
       await refreshAnswers();
       toast.success(
         currentlyPinned ? 'Answer Unpinned' : 'Answer Pinned',
-        currentlyPinned ? 'Removed from pinned.' : 'Answer is now pinned to the top.'
+        currentlyPinned ? 'Removed from pinned.' : 'Answer pinned to the top.'
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(
-        'Pin Failed',
-        msg.includes('policy') || msg.includes('patch')
-          ? 'Apply supabase/phase3-doubt-likes-pins-patch.sql to enable pinning.'
-          : 'Could not pin answer. Please try again.'
-      );
+      toast.error('Pin Failed', msg.includes('policy') || msg.includes('patch')
+        ? 'Apply supabase/phase3-doubt-likes-pins-patch.sql to enable pinning.'
+        : 'Could not pin answer.');
     }
   }, [doubt.id, refreshAnswers, toast]);
 
-  // ── TOGGLE ANSWER LIKE (optimistic) ──
+  // ── ANSWER LIKE (optimistic) ──
   const handleToggleAnswerLike = useCallback(async (answerId: string) => {
-    const isLiked = answerLikes.some(
-      (l) => l.answer_id === answerId && l.created_by === currentUserId
-    );
-    // Optimistic update
+    const isLiked = answerLikes.some((l) => l.answer_id === answerId && l.created_by === currentUserId);
     if (isLiked) {
-      setAnswerLikes((prev) =>
-        prev.filter((l) => !(l.answer_id === answerId && l.created_by === currentUserId))
-      );
+      setAnswerLikes((prev) => prev.filter((l) => !(l.answer_id === answerId && l.created_by === currentUserId)));
     } else {
-      setAnswerLikes((prev) => [
-        ...prev,
-        { id: `opt-${Date.now()}`, answer_id: answerId, doubt_id: doubt.id, created_by: currentUserId, created_at: new Date().toISOString() },
-      ]);
+      setAnswerLikes((prev) => [...prev, {
+        id: `opt-${Date.now()}`, answer_id: answerId, doubt_id: doubt.id,
+        created_by: currentUserId, created_at: new Date().toISOString(),
+      }]);
     }
     try {
       await toggleAnswerLike(answerId, doubt.id, currentUserId, isLiked);
       await refreshAnswerLikes();
     } catch (err: unknown) {
-      await refreshAnswerLikes(); // revert
+      await refreshAnswerLikes();
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(
-        'Like Failed',
-        msg || 'Apply the SQL patch to enable likes.'
-      );
+      toast.error('Like Failed', msg || 'Apply the SQL patch to enable likes.');
     }
   }, [answerLikes, currentUserId, doubt.id, refreshAnswerLikes, toast]);
 
-  // ── TOGGLE REPLY LIKE (optimistic) ──
+  // ── REPLY LIKE (optimistic) ──
   const handleToggleReplyLike = useCallback(async (replyId: string) => {
-    const isLiked = replyLikes.some(
-      (l) => l.reply_id === replyId && l.created_by === currentUserId
-    );
+    const isLiked = replyLikes.some((l) => l.reply_id === replyId && l.created_by === currentUserId);
     if (isLiked) {
-      setReplyLikes((prev) =>
-        prev.filter((l) => !(l.reply_id === replyId && l.created_by === currentUserId))
-      );
+      setReplyLikes((prev) => prev.filter((l) => !(l.reply_id === replyId && l.created_by === currentUserId)));
     } else {
-      setReplyLikes((prev) => [
-        ...prev,
-        { id: `opt-${Date.now()}`, reply_id: replyId, doubt_id: doubt.id, created_by: currentUserId, created_at: new Date().toISOString() },
-      ]);
+      setReplyLikes((prev) => [...prev, {
+        id: `opt-${Date.now()}`, reply_id: replyId, doubt_id: doubt.id,
+        created_by: currentUserId, created_at: new Date().toISOString(),
+      }]);
     }
     try {
       await toggleReplyLike(replyId, doubt.id, currentUserId, isLiked);
@@ -910,13 +968,10 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
       const msg = err instanceof Error ? err.message : String(err);
       setAnswerError('Failed to post answer. Please try again.');
       toast.error('Submission Failed', msg || 'Could not post answer.');
-    } finally {
-      setSubmittingAnswer(false);
-      mutatingRef.current = false;
-    }
+    } finally { setSubmittingAnswer(false); mutatingRef.current = false; }
   }, [answerText, doubt, currentUserId, loadData, applyDoubtUpdate, toast]);
 
-  // ── CLOSE DOUBT ──
+  // ── CLOSE ──
   const handleClose = useCallback(async () => {
     if (!window.confirm('Close this doubt? Students will no longer be able to answer or reply.')) return;
     setClosing(true);
@@ -931,7 +986,7 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     } finally { setClosing(false); mutatingRef.current = false; }
   }, [doubt, applyDoubtUpdate, toast]);
 
-  // ── REOPEN DOUBT ──
+  // ── REOPEN ──
   const handleReopen = useCallback(async () => {
     if (!window.confirm('Reopen this doubt so students can answer again?')) return;
     setReopening(true);
@@ -948,17 +1003,11 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
     } finally { setReopening(false); mutatingRef.current = false; }
   }, [doubt, answers, applyDoubtUpdate, loadData, toast]);
 
-  // ── DELETE DOUBT ──
+  // ── DELETE ──
   const handleDelete = useCallback(async () => {
     setDeleteError('');
-    if (answers.length > 0) {
-      setDeleteError('Cannot delete: this doubt has answers. Please close it instead.');
-      return;
-    }
-    if (doubt.status === 'answered' || doubt.status === 'solved') {
-      setDeleteError('Cannot delete an answered or solved doubt.');
-      return;
-    }
+    if (answers.length > 0) { setDeleteError('Cannot delete: this doubt has answers. Please close it instead.'); return; }
+    if (doubt.status === 'answered' || doubt.status === 'solved') { setDeleteError('Cannot delete an answered or solved doubt.'); return; }
     if (!window.confirm('Delete this doubt permanently? This cannot be undone.')) return;
     setDeleting(true);
     try {
@@ -967,15 +1016,12 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setDeleteError(
-        msg.includes('policy') || msg.includes('permission')
-          ? 'Delete blocked by database policy.'
-          : 'Failed to delete. Please try again.'
-      );
+      setDeleteError(msg.includes('policy') || msg.includes('permission')
+        ? 'Delete blocked by database policy.' : 'Failed to delete. Please try again.');
     } finally { setDeleting(false); }
   }, [doubt, answers, onDoubtDeleted, onClose]);
 
-  // ── HEADER ASKER NAME ──
+  // ── Asker name in header ──
   const HeaderAskerName = () => {
     if (doubt.is_anonymous) return <span className="font-semibold">Anonymous Student</span>;
     const name = doubt.creator_profile?.full_name || 'Campus Student';
@@ -994,16 +1040,16 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
         <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col border border-slate-200 overflow-hidden">
 
-          {/* ── Header ── */}
-          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-start justify-between gap-3 shrink-0">
+          {/* ── Modal header ── */}
+          <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-start justify-between gap-3 shrink-0">
             <div className="space-y-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`px-2 py-0.5 text-xs font-semibold border rounded-full ${getStatusStyle(doubt.status)}`}>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`px-2 py-0.5 text-[11px] font-semibold border rounded-full ${getStatusStyle(doubt.status)}`}>
                   {getStatusIcon(doubt.status)} {doubt.status}
                 </span>
                 <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded uppercase tracking-wider">
@@ -1015,32 +1061,29 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
                   </span>
                 )}
               </div>
-              <h3 className="font-bold text-lg text-slate-900 leading-snug break-words">{doubt.title}</h3>
+              <h3 className="font-bold text-base sm:text-lg text-slate-900 leading-snug break-words">{doubt.title}</h3>
               <p className="text-xs text-slate-500">
-                By <HeaderAskerName /> · {formatDate(doubt.created_at)}
+                Asked by <HeaderAskerName /> · {formatDate(doubt.created_at)}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 transition-colors"
+              className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-400 transition-colors"
             >
               ✕
             </button>
           </div>
 
           {/* ── Scrollable body ── */}
-          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+          <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
 
             {/* Doubt description */}
             <div className="space-y-2">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Doubt</h4>
-              <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap break-words">
-                {doubt.description}
-              </p>
+              <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap break-words">{doubt.description}</p>
               {doubt.tags && doubt.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {doubt.tags.map((t) => (
-                    <span key={t} className="px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-500 text-[11px] font-medium rounded">
+                    <span key={t} className="px-2 py-0.5 bg-slate-50 border border-slate-200 text-slate-400 text-[11px] rounded">
                       #{t}
                     </span>
                   ))}
@@ -1048,36 +1091,36 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
               )}
             </div>
 
-            {/* Counters */}
+            {/* Counters strip */}
             {!loadingAnswers && (
-              <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 text-[11px] font-bold rounded-full">
+              <div className="flex flex-wrap gap-1.5 text-[11px]">
+                <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 font-semibold rounded-full">
                   💬 {totalAnswers} Answer{totalAnswers !== 1 ? 's' : ''}
                 </span>
                 {acceptedCount > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold rounded-full">
+                  <span className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold rounded-full">
                     ✅ {acceptedCount} Accepted
                   </span>
                 )}
                 {pinnedCount > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold rounded-full">
+                  <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-700 font-semibold rounded-full">
                     📌 {pinnedCount} Pinned
                   </span>
                 )}
                 {totalReplies > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-600 text-[11px] font-bold rounded-full">
+                  <span className="px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-500 font-semibold rounded-full">
                     🗨️ {totalReplies} Repl{totalReplies !== 1 ? 'ies' : 'y'}
                   </span>
                 )}
                 {totalAnswerLikes > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-bold rounded-full">
-                    👍 {totalAnswerLikes} Like{totalAnswerLikes !== 1 ? 's' : ''}
+                  <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-600 font-semibold rounded-full">
+                    👍 {totalAnswerLikes}
                   </span>
                 )}
               </div>
             )}
 
-            {/* Creator actions */}
+            {/* Creator management buttons */}
             {isCreator && (
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2">
@@ -1085,32 +1128,32 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
                     <button
                       onClick={handleClose}
                       disabled={closing}
-                      className="px-4 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 text-xs font-bold rounded-lg transition-colors"
+                      className="px-3 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 text-xs font-semibold rounded-lg transition-colors"
                     >
-                      {closing ? 'Closing...' : '🔒 Close Doubt'}
+                      {closing ? 'Closing…' : '🔒 Close Doubt'}
                     </button>
                   )}
                   {doubt.status === 'closed' && (
                     <button
                       onClick={handleReopen}
                       disabled={reopening}
-                      className="px-4 py-1.5 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-60 text-emerald-700 text-xs font-bold rounded-lg transition-colors"
+                      className="px-3 py-1.5 border border-emerald-200 hover:bg-emerald-50 disabled:opacity-60 text-emerald-700 text-xs font-semibold rounded-lg transition-colors"
                     >
-                      {reopening ? 'Reopening...' : '🔓 Reopen Doubt'}
+                      {reopening ? 'Reopening…' : '🔓 Reopen Doubt'}
                     </button>
                   )}
                   {canDelete && (
                     <button
                       onClick={handleDelete}
                       disabled={deleting}
-                      className="px-4 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-500 text-xs font-bold rounded-lg transition-colors"
+                      className="px-3 py-1.5 border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-500 text-xs font-semibold rounded-lg transition-colors"
                     >
-                      {deleting ? 'Deleting...' : '🗑 Delete Doubt'}
+                      {deleting ? 'Deleting…' : '🗑 Delete'}
                     </button>
                   )}
                 </div>
                 {deleteError && (
-                  <p className="text-xs text-red-600 font-medium bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                     ⚠️ {deleteError}
                   </p>
                 )}
@@ -1119,38 +1162,36 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
 
             {/* Status banners */}
             {doubt.status === 'closed' && (
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 font-semibold text-center">
-                🔒 This doubt is closed. No new answers or replies can be posted.
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 font-medium text-center">
+                🔒 This doubt is closed. No new answers or replies.
               </div>
             )}
             {doubt.status === 'solved' && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-semibold text-center">
-                ✅ This doubt has been solved!{' '}
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-medium text-center">
+                ✅ Solved!{' '}
                 {isCreator
-                  ? 'You can still accept more answers or pin helpful ones. Students can still add follow-up questions.'
-                  : 'An answer was accepted. You can still add follow-up replies below.'}
+                  ? 'You can still accept or pin answers. Students can add follow-up replies.'
+                  : 'An answer was accepted. You can still add follow-up replies.'}
               </div>
             )}
 
             {/* ── Answers section ── */}
-            <div className="space-y-4">
-              {/* Sort control + heading */}
+            <div className="space-y-3">
+              {/* Section header with sort control */}
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  {loadingAnswers
-                    ? 'Loading answers...'
-                    : `${totalAnswers} Answer${totalAnswers !== 1 ? 's' : ''}`}
-                </h4>
+                <span className="text-sm font-bold text-slate-700">
+                  {loadingAnswers ? 'Loading…' : `${totalAnswers} Answer${totalAnswers !== 1 ? 's' : ''}`}
+                </span>
                 {!loadingAnswers && totalAnswers > 1 && (
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Sort:</span>
-                    <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                    <span className="text-[11px] text-slate-400 font-medium">Sort by</span>
+                    <div className="flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-semibold">
                       {(['top', 'newest'] as const).map((ord) => (
                         <button
                           key={ord}
                           type="button"
                           onClick={() => setSortOrder(ord)}
-                          className={`px-3 py-1 text-[11px] font-bold transition-colors ${
+                          className={`px-3 py-1 transition-colors ${
                             sortOrder === ord
                               ? 'bg-indigo-600 text-white'
                               : 'text-slate-500 hover:bg-slate-50'
@@ -1165,14 +1206,14 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
               </div>
 
               {loadingAnswers ? (
-                <div className="text-center py-8 text-slate-400 text-sm">Loading answers...</div>
+                <div className="text-center py-8 text-slate-400 text-sm">Loading answers…</div>
               ) : totalAnswers === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-3xl mb-2">🤔</p>
+                  <p className="text-2xl mb-1">🤔</p>
                   <p className="text-slate-400 text-sm">No answers yet. Be the first to help!</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {sortedAnswers.map((answer) => (
                     <AnswerCard
                       key={answer.id}
@@ -1204,25 +1245,25 @@ export const DoubtDetailsModal: React.FC<DoubtDetailsModalProps> = ({
               )}
             </div>
 
-            {/* Answer form */}
+            {/* Answer composer */}
             {canAnswer && (
-              <div className="space-y-2 pt-2 border-t border-slate-100">
+              <div className="space-y-2 pt-3 border-t border-slate-100">
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your Answer</h4>
                 <textarea
                   value={answerText}
                   onChange={(e) => { setAnswerText(e.target.value); setAnswerError(''); }}
                   rows={4}
-                  placeholder="Write a clear, detailed answer. Plain text only."
+                  placeholder="Write a clear, detailed answer…"
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-slate-50 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors"
                 />
-                {answerError && <p className="text-xs text-red-600 font-medium">{answerError}</p>}
+                {answerError && <p className="text-xs text-red-600">{answerError}</p>}
                 <button
                   type="button"
                   disabled={submittingAnswer || !answerText.trim()}
                   onClick={handleSubmitAnswer}
                   className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl shadow-sm transition-colors"
                 >
-                  {submittingAnswer ? 'Posting Answer...' : '📤 Post Answer'}
+                  {submittingAnswer ? 'Posting…' : '📤 Post Answer'}
                 </button>
               </div>
             )}
