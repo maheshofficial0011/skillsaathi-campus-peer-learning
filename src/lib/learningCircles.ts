@@ -1016,18 +1016,20 @@ export const respondToJoinRequest = async (
         throw new Error('This circle is full. You cannot accept more members.');
       }
 
-      // Update request status to accepted
-      const { error: updateErr } = await supabase
-        .from('learning_circle_join_requests')
-        .update({
-          status: 'accepted',
-          reviewed_by: reviewerId,
-          reviewed_at: new Date().toISOString(),
-          response_message: responseMessage?.trim() || null
-        })
-        .eq('id', requestId);
+      // Update request status to accepted (only if not already accepted)
+      if (request.status !== 'accepted') {
+        const { error: updateErr } = await supabase
+          .from('learning_circle_join_requests')
+          .update({
+            status: 'accepted',
+            reviewed_by: reviewerId,
+            reviewed_at: new Date().toISOString(),
+            response_message: responseMessage?.trim() || null
+          })
+          .eq('id', requestId);
 
-      if (updateErr) throw updateErr;
+        if (updateErr) throw updateErr;
+      }
 
       // Check if already a member before inserting (handle duplicate gracefully)
       const { data: existingMember } = await supabase

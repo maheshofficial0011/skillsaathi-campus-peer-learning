@@ -279,6 +279,7 @@ A fresh database setup requires executing the SQL files in the following order:
 14. `supabase/phase5-learning-circles-patch.sql` (Phase 5 Core Learning Circles tables: `learning_circles`, `learning_circle_members`, `learning_circle_resources`, `learning_circle_posts` + RLS helpers + triggers)
 15. `supabase/phase5-learning-circle-resource-files-patch.sql` (Phase 5.1 Secure Resource Files upload patch: extends resources metadata columns + private storage bucket `learning-circle-resources` + storage SELECT/INSERT/DELETE RLS policies)
 16. `supabase/phase5-learning-circle-join-requests-patch.sql` (Phase 5.2 Learning Circle Join Requests + Profile Extensions patch: adds join requests table, constraints, partial unique index, and RLS policies, plus extends `public.profiles` with optional academic/learning/work verification columns)
+17. `supabase/phase5-learning-circle-join-requests-rls-fix.sql` (Phase 5.2 RLS INSERT fix patch: drops and recreates `lcm_insert` policy to allow circle owners to insert accepted applicants into memberships)
 
 ---
 
@@ -295,7 +296,7 @@ A fresh database setup requires executing the SQL files in the following order:
 | **`doubt_answer_replies`** | Authenticated users | Authenticated users | Creator (`auth.uid() = created_by`) | None |
 | **`senior_guidance_requests`** | Participants (`auth.uid() = requester_id` OR `auth.uid() = senior_id`) | Requester (`auth.uid() = requester_id` and not self-request) | Requester (`auth.uid() = requester_id` to cancel) OR Senior (`auth.uid() = senior_id` to respond) | None |
 | **`learning_circles`** | Authenticated users | Authenticated users | Owner (`auth.uid() = created_by`) | None |
-| **`learning_circle_members`** | Authenticated users | Circle members/invited users | None | Member (`auth.uid() = user_id` and not owner) |
+| **`learning_circle_members`** | Authenticated users | Self-join OR Circle Owner (requires accepted join request) | None | Member (`auth.uid() = user_id` and not owner) |
 | **`learning_circle_resources`** | Circle members/owners | Circle members/owners | Creator (`auth.uid() = shared_by`) | Creator (`auth.uid() = shared_by`) OR Circle owner |
 | **`learning_circle_posts`** | Circle members/owners | Circle members/owners | Creator (`auth.uid() = created_by`) | Creator (`auth.uid() = created_by`) OR Circle owner |
 | **`learning_circle_join_requests`** | Requester OR Circle Owner | Requester (`auth.uid() = requester_id`, circle is active, and not member) | Requester (`status` to `'cancelled'`) OR Owner (`status` to `'accepted'` or `'rejected'`) | None |

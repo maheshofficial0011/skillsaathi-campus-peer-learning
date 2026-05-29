@@ -537,6 +537,8 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     try {
       const data = await getCircleJoinRequests(circle.id);
       setJoinRequests(data);
+      const memberData = await getCircleMembers(circle.id);
+      setMembers(memberData);
     } finally {
       setLoadingRequests(false);
     }
@@ -885,7 +887,8 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     }
   };
 
-  const pendingRequestsCount = joinRequests.filter(r => r.status === 'pending').length;
+  const activeRequests = joinRequests.filter(r => r.status === 'pending' || (r.status === 'accepted' && !members.some(m => m.user_id === r.requester_id)));
+  const pendingRequestsCount = activeRequests.length;
 
   const TABS: { id: WorkspaceTab; label: string; icon: string }[] = [
     { id: 'overview', label: 'Overview', icon: '📋' },
@@ -1101,7 +1104,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
         {tab === 'requests' && isOwner && (
           <div className="space-y-4 font-sans">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2">
-              <span>⏳</span> Pending Join Requests ({joinRequests.filter(r => r.status === 'pending').length})
+              <span>⏳</span> Pending Join Requests ({pendingRequestsCount})
             </h3>
 
             {isPaused || isArchived ? (
@@ -1116,11 +1119,11 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
 
             {loadingRequests ? (
               <LoadingSpinner label="Loading join requests…" />
-            ) : joinRequests.filter(r => r.status === 'pending').length === 0 ? (
+            ) : activeRequests.length === 0 ? (
               <EmptyState icon="⏳" message="No pending join requests at the moment." />
             ) : (
               <div className="space-y-4 font-sans">
-                {joinRequests.filter(r => r.status === 'pending').map((req) => (
+                {activeRequests.map((req) => (
                   <div key={req.id} className="p-5 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm space-y-4 text-left">
                     
                     {/* Requester Header */}
@@ -1139,6 +1142,11 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                       </div>
                       
                       <div className="flex items-center gap-2 shrink-0">
+                        {req.status === 'accepted' && (
+                          <span className="px-2.5 py-0.5 bg-amber-100 border border-amber-300 text-amber-800 text-[10px] font-extrabold rounded-full">
+                            ⚠️ Repair Needed (Membership Missing)
+                          </span>
+                        )}
                         <span className="px-2.5 py-0.5 bg-violet-100 border border-violet-200 text-violet-750 text-[10px] font-bold rounded-full capitalize">
                           Interested in: {req.role_interest}
                         </span>

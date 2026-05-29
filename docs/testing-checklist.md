@@ -525,9 +525,11 @@ Use this checklist to perform regression testing and ensure full readiness of al
   - Submit another request from a test student.
   - Log in as the Owner and go to the **Join Requests** tab.
   - Click **Accept Application** (with or without a custom response message).
+  - **NOTE**: The database RLS insert policy requires the join request to have status = `accepted` before the membership row can be inserted. Verify that the API executes the status update first, followed by the membership insert.
   - Verify that a success toast `"Application Approved! 🎉"` is shown, and the request is removed from the list.
   - Click the **Members** tab in the workspace. Verify that the accepted requester has been instantly added as a `member`.
   - Log in as the accepted student. Verify that you can now fully access the workspace, share resources, view files, and write discussion posts.
+
 
 ### Profile Custom Academic Links & URL Validation
 - [ ] **Optional Academic Fields during Editing**:
