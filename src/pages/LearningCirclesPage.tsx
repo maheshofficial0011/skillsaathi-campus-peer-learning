@@ -138,7 +138,7 @@ const CreateCircleModal: React.FC<CreateCircleModalProps> = ({ onClose, onCreate
     if (!validate()) return;
     setLoading(true);
     try {
-      const circle = await createLearningCircle({ ...form, created_by: userId });
+      const circle = await createLearningCircle(form);
       const withStats: LearningCircleWithStats = {
         ...circle,
         creator_name: 'You',

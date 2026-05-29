@@ -281,7 +281,7 @@ export interface CreateCircleInput {
   location_or_link?: string;
   max_members: number;
   is_public: boolean;
-  created_by: string;
+  created_by?: string;
 }
 
 /**
@@ -293,9 +293,14 @@ export const createLearningCircle = async (input: CreateCircleInput): Promise<Le
     throw new Error('Meeting location/link must use https:// if it is a URL.');
   }
 
-  if (!input.created_by) {
-    throw new Error('User ID is required to create a circle. Please sign in again.');
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !authData.user?.id) {
+    console.error('[createLearningCircle] auth user fetch failed:', authError);
+    throw new Error('Please sign in again before creating a circle.');
   }
+
+  const authUserId = authData.user.id;
 
   const payload = {
     title: input.title.trim(),
@@ -306,13 +311,14 @@ export const createLearningCircle = async (input: CreateCircleInput): Promise<Le
     meeting_mode: input.meeting_mode,
     meeting_schedule: input.meeting_schedule?.trim() || null,
     location_or_link: input.location_or_link?.trim() || null,
-    max_members: input.max_members,
+    max_members: Number(input.max_members),
     is_public: input.is_public,
-    created_by: input.created_by,
+    created_by: authUserId,
     status: 'active' as const,
   };
 
-  // Dev-safe: log the payload so we can diagnose any DB constraint or RLS failure
+  // Add debug logs
+  console.log('[createLearningCircle] authUserId:', authUserId);
   console.log('[createLearningCircle] payload:', payload);
 
   const { data, error } = await supabase
@@ -334,7 +340,7 @@ export const createLearningCircle = async (input: CreateCircleInput): Promise<Le
     .from('learning_circle_members')
     .insert({
       circle_id: circle.id,
-      user_id: input.created_by,
+      user_id: authUserId,
       role: 'owner',
     });
 
@@ -345,11 +351,11 @@ export const createLearningCircle = async (input: CreateCircleInput): Promise<Le
       .from('learning_circles')
       .delete()
       .eq('id', circle.id)
-      .eq('created_by', input.created_by);
+      .eq('created_by', authUserId);
     if (cleanupError) {
       console.error('[createLearningCircle] cleanup of orphaned circle failed:', cleanupError);
     }
-    throw new Error(memberError.message || 'Circle created but owner membership failed');
+    throw new Error(memberError.message || 'Circle created but owner membership failed.');
   }
 
   return circle;
