@@ -11,13 +11,15 @@ import type {
   CircleResourceType,
   CirclePostType,
   CircleStatus,
+  LearningCircleJoinRequest,
+  LearningCircleJoinRequestWithProfile,
+  LearningCircleRoleInterest,
 } from '../types';
 import {
   getLearningCircles,
   getMyLearningCircles,
   createLearningCircle,
   updateLearningCircle,
-  joinLearningCircle,
   leaveLearningCircle,
   getCircleMembers,
   getCircleResources,
@@ -35,7 +37,13 @@ import {
   CIRCLE_POST_TYPES,
   isValidHttpsUrl,
   isValidMeetingLinkOrLocation,
+  requestToJoinCircle,
+  getMyJoinRequests,
+  getCircleJoinRequests,
+  respondToJoinRequest,
+  cancelJoinRequest,
 } from '../lib/learningCircles';
+import { PublicProfileModal } from '../components/profile/PublicProfileModal';
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -376,12 +384,14 @@ const CreateCircleModal: React.FC<CreateCircleModalProps> = ({ onClose, onCreate
 interface CircleCardProps {
   circle: LearningCircleWithStats;
   currentUserId: string;
+  request: LearningCircleJoinRequest | null;
   onView: (circle: LearningCircleWithStats) => void;
-  onJoin: (circle: LearningCircleWithStats) => void;
+  onRequestJoin: (circle: LearningCircleWithStats) => void;
+  onCancelRequest: (requestId: string) => void;
   onLeave: (circle: LearningCircleWithStats) => void;
 }
 
-const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, onView, onJoin, onLeave }) => {
+const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, request, onView, onRequestJoin, onCancelRequest, onLeave }) => {
   const isOwner = circle.my_role === 'owner' || circle.created_by === currentUserId;
   const isMember = circle.my_role === 'member';
   const isJoined = isOwner || isMember;
@@ -394,7 +404,7 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, onView, 
       {/* Card top accent */}
       <div className="h-1.5 w-full bg-gradient-to-r from-indigo-50 via-violet-50 to-purple-50 opacity-70" />
 
-      <div className="p-5 flex flex-col gap-3 flex-1">
+      <div className="p-5 flex flex-col gap-3 flex-1 text-left">
         {/* Header row */}
         <div className="flex items-start gap-2 justify-between">
           <div className="flex flex-wrap gap-1.5">
@@ -431,6 +441,13 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, onView, 
         </div>
 
         <p className="text-[11px] text-slate-400">By {circle.creator_name} · {formatDate(circle.created_at)}</p>
+
+        {request?.status === 'rejected' && request.response_message && (
+          <div className="text-[10px] text-rose-600 bg-rose-50/50 p-2.5 rounded-lg border border-rose-100 mt-1 leading-normal w-full text-left font-sans">
+            <span className="font-bold block">❌ Owner Feedback:</span>
+            <span className="italic">"{request.response_message}"</span>
+          </div>
+        )}
       </div>
 
       {/* Actions */}
@@ -442,16 +459,31 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, onView, 
         >
           {isOwner ? '⚙ Manage Workspace' : isJoined ? '📂 Open Workspace' : '👁 View Details'}
         </button>
+        
         {!isJoined && !isArchived && !isPaused && (
-          <button
-            onClick={() => onJoin(circle)}
-            disabled={isFull}
-            className="flex-1 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-            id={`join-circle-${circle.id}`}
-          >
-            {isFull ? 'Full' : '+ Join'}
-          </button>
+          <>
+            {request?.status === 'pending' ? (
+              <button
+                onClick={() => onCancelRequest(request.id)}
+                className="flex-1 py-2 text-sm font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 border border-rose-200 rounded-lg transition-colors flex items-center justify-center gap-1"
+                id={`cancel-request-${circle.id}`}
+                title="Click to cancel pending request"
+              >
+                ⌛ Pending (Cancel)
+              </button>
+            ) : (
+              <button
+                onClick={() => onRequestJoin(circle)}
+                disabled={isFull}
+                className="flex-1 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                id={`request-join-circle-${circle.id}`}
+              >
+                {isFull ? 'Full' : request?.status === 'rejected' ? 'Request Again' : 'Request to Join'}
+              </button>
+            )}
+          </>
         )}
+
         {isMember && (
           <button
             onClick={() => onLeave(circle)}
@@ -469,7 +501,7 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, onView, 
 
 // ─── CIRCLE WORKSPACE ────────────────────────────────────────────────────────
 
-type WorkspaceTab = 'overview' | 'members' | 'resources' | 'posts';
+type WorkspaceTab = 'overview' | 'members' | 'requests' | 'resources' | 'posts';
 
 interface CircleWorkspaceProps {
   circle: LearningCircleWithStats;
@@ -480,6 +512,11 @@ interface CircleWorkspaceProps {
 
 const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId, onBack, onCircleUpdated }) => {
   const toast = useToast();
+  const isOwner = circle.my_role === 'owner';
+  const isMember = !!circle.my_role;
+  const isArchived = circle.status === 'archived';
+  const isPaused = circle.status === 'paused';
+
   const [tab, setTab] = useState<WorkspaceTab>('overview');
   const [members, setMembers] = useState<LearningCircleMember[]>([]);
   const [resources, setResources] = useState<LearningCircleResource[]>([]);
@@ -487,6 +524,59 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [loadingResources, setLoadingResources] = useState(false);
   const [loadingPosts, setLoadingPosts] = useState(false);
+
+  const [joinRequests, setJoinRequests] = useState<LearningCircleJoinRequestWithProfile[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null);
+  const [requestFeedbackMsgs, setRequestFeedbackMsgs] = useState<Record<string, string>>({});
+  const [viewPublicProfileId, setViewPublicProfileId] = useState<string | null>(null);
+
+  const loadRequests = useCallback(async () => {
+    if (!isOwner) return;
+    setLoadingRequests(true);
+    try {
+      const data = await getCircleJoinRequests(circle.id);
+      setJoinRequests(data);
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, [circle.id, isOwner]);
+
+  useEffect(() => {
+    if (isOwner) {
+      loadRequests();
+    }
+  }, [isOwner, loadRequests]);
+
+  const handleRespondToRequest = async (requestId: string, action: 'accept' | 'reject') => {
+    if (circle.status !== 'active') {
+      toast.error('Circle Inactive', `Cannot approve or decline join requests while circle is ${circle.status}.`);
+      return;
+    }
+    setRespondingRequestId(requestId);
+    try {
+      const responseMessage = requestFeedbackMsgs[requestId] || '';
+      await respondToJoinRequest(requestId, action, responseMessage);
+      toast.success(
+        action === 'accept' ? 'Application Approved! 🎉' : 'Application Declined',
+        action === 'accept' ? 'The requester has been added as a member.' : 'The requester has been notified.'
+      );
+      await loadRequests();
+      if (action === 'accept') {
+        loadMembers();
+        const updated = {
+          ...circle,
+          member_count: (circle.member_count ?? 0) + 1
+        };
+        onCircleUpdated(updated);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not respond to join request.';
+      toast.error('Action Failed', msg);
+    } finally {
+      setRespondingRequestId(null);
+    }
+  };
 
   // Archive/status management
   const [archiving, setArchiving] = useState(false);
@@ -511,11 +601,6 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   const [previewResource, setPreviewResource] = useState<LearningCircleResource | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [loadingPreview, setLoadingPreview] = useState(false);
-
-  const isOwner = circle.my_role === 'owner';
-  const isMember = !!circle.my_role;
-  const isArchived = circle.status === 'archived';
-  const isPaused = circle.status === 'paused';
 
   const ALLOWED_MIME_TYPES = [
     'application/pdf',
@@ -565,7 +650,8 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     if (tab === 'members') loadMembers();
     else if (tab === 'resources') loadResources();
     else if (tab === 'posts') loadPosts();
-  }, [tab, loadMembers, loadResources, loadPosts]);
+    else if (tab === 'requests') loadRequests();
+  }, [tab, loadMembers, loadResources, loadPosts, loadRequests]);
 
   // ── File Change Handler ────────────────────────────────────────────────────
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -799,8 +885,11 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     }
   };
 
+  const pendingRequestsCount = joinRequests.filter(r => r.status === 'pending').length;
+
   const TABS: { id: WorkspaceTab; label: string; icon: string }[] = [
     { id: 'overview', label: 'Overview', icon: '📋' },
+    ...(isOwner ? [{ id: 'requests' as WorkspaceTab, label: `Requests (${pendingRequestsCount})`, icon: '⏳' }] : []),
     { id: 'members', label: `Members (${circle.member_count ?? '…'})`, icon: '👥' },
     { id: 'resources', label: 'Resources', icon: '📚' },
     { id: 'posts', label: 'Discussion', icon: '💬' },
@@ -1006,6 +1095,199 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
               </div>
             )}
           </div>
+        )}
+
+        {/* ── JOIN REQUESTS ── */}
+        {tab === 'requests' && isOwner && (
+          <div className="space-y-4 font-sans">
+            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+              <span>⏳</span> Pending Join Requests ({joinRequests.filter(r => r.status === 'pending').length})
+            </h3>
+
+            {isPaused || isArchived ? (
+              <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl flex items-center gap-2">
+                <span>⚠️</span>
+                <div>
+                  <strong className="block">Circle is currently paused or archived</strong>
+                  <span>You cannot accept or review pending requests while the circle is in a non-active status. Please set the circle status to Active in the Overview tab first.</span>
+                </div>
+              </div>
+            ) : null}
+
+            {loadingRequests ? (
+              <LoadingSpinner label="Loading join requests…" />
+            ) : joinRequests.filter(r => r.status === 'pending').length === 0 ? (
+              <EmptyState icon="⏳" message="No pending join requests at the moment." />
+            ) : (
+              <div className="space-y-4 font-sans">
+                {joinRequests.filter(r => r.status === 'pending').map((req) => (
+                  <div key={req.id} className="p-5 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm space-y-4 text-left">
+                    
+                    {/* Requester Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-200 flex items-center justify-center font-bold text-indigo-600 text-sm">
+                          {req.requester_profile?.full_name?.[0]?.toUpperCase() ?? '?'}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900">{req.requester_profile?.full_name ?? 'Unknown Student'}</h4>
+                          <p className="text-[11px] text-slate-500">
+                            {req.requester_profile?.department ?? 'General'} • {req.requester_profile?.year_of_study ?? '1st Year'}
+                            {req.requester_profile?.section ? ` • Sec ${req.requester_profile?.section}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="px-2.5 py-0.5 bg-violet-100 border border-violet-200 text-violet-750 text-[10px] font-bold rounded-full capitalize">
+                          Interested in: {req.role_interest}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          Requested {formatRelativeTime(req.created_at)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Request Message */}
+                    <div className="space-y-1">
+                      <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider block">Application Message</span>
+                      <p className="text-sm text-slate-700 bg-white p-3.5 rounded-xl border border-slate-150 leading-relaxed italic">
+                        "{req.message}"
+                      </p>
+                    </div>
+
+                    {/* Requester Public Profile Stats & Academic Details */}
+                    {req.requester_profile && (
+                      <div className="bg-slate-100/50 p-4 rounded-xl border border-slate-200/60 space-y-3.5 text-xs">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="font-bold text-slate-800 text-[11px]">Academic & verification details:</span>
+                          <button
+                            onClick={() => setViewPublicProfileId(req.requester_id)}
+                            className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-250 text-indigo-700 font-bold text-[10px] rounded-lg transition-colors flex items-center gap-1 shadow-sm font-semibold"
+                          >
+                            👁️ View Full Public Profile
+                          </button>
+                        </div>
+
+                        {req.requester_profile.headline && (
+                          <div>
+                            <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-0.5">Headline</span>
+                            <p className="text-slate-700 font-medium leading-relaxed">"{req.requester_profile.headline}"</p>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {req.requester_profile.current_focus && (
+                            <div>
+                              <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-0.5">Current Focus</span>
+                              <p className="text-slate-700 font-medium leading-relaxed">{req.requester_profile.current_focus}</p>
+                            </div>
+                          )}
+                          {req.requester_profile.qualification_summary && (
+                            <div>
+                              <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-0.5">Qualifications</span>
+                              <p className="text-slate-700 font-medium leading-relaxed">{req.requester_profile.qualification_summary}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {req.requester_profile.academic_interests && req.requester_profile.academic_interests.length > 0 && (
+                          <div>
+                            <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-1">Academic Interests</span>
+                            <div className="flex flex-wrap gap-1">
+                              {req.requester_profile.academic_interests.map((interest) => (
+                                <span key={interest} className="px-2 py-0.5 bg-slate-250 border border-slate-350 text-slate-700 text-[10px] font-medium rounded-full">
+                                  {interest}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {req.requester_profile.skills_known && req.requester_profile.skills_known.length > 0 && (
+                          <div>
+                            <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-1">Skills Known</span>
+                            <div className="flex flex-wrap gap-1">
+                              {req.requester_profile.skills_known.map((s) => (
+                                <span key={s} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-semibold rounded-full">
+                                  ✓ {s}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Social profiles links safely */}
+                        {(req.requester_profile.github_url || req.requester_profile.linkedin_url || req.requester_profile.portfolio_url) && (
+                          <div className="pt-2.5 border-t border-slate-200 flex flex-wrap gap-2">
+                            {req.requester_profile.github_url && (
+                              <a href={req.requester_profile.github_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 text-white font-bold text-[10px] rounded-lg shadow-sm">
+                                🐙 GitHub
+                              </a>
+                            )}
+                            {req.requester_profile.linkedin_url && (
+                              <a href={req.requester_profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 text-white font-bold text-[10px] rounded-lg shadow-sm">
+                                🔗 LinkedIn
+                              </a>
+                            )}
+                            {req.requester_profile.portfolio_url && (
+                              <a href={req.requester_profile.portfolio_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 text-white font-bold text-[10px] rounded-lg shadow-sm">
+                                🌐 Portfolio
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Owner Response Actions */}
+                    <div className="pt-2.5 border-t border-slate-200 flex flex-col gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Response Message <span className="text-slate-400 font-normal">(Optional context for accept/reject)</span></label>
+                        <input
+                          type="text"
+                          value={requestFeedbackMsgs[req.id] || ''}
+                          onChange={(e) => setRequestFeedbackMsgs(prev => ({ ...prev, [req.id]: e.target.value }))}
+                          placeholder="e.g. Welcome to the circle! We study DSA every Saturday. — or — Sorry, we have reached maximum member limits."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white text-left"
+                          id={`response-msg-input-${req.id}`}
+                        />
+                      </div>
+                      
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleRespondToRequest(req.id, 'reject')}
+                          disabled={respondingRequestId === req.id || isPaused || isArchived}
+                          className="flex-1 py-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-250 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-50"
+                          id={`reject-btn-${req.id}`}
+                        >
+                          ❌ Reject Application
+                        </button>
+                        <button
+                          onClick={() => handleRespondToRequest(req.id, 'accept')}
+                          disabled={respondingRequestId === req.id || isPaused || isArchived}
+                          className="flex-1 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50"
+                          id={`accept-btn-${req.id}`}
+                        >
+                          {respondingRequestId === req.id ? 'Reviewing…' : '✅ Accept Application'}
+                        </button>
+                      </div>
+                    </div>
+                    
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Public profile lightbox in requests tab */}
+        {viewPublicProfileId && (
+          <PublicProfileModal
+            userId={viewPublicProfileId}
+            onClose={() => setViewPublicProfileId(null)}
+            layer="top"
+          />
         )}
 
         {/* ── MEMBERS ── */}
@@ -1566,6 +1848,14 @@ export const LearningCirclesPage: React.FC = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [workspaceCircle, setWorkspaceCircle] = useState<LearningCircleWithStats | null>(null);
 
+  // Join Requests state
+  const [myJoinRequests, setMyJoinRequests] = useState<LearningCircleJoinRequest[]>([]);
+  const [requestingCircle, setRequestingCircle] = useState<LearningCircleWithStats | null>(null);
+  const [joinMessage, setJoinMessage] = useState('');
+  const [roleInterest, setRoleInterest] = useState<LearningCircleRoleInterest>('learner');
+  const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [requestError, setRequestError] = useState('');
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
@@ -1595,12 +1885,14 @@ export const LearningCirclesPage: React.FC = () => {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [all, my] = await Promise.all([
+      const [all, my, requests] = await Promise.all([
         getLearningCircles(userId || undefined),
         userId ? getMyLearningCircles(userId) : Promise.resolve([]),
+        userId ? getMyJoinRequests() : Promise.resolve([]),
       ]);
       setAllCircles(all);
       setMyCircles(my);
+      setMyJoinRequests(requests);
     } finally {
       setLoading(false);
     }
@@ -1620,18 +1912,52 @@ export const LearningCirclesPage: React.FC = () => {
     return matchSearch && matchCat && matchDiff && matchMode;
   });
 
-  const handleJoin = async (circle: LearningCircleWithStats) => {
+  const handleRequestJoinClick = (circle: LearningCircleWithStats) => {
     if (!userId) {
-      toast.error('Sign In Required', 'Please sign in to join a learning circle.');
+      toast.error('Sign In Required', 'Please sign in to request to join.');
       return;
     }
+    setRequestingCircle(circle);
+    setJoinMessage('');
+    setRoleInterest('learner');
+    setRequestError('');
+  };
+
+  const handleRequestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestingCircle) return;
+    if (joinMessage.trim().length < 10) {
+      setRequestError('Please provide a message explaining why you want to join (minimum 10 characters).');
+      return;
+    }
+    setSubmittingRequest(true);
+    setRequestError('');
     try {
-      await joinLearningCircle(circle.id, userId);
-      toast.success('Joined! 🎉', `Welcome to "${circle.title}"`);
+      await requestToJoinCircle(requestingCircle.id, {
+        message: joinMessage,
+        role_interest: roleInterest,
+      });
+      toast.success('Request Submitted! ⌛', 'The circle owner will review your application.');
+      setRequestingCircle(null);
+      setJoinMessage('');
+      setRoleInterest('learner');
       await loadAll();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not join circle.';
-      toast.error('Join Failed', msg);
+      const msg = err instanceof Error ? err.message : 'Could not submit request.';
+      setRequestError(msg);
+    } finally {
+      setSubmittingRequest(false);
+    }
+  };
+
+  const handleCancelRequest = async (requestId: string) => {
+    try {
+      await cancelJoinRequest(requestId);
+      toast.success('Request Cancelled', 'Your join request has been cancelled.');
+      await loadAll();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not cancel request.';
+      toast.error('Cancellation Failed', msg);
     }
   };
 
@@ -1820,16 +2146,23 @@ export const LearningCirclesPage: React.FC = () => {
             <>
               <p className="text-sm text-slate-500">{filteredCircles.length} circle{filteredCircles.length !== 1 ? 's' : ''} found</p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {filteredCircles.map((circle) => (
-                  <CircleCard
-                    key={circle.id}
-                    circle={circle}
-                    currentUserId={userId}
-                    onView={handleView}
-                    onJoin={handleJoin}
-                    onLeave={handleLeave}
-                  />
-                ))}
+                {filteredCircles.map((circle) => {
+                  const matchingReq = myJoinRequests.find(r => r.circle_id === circle.id && r.status === 'pending') || 
+                                      myJoinRequests.find(r => r.circle_id === circle.id && r.status === 'rejected') || 
+                                      myJoinRequests.find(r => r.circle_id === circle.id && r.status === 'cancelled');
+                  return (
+                    <CircleCard
+                      key={circle.id}
+                      circle={circle}
+                      currentUserId={userId}
+                      request={matchingReq || null}
+                      onView={handleView}
+                      onRequestJoin={handleRequestJoinClick}
+                      onCancelRequest={handleCancelRequest}
+                      onLeave={handleLeave}
+                    />
+                  );
+                })}
               </div>
             </>
           )}
@@ -1846,37 +2179,170 @@ export const LearningCirclesPage: React.FC = () => {
             </div>
           ) : loading ? (
             <LoadingSpinner label="Loading your circles…" />
-          ) : myCircles.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
-              <span className="text-5xl">📦</span>
-              <p className="text-base font-medium text-slate-500">You haven't joined any circles yet</p>
-              <p className="text-sm">Discover circles in the Discover tab or start your own.</p>
-              <div className="flex gap-3 mt-2">
-                <button onClick={() => setMainTab('discover')} className="px-5 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
-                  🔍 Discover Circles
-                </button>
-                <button onClick={() => setShowCreate(true)} className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors">
-                  + Start a Circle
-                </button>
-              </div>
-            </div>
           ) : (
             <>
-              <p className="text-sm text-slate-500">{myCircles.length} circle{myCircles.length !== 1 ? 's' : ''} — sorted by newest first</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {myCircles.map((circle) => (
-                  <CircleCard
-                    key={circle.id}
-                    circle={circle}
-                    currentUserId={userId}
-                    onView={handleView}
-                    onJoin={handleJoin}
-                    onLeave={handleLeave}
-                  />
-                ))}
-              </div>
+              {/* Pending Join Requests Sub-section */}
+              {myJoinRequests.filter(r => r.status === 'pending').length > 0 && (
+                <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4 text-left font-sans">
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                    <span>⌛</span> Pending Join Requests ({myJoinRequests.filter(r => r.status === 'pending').length})
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {myJoinRequests.filter(r => r.status === 'pending').map((req) => {
+                      const targetCircle = allCircles.find(c => c.id === req.circle_id);
+                      return (
+                        <div key={req.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-bold text-slate-900 truncate">
+                              {targetCircle?.title ?? 'Private Circle'}
+                            </h4>
+                            <p className="text-xs text-slate-500 mt-0.5">Role Interest: <span className="font-semibold text-slate-700 capitalize">{req.role_interest}</span></p>
+                            <p className="text-[10px] text-slate-400 mt-1">Requested on {formatDate(req.created_at)}</p>
+                          </div>
+                          <button
+                            onClick={() => handleCancelRequest(req.id)}
+                            className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:text-white hover:bg-rose-600 rounded-lg border border-rose-200 transition-all shrink-0 active:scale-95 animate-in fade-in"
+                            id={`cancel-request-list-${req.id}`}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {myCircles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
+                  <span className="text-5xl">📦</span>
+                  <p className="text-base font-medium text-slate-500">You haven't joined any circles yet</p>
+                  <p className="text-sm">Discover circles in the Discover tab or start your own.</p>
+                  <div className="flex gap-3 mt-2">
+                    <button onClick={() => setMainTab('discover')} className="px-5 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+                      🔍 Discover Circles
+                    </button>
+                    <button onClick={() => setShowCreate(true)} className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors">
+                      + Start a Circle
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-500">{myCircles.length} circle{myCircles.length !== 1 ? 's' : ''} — sorted by newest first</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {myCircles.map((circle) => {
+                      const matchingReq = myJoinRequests.find(r => r.circle_id === circle.id);
+                      return (
+                        <CircleCard
+                          key={circle.id}
+                          circle={circle}
+                          currentUserId={userId}
+                          request={matchingReq || null}
+                          onView={handleView}
+                          onRequestJoin={handleRequestJoinClick}
+                          onCancelRequest={handleCancelRequest}
+                          onLeave={handleLeave}
+                        />
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Join Request modal prompt */}
+      {requestingCircle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between z-10 text-left">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 font-sans">Request to Join Circle</h3>
+                <p className="text-xs text-slate-500 mt-0.5 font-sans">Submit an application to join "{requestingCircle.title}".</p>
+              </div>
+              <button
+                onClick={() => setRequestingCircle(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            {/* Form body */}
+            <form onSubmit={handleRequestSubmit} className="p-6 space-y-4 text-left">
+              {requestError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl">
+                  {requestError}
+                </div>
+              )}
+
+              {/* Role Interest */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Intended Role / Contribution</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'learner' as LearningCircleRoleInterest, emoji: '📖', title: 'Learner', desc: 'Participate and learn' },
+                    { id: 'contributor' as LearningCircleRoleInterest, emoji: '💡', title: 'Contributor', desc: 'Share resources & posts' },
+                    { id: 'peer_mentor' as LearningCircleRoleInterest, emoji: '🎓', title: 'Mentor', desc: 'Guide & support peers' },
+                  ].map((roleOption) => (
+                    <button
+                      key={roleOption.id}
+                      type="button"
+                      onClick={() => setRoleInterest(roleOption.id)}
+                      className={`p-2.5 rounded-xl border text-center transition-all ${
+                        roleInterest === roleOption.id
+                          ? 'bg-indigo-50 border-indigo-400 ring-2 ring-indigo-500/10'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="block text-lg mb-0.5">{roleOption.emoji}</span>
+                      <span className="block text-xs font-bold text-slate-900">{roleOption.title}</span>
+                      <span className="block text-[9px] text-slate-400 leading-tight mt-0.5">{roleOption.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Message */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Why do you want to join this circle? <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={joinMessage}
+                  onChange={(e) => setJoinMessage(e.target.value)}
+                  placeholder="Explain your academic goals, what you hope to achieve, or how you plan to contribute. (minimum 10 characters)"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white text-left"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Provide a clear description. The circle owner will verify your profile and request details.</p>
+              </div>
+
+              {/* Buttons */}
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRequestingCircle(null)}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingRequest || joinMessage.trim().length < 10}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors shadow-sm"
+                  id="submit-join-request-btn"
+                >
+                  {submittingRequest ? 'Submitting…' : 'Submit Application 🚀'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

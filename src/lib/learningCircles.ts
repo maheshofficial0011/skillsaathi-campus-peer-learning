@@ -11,6 +11,9 @@ import type {
   CircleStatus,
   CircleResourceType,
   CirclePostType,
+  LearningCircleRoleInterest,
+  LearningCircleJoinRequest,
+  LearningCircleJoinRequestWithProfile,
 } from '../types';
 
 // ──────────────────────────────────────────
@@ -863,3 +866,251 @@ export const deleteCirclePost = async (postId: string): Promise<void> => {
     throw err;
   }
 };
+
+// ──────────────────────────────────────────
+// JOIN REQUESTS QUERIES & MUTATIONS
+// ──────────────────────────────────────────
+
+/**
+ * Submit a request to join a learning circle.
+ */
+export const requestToJoinCircle = async (
+  circleId: string,
+  input: { message: string; role_interest: LearningCircleRoleInterest }
+): Promise<void> => {
+  if (!input.message || input.message.trim().length < 10) {
+    throw new Error('Please provide a message explaining why you want to join (minimum 10 characters).');
+  }
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user?.id) {
+    throw new Error('Please sign in to request to join this circle.');
+  }
+  const requesterId = authData.user.id;
+
+  const { error } = await supabase
+    .from('learning_circle_join_requests')
+    .insert({
+      circle_id: circleId,
+      requester_id: requesterId,
+      message: input.message.trim(),
+      role_interest: input.role_interest,
+      status: 'pending'
+    });
+
+  if (error) {
+    console.error('[requestToJoinCircle] failed:', error);
+    throw new Error(error.message || 'Failed to submit join request.');
+  }
+};
+
+/**
+ * Fetch all join requests submitted by the currently logged-in user.
+ */
+export const getMyJoinRequests = async (): Promise<LearningCircleJoinRequest[]> => {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user?.id) {
+    return [];
+  }
+  const { data, error } = await supabase
+    .from('learning_circle_join_requests')
+    .select('*')
+    .eq('requester_id', authData.user.id);
+
+  if (error) {
+    console.error('[getMyJoinRequests] failed:', error);
+    return [];
+  }
+  return data as LearningCircleJoinRequest[];
+};
+
+/**
+ * Fetch all join requests for a circle, joining requester public profile details.
+ * Sorted newest-first. (Circle owners only).
+ */
+export const getCircleJoinRequests = async (
+  circleId: string
+): Promise<LearningCircleJoinRequestWithProfile[]> => {
+  const { data, error } = await supabase
+    .from('learning_circle_join_requests')
+    .select(`
+      *,
+      requester_profile:profiles!learning_circle_join_requests_requester_id_fkey(
+        id,
+        full_name,
+        department,
+        year_of_study,
+        section,
+        skills_known,
+        skills_wanted,
+        trust_score,
+        badge_level,
+        headline,
+        academic_interests,
+        learning_goals,
+        current_focus,
+        qualification_summary,
+        github_url,
+        linkedin_url,
+        portfolio_url
+      )
+    `)
+    .eq('circle_id', circleId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[getCircleJoinRequests] failed:', error);
+    return [];
+  }
+  return data as unknown as LearningCircleJoinRequestWithProfile[];
+};
+
+/**
+ * Respond to a join request (Accept/Reject member creation flow).
+ */
+export const respondToJoinRequest = async (
+  requestId: string,
+  action: 'accept' | 'reject',
+  responseMessage?: string
+): Promise<void> => {
+  try {
+    // Fetch the request and circle status
+    const { data: requestData, error: fetchErr } = await supabase
+      .from('learning_circle_join_requests')
+      .select(`
+        *,
+        circle:learning_circles(status, max_members)
+      `)
+      .eq('id', requestId)
+      .single();
+
+    if (fetchErr || !requestData) {
+      throw new Error('Join request not found.');
+    }
+
+    const request = requestData as any;
+    const circle = request.circle;
+
+    if (!circle) {
+      throw new Error('Target learning circle not found.');
+    }
+
+    if (circle.status !== 'active') {
+      throw new Error(`Cannot respond to request. The circle is currently ${circle.status}. Please activate the circle first.`);
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in.');
+    }
+    const reviewerId = authData.user.id;
+
+    if (action === 'accept') {
+      // Check if circle is already full
+      const { count, error: countErr } = await supabase
+        .from('learning_circle_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('circle_id', request.circle_id);
+
+      if (countErr) throw countErr;
+      if ((count ?? 0) >= circle.max_members) {
+        throw new Error('This circle is full. You cannot accept more members.');
+      }
+
+      // Update request status to accepted
+      const { error: updateErr } = await supabase
+        .from('learning_circle_join_requests')
+        .update({
+          status: 'accepted',
+          reviewed_by: reviewerId,
+          reviewed_at: new Date().toISOString(),
+          response_message: responseMessage?.trim() || null
+        })
+        .eq('id', requestId);
+
+      if (updateErr) throw updateErr;
+
+      // Check if already a member before inserting (handle duplicate gracefully)
+      const { data: existingMember } = await supabase
+        .from('learning_circle_members')
+        .select('id')
+        .eq('circle_id', request.circle_id)
+        .eq('user_id', request.requester_id)
+        .maybeSingle();
+
+      if (!existingMember) {
+        const { error: memberErr } = await supabase
+          .from('learning_circle_members')
+          .insert({
+            circle_id: request.circle_id,
+            user_id: request.requester_id,
+            role: 'member'
+          });
+
+        if (memberErr) {
+          console.error('[respondToJoinRequest] member insert error:', memberErr);
+          throw new Error('Request accepted, but failed to create membership: ' + memberErr.message);
+        }
+      }
+    } else {
+      // action === 'reject'
+      const { error: updateErr } = await supabase
+        .from('learning_circle_join_requests')
+        .update({
+          status: 'rejected',
+          reviewed_by: reviewerId,
+          reviewed_at: new Date().toISOString(),
+          response_message: responseMessage?.trim() || null
+        })
+        .eq('id', requestId);
+
+      if (updateErr) throw updateErr;
+    }
+  } catch (err) {
+    console.error('respondToJoinRequest error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Cancel a pending join request.
+ */
+export const cancelJoinRequest = async (requestId: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('learning_circle_join_requests')
+      .update({ status: 'cancelled' })
+      .eq('id', requestId);
+
+    if (error) throw error;
+  } catch (err) {
+    console.error('cancelJoinRequest error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Fetch active join request status for a specific user and circle.
+ */
+export const getJoinRequestStatusForCircle = async (
+  circleId: string,
+  userId: string
+): Promise<LearningCircleJoinRequest | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('learning_circle_join_requests')
+      .select('*')
+      .eq('circle_id', circleId)
+      .eq('requester_id', userId)
+      .in('status', ['pending', 'accepted', 'rejected', 'cancelled'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data as LearningCircleJoinRequest | null;
+  } catch (err) {
+    console.error('getJoinRequestStatusForCircle error:', err);
+    return null;
+  }
+};
+

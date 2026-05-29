@@ -477,3 +477,66 @@ Use this checklist to perform regression testing and ensure full readiness of al
   - Verify that normal Members can *only* delete resources they uploaded themselves, and see no trash icons on others' resources.
   - Verify that when a file resource is deleted, it is securely deleted from the private Supabase Storage bucket first before removing the row from PostgreSQL.
 
+
+## 🔵 15. Phase 5.2 — Learning Circle Join Requests & Member Profile Verification
+
+### Join Request Workflow
+- [ ] **Request to Join Button**:
+  - Log in as a normal student (non-member, non-owner).
+  - Open the **Discover Circles** explorer tab.
+  - Locate an active circle and verify that the button displays **Request to Join** (instant direct join is disabled).
+  - Verify that clicking it triggers the **Join Request Modal**.
+- [ ] **Join Request Modal Validations**:
+  - In the Join Request Modal, select a role interest (Learner, Contributor, Peer Mentor).
+  - Leave the application message blank or type less than 10 characters.
+  - Click **Submit Application**. Verify that an error message: `"Please provide a message explaining why you want to join (minimum 10 characters)."` is displayed and submission is blocked.
+  - Type a meaningful message (at least 10 characters) and submit.
+  - Verify that a success toast `"Request Submitted! ⌛"` is shown, the modal closes, and the button changes to `"⌛ Pending (Cancel)"`.
+- [ ] **Pending Requests Summary & Cancellation**:
+  - Navigate to the **My Circles** explorer tab.
+  - Locate the **Pending Join Requests** dashboard panel.
+  - Verify that the submitted request appears in this list with its title, role interest, status, and the submitted message.
+  - Click the **Cancel** action or the button on the card. Confirm that the request is updated to `cancelled` and disappears from the dashboard, allowing you to click "Request to Join" again.
+- [ ] **Lock Restrictions on Inactive Circles**:
+  - Visit a circle that is **Paused** or **Archived** (as a non-member).
+  - Verify that the "Request to Join" button is completely disabled or hidden, displaying `Paused` or `Archived`, and no new requests can be submitted.
+
+### Owner Dashboard & Response Actions
+- [ ] **Pending Join Requests Tab**:
+  - Log in as the Owner of the learning circle that has a pending request.
+  - Open the **Manage Workspace** panel and switch to the **Join Requests** tab.
+  - Verify that the pending request is listed with the requester's name, department, year of study, role interest, application message, and academic credentials.
+- [ ] **Requester Public Profile Preview (No Private Fields)**:
+  - Click **View Full Public Profile** next to the requester's name.
+  - Verify that the profile modal loads correctly showing academic focus, learning goals, qualifications, skills, and portfolio badges (GitHub, LinkedIn).
+  - **CRITICAL PRIVACY CHECK**: Verify that **no** private contact details (phone, email, WhatsApp, raw UUIDs, or database IDs) are displayed anywhere.
+- [ ] **Status Change Locking**:
+  - Set the circle status to **Paused** or **Archived** in the Overview tab.
+  - Go to the **Join Requests** tab.
+  - Verify that a prominent warnings block states: `"You cannot accept or review pending requests while the circle is in a non-active status."`
+  - Verify that both the **Accept Application** and **Reject Application** action buttons are fully disabled.
+  - Re-enable the circle status to **Active**. Verify that warning disappears and buttons are fully enabled.
+- [ ] **Reject Flow with Custom Context**:
+  - With the circle active, type an optional response message: `"Sorry, we have reached maximum member limits for this study group."`
+  - Click **Reject Application**.
+  - Verify that a success toast is shown, and the request is removed from the active pending list.
+  - Log in as the requester. Verify that the card now shows the **Request again** trigger, and displays the owner's custom rejection comment inline.
+- [ ] **Accept Flow & Workspace Access**:
+  - Submit another request from a test student.
+  - Log in as the Owner and go to the **Join Requests** tab.
+  - Click **Accept Application** (with or without a custom response message).
+  - Verify that a success toast `"Application Approved! 🎉"` is shown, and the request is removed from the list.
+  - Click the **Members** tab in the workspace. Verify that the accepted requester has been instantly added as a `member`.
+  - Log in as the accepted student. Verify that you can now fully access the workspace, share resources, view files, and write discussion posts.
+
+### Profile Custom Academic Links & URL Validation
+- [ ] **Optional Academic Fields during Editing**:
+  - Navigate to your **Profile Page** and click **Edit Profile**.
+  - Locate the **Academic & Learning Profile** section. Verify that all fields (Headline, Academic Interests, Learning Goals, Current Focus, Qualification Summary, GitHub URL, LinkedIn URL, Portfolio URL) are present and completely optional.
+- [ ] **Profile URL Safety Check**:
+  - Type an unsafe URL scheme into the GitHub URL input (e.g. `http://github.com/myuser`, `javascript:alert(1)`, `data:text/html,...`, or relative link).
+  - Click **Save Changes**.
+  - Verify that an explicit error: `"GitHub URL must use the https:// protocol."` is triggered and saving is blocked.
+  - Change all URL inputs to start with strictly `https://` (e.g., `https://github.com/user`, `https://linkedin.com/in/user`). Click **Save Changes**. Verify that saving succeeds without issue.
+
+

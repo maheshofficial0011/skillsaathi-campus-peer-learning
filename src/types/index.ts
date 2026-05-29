@@ -27,6 +27,14 @@ export interface Profile {
   share_other_contact_after_accept: boolean;
   share_contact_after_accept: boolean;
   mentor_status?: 'accepting' | 'busy' | 'unavailable';
+  headline?: string | null;
+  academic_interests?: string[];
+  learning_goals?: string | null;
+  current_focus?: string | null;
+  qualification_summary?: string | null;
+  github_url?: string | null;
+  linkedin_url?: string | null;
+  portfolio_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -363,3 +371,25 @@ export interface LearningCirclePost {
     full_name: string;
   } | null;
 }
+
+export type LearningCircleJoinRequestStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
+export type LearningCircleRoleInterest = 'learner' | 'contributor' | 'peer_mentor';
+
+export interface LearningCircleJoinRequest {
+  id: string;
+  circle_id: string;
+  requester_id: string;
+  message: string | null;
+  role_interest: LearningCircleRoleInterest;
+  status: LearningCircleJoinRequestStatus;
+  response_message: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LearningCircleJoinRequestWithProfile extends LearningCircleJoinRequest {
+  requester_profile?: Profile | null;
+}
+

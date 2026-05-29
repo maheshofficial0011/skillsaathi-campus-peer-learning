@@ -57,6 +57,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
   const [mentorStats, setMentorStats] = useState<SeniorMentorStats | null>(null);
   const [seniorFeedback, setSeniorFeedback] = useState<SeniorGuidanceFeedbackWithProfiles[]>([]);
+  
+  // Academic edit states
+  const [editHeadline, setEditHeadline] = useState('');
+  const [editAcademicInterests, setEditAcademicInterests] = useState('');
+  const [editLearningGoals, setEditLearningGoals] = useState('');
+  const [editCurrentFocus, setEditCurrentFocus] = useState('');
+  const [editQualificationSummary, setEditQualificationSummary] = useState('');
+  const [editGithubUrl, setEditGithubUrl] = useState('');
+  const [editLinkedinUrl, setEditLinkedinUrl] = useState('');
+  const [editPortfolioUrl, setEditPortfolioUrl] = useState('');
 
   const [showAllPeerReviews, setShowAllPeerReviews] = useState(false);
   const [showAllMentorReviews, setShowAllMentorReviews] = useState(false);
@@ -227,6 +237,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
     setEditShareEmail(!!profile.share_email_after_accept);
     setEditShareOther(!!profile.share_other_contact_after_accept);
     setEditShareContactGlobal(!!profile.share_contact_after_accept);
+    
+    setEditHeadline(profile.headline || '');
+    setEditAcademicInterests(profile.academic_interests?.join(', ') || '');
+    setEditLearningGoals(profile.learning_goals || '');
+    setEditCurrentFocus(profile.current_focus || '');
+    setEditQualificationSummary(profile.qualification_summary || '');
+    setEditGithubUrl(profile.github_url || '');
+    setEditLinkedinUrl(profile.linkedin_url || '');
+    setEditPortfolioUrl(profile.portfolio_url || '');
+
     setEditError(null);
     setEditSuccess(null);
     setIsEditing(true);
@@ -299,11 +319,35 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
       return;
     }
 
+    // URL validations
+    const validateHttpsUrl = (urlStr: string, name: string): boolean => {
+      const trimmed = urlStr.trim();
+      if (!trimmed) return true; // optional
+      try {
+        const parsed = new URL(trimmed);
+        if (parsed.protocol !== 'https:') {
+          setEditError(`${name} must use the https:// protocol. http://, data:, javascript:, or relative links are not allowed.`);
+          toast.error('Validation Warning', `${name} must start with https://`);
+          return false;
+        }
+        return true;
+      } catch {
+        setEditError(`Invalid ${name} format. Please provide a full URL starting with https://`);
+        toast.error('Validation Warning', `Invalid ${name} format.`);
+        return false;
+      }
+    };
+
+    if (!validateHttpsUrl(editGithubUrl, 'GitHub URL')) return;
+    if (!validateHttpsUrl(editLinkedinUrl, 'LinkedIn URL')) return;
+    if (!validateHttpsUrl(editPortfolioUrl, 'Portfolio URL')) return;
+
     setEditLoading(true);
     setEditError(null);
     setEditSuccess(null);
     const skillsKnownArr = editSkillsKnown.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
     const skillsWantedArr = editSkillsWanted.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+    const academicInterestsArr = editAcademicInterests.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
     try {
       const updated = await upsertCurrentProfile({
         id: userId,
@@ -329,6 +373,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
         is_senior_mentor: profile.is_senior_mentor,
         mentor_topics: profile.mentor_topics,
         mentor_bio: profile.mentor_bio,
+        headline: editHeadline.trim() || null,
+        academic_interests: academicInterestsArr,
+        learning_goals: editLearningGoals.trim() || null,
+        current_focus: editCurrentFocus.trim() || null,
+        qualification_summary: editQualificationSummary.trim() || null,
+        github_url: editGithubUrl.trim() || null,
+        linkedin_url: editLinkedinUrl.trim() || null,
+        portfolio_url: editPortfolioUrl.trim() || null,
       });
       if (updated) {
         setEditSuccess('Profile changes saved successfully!');
@@ -523,6 +575,75 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
               </div>
             </div>
 
+            {/* ========== ACADEMIC & LEARNING PROFILE FORM ========== */}
+            <div className="pt-6 border-t border-slate-100 space-y-4 font-sans text-left">
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  <span>📖</span> Academic & Learning Profile <span className="text-slate-400 font-normal text-xs">(Optional)</span>
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Add optional details to verify your academic context and interests with peers and circle owners.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Professional Headline / Bio Slug</label>
+                <input type="text" value={editHeadline} onChange={(e) => setEditHeadline(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
+                  placeholder="e.g. Computer Science Undergrad | Aspiring AI Researcher" />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Current Focus</label>
+                  <input type="text" value={editCurrentFocus} onChange={(e) => setEditCurrentFocus(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
+                    placeholder="e.g. Preparing for placements, learning rust" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Academic Interests <span className="text-slate-400 font-normal text-[10px]">(Comma Separated)</span></label>
+                  <input type="text" value={editAcademicInterests} onChange={(e) => setEditAcademicInterests(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium"
+                    placeholder="e.g. Machine Learning, DBMS, Distributed Systems" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Learning Goals</label>
+                <textarea rows={2} value={editLearningGoals} onChange={(e) => setEditLearningGoals(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium resize-none text-left"
+                  placeholder="What are your short-term and long-term academic or professional learning goals?" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Qualifications & Achievements Summary</label>
+                <textarea rows={2} value={editQualificationSummary} onChange={(e) => setEditQualificationSummary(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 text-sm font-medium resize-none text-left"
+                  placeholder="e.g. Coursera Deep Learning Specialization, Smart India Hackathon finalist..." />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">GitHub URL <span className="text-slate-400 font-normal text-[10px]">(https:// only)</span></label>
+                  <input type="url" value={editGithubUrl} onChange={(e) => setEditGithubUrl(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 text-xs font-semibold"
+                    placeholder="https://github.com/username" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">LinkedIn URL <span className="text-slate-400 font-normal text-[10px]">(https:// only)</span></label>
+                  <input type="url" value={editLinkedinUrl} onChange={(e) => setEditLinkedinUrl(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 text-xs font-semibold"
+                    placeholder="https://linkedin.com/in/username" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Portfolio/Other URL <span className="text-slate-400 font-normal text-[10px]">(https:// only)</span></label>
+                  <input type="url" value={editPortfolioUrl} onChange={(e) => setEditPortfolioUrl(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 text-xs font-semibold"
+                    placeholder="https://mywebsite.com" />
+                </div>
+              </div>
+            </div>
+
             {/* ========== PRIVATE CONTACT SHARING SECTION ========== */}
             <div className="pt-6 border-t border-slate-100 space-y-4">
               <div>
@@ -631,7 +752,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
               <p className="text-sm text-slate-500">
                 {profile.department || 'General Studies'} {profile.section ? `• Sec ${profile.section}` : ''}
               </p>
-              <p className="text-xs text-slate-400 truncate">{userEmail || 'Email unavailable'}</p>
+              {profile.headline && (
+                <p className="text-xs text-slate-600 font-medium italic mt-1 bg-slate-50 inline-block px-2.5 py-1 rounded border border-slate-200 leading-normal max-w-full">
+                  "{profile.headline}"
+                </p>
+              )}
+              <p className="text-xs text-slate-400 truncate mt-1">{userEmail || 'Email unavailable'}</p>
 
               <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs text-slate-500 pt-2">
                 <span>🏅 Badge: <strong>{profile.badge_level}</strong></span>
@@ -727,6 +853,71 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
               </p>
             </div>
           </div>
+
+          {/* Academic & Learning Profile */}
+          {(profile.current_focus || profile.learning_goals || profile.qualification_summary || (profile.academic_interests && profile.academic_interests.length > 0) || profile.github_url || profile.linkedin_url || profile.portfolio_url) && (
+            <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4 font-sans text-left">
+              <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-1.5">
+                <span>📖</span> Academic & Learning Profile
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                {profile.current_focus && (
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-150">
+                    <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-0.5">Current Focus</span>
+                    <p className="text-slate-800 font-semibold leading-relaxed">{profile.current_focus}</p>
+                  </div>
+                )}
+                {profile.academic_interests && profile.academic_interests.length > 0 && (
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-150">
+                    <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-1.5">Academic Interests</span>
+                    <div className="flex flex-wrap gap-1">
+                      {profile.academic_interests.map((interest) => (
+                        <span key={interest} className="px-2 py-0.5 bg-slate-200 border border-slate-300 text-slate-700 text-[10px] font-bold rounded-full">
+                          {interest}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {profile.learning_goals && (
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-150 sm:col-span-2">
+                    <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-0.5">Learning Goals</span>
+                    <p className="text-slate-800 font-semibold leading-relaxed">{profile.learning_goals}</p>
+                  </div>
+                )}
+                {profile.qualification_summary && (
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-150 sm:col-span-2">
+                    <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-0.5">Qualifications & Achievements</span>
+                    <p className="text-slate-800 font-semibold leading-relaxed">{profile.qualification_summary}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Work Profile Links */}
+              {(profile.github_url || profile.linkedin_url || profile.portfolio_url) && (
+                <div className="pt-3 border-t border-slate-100">
+                  <span className="font-bold text-slate-400 block uppercase text-[9px] tracking-wider mb-2">Academic & Work Profiles</span>
+                  <div className="flex flex-wrap gap-2.5">
+                    {profile.github_url && (
+                      <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-black text-white font-bold text-xs rounded-xl transition-colors shadow-sm">
+                        <span>🐙</span> GitHub
+                      </a>
+                    )}
+                    {profile.linkedin_url && (
+                      <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors shadow-sm">
+                        <span>🔗</span> LinkedIn
+                      </a>
+                    )}
+                    {profile.portfolio_url && (
+                      <a href={profile.portfolio_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-colors shadow-sm">
+                        <span>🌐</span> Portfolio Website
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Skills Matrix */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

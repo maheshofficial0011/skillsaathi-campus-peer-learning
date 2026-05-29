@@ -281,6 +281,11 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
                       {stats.profile.availability && ` • 🕐 ${stats.profile.availability}`}
                     </p>
                   )}
+                  {stats.profile.headline && (
+                    <p className="text-xs text-slate-650 italic mt-1.5 font-medium leading-relaxed bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                      "{stats.profile.headline}"
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -485,6 +490,74 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
                   </>
                 )}
               </div>
+
+              {/* Academic & Learning Profile */}
+              {(stats.profile.current_focus || stats.profile.learning_goals || stats.profile.qualification_summary || (stats.profile.academic_interests && stats.profile.academic_interests.length > 0) || stats.profile.github_url || stats.profile.linkedin_url || stats.profile.portfolio_url) && (
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3.5 text-xs text-left">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-800 border-b border-slate-250 pb-1.5">
+                    <span>📖</span>
+                    <span>Academic & Learning Profile</span>
+                  </div>
+
+                  {stats.profile.current_focus && (
+                    <div>
+                      <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider">Current Focus</span>
+                      <p className="text-slate-700 mt-0.5 leading-relaxed">{stats.profile.current_focus}</p>
+                    </div>
+                  )}
+
+                  {stats.profile.learning_goals && (
+                    <div>
+                      <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider">Learning Goals</span>
+                      <p className="text-slate-700 mt-0.5 leading-relaxed">{stats.profile.learning_goals}</p>
+                    </div>
+                  )}
+
+                  {stats.profile.qualification_summary && (
+                    <div>
+                      <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider">Qualifications & Achievements</span>
+                      <p className="text-slate-700 mt-0.5 leading-relaxed">{stats.profile.qualification_summary}</p>
+                    </div>
+                  )}
+
+                  {stats.profile.academic_interests && stats.profile.academic_interests.length > 0 && (
+                    <div>
+                      <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-1">Academic Interests</span>
+                      <div className="flex flex-wrap gap-1">
+                        {stats.profile.academic_interests.map((interest) => (
+                          <span key={interest} className="px-2.5 py-0.5 bg-slate-200 border border-slate-300 text-slate-700 text-[10px] font-medium rounded-full">
+                            {interest}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Portfolio & Profiles Badges */}
+                  {(stats.profile.github_url || stats.profile.linkedin_url || stats.profile.portfolio_url) && (
+                    <div className="pt-2 border-t border-slate-200">
+                      <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-1.5">Professional & Work Links</span>
+                      <div className="flex flex-wrap gap-2">
+                        {stats.profile.github_url && (
+                          <a href={stats.profile.github_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-900 hover:bg-black text-white font-bold text-[10px] rounded-lg transition-colors shadow-sm">
+                            <span className="text-xs">🐙</span> GitHub
+                          </a>
+                        )}
+                        {stats.profile.linkedin_url && (
+                          <a href={stats.profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] rounded-lg transition-colors shadow-sm">
+                            <span className="text-xs">🔗</span> LinkedIn
+                          </a>
+                        )}
+                        {stats.profile.portfolio_url && (
+                          <a href={stats.profile.portfolio_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg transition-colors shadow-sm">
+                            <span className="text-xs">🌐</span> Portfolio
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Skills */}
               {stats.profile.skills_known && stats.profile.skills_known.length > 0 && (

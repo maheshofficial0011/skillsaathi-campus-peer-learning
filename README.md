@@ -281,9 +281,9 @@ Detailed database tables and policies are summarized in [supabase/README.md](./s
 
 ---
 
-## 🎓 Completed Phase 5 & 5.1: Learning Circles & Secure Private Resource Uploads
+## 🎓 Completed Phase 5, 5.1 & 5.2: Learning Circles, Secure Private Resource Uploads & Join Request Workflows
 
-Learning Circles connect peer study groups, allowing collaborative resource sharing, status locking, and coordinate boards:
+Learning Circles connect peer study groups, allowing collaborative resource sharing, status locking, coordinate boards, and secure request-based join workflows:
 
 1. **Learning Circles Workspace**:
    - Students can create cohort-based study groups, specify department/category/difficulty, limit member counts, and toggle public discoverability.
@@ -309,4 +309,14 @@ Learning Circles connect peer study groups, allowing collaborative resource shar
 5. **Split Permission Guidelines & RLS Safety**:
    - Displays clear Role Guidelines split cards indicating Owner vs Member capabilities.
    - Enforces cascading deletions: deleting a file resource from the UI safely removes it from the Supabase Storage bucket first before deleting the row from PostgreSQL.
+
+6. **Secure Join Requests & Member Profile Verification (Phase 5.2)**:
+   - **Direct instant joins are completely disabled** for normal users in the UI. Joining a circle requires a student to submit a formal join application.
+   - **Join Request Modal**: Prompting the applicant to select a role interest (Learner, Contributor, Peer Mentor) and write an application message explaining their goals (minimum 10 characters required).
+   - **My Circles Dashboard Panel**: A dedicated section displays a student's pending requests with direct cancellation actions.
+   - **Owner Review Portal**: A dedicated **Join Requests** workspace dashboard tab lists all pending requests. Owners can view candidate credentials, enter an optional response message, and accept or reject applications.
+   - **Paused/Archived State Protection**: New join requests are blocked on paused/archived circles, and owners cannot accept pending applications unless they return the circle to **Active** first.
+   - **Student Academic Profiles**: Students can enrich their accounts with optional headline, academic interests, learning goals, current focus, and achievements.
+   - **Strict URL & Privacy Controls**: External profile links (GitHub, LinkedIn, Portfolio) strictly require secure `https://` protocol and reject relative or dangerous inputs. Requester reviews hide all private contact info (email, phone, WhatsApp) and database UUIDs to prevent off-platform spamming or privacy leaks.
+
 
