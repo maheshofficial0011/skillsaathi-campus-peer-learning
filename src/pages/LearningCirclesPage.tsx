@@ -45,6 +45,13 @@ import {
   removeCircleMember,
   toggleResourcePin,
   toggleResourceLike,
+  verifyCircleResource,
+  rejectCircleResource,
+  toggleOwnerRecommend,
+  runResourceLinkSafetyCheck,
+  getResourceVerificationQueue,
+  getMySubmittedResources,
+  getCircleMemberResourceStats,
 } from '../lib/learningCircles';
 import { PublicProfileModal } from '../components/profile/PublicProfileModal';
 
@@ -552,8 +559,21 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
-  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [resourceLimit, setResourceLimit] = useState(3);
+
+  // Verification & dashboard states
+  const [verificationQueue, setVerificationQueue] = useState<LearningCircleResource[]>([]);
+  const [mySubmittedResources, setMySubmittedResources] = useState<LearningCircleResource[]>([]);
+  const [memberStats, setMemberStats] = useState<Record<string, any>>({});
+  const [rejectionResourceId, setRejectionResourceId] = useState<string | null>(null);
+  const [rejectionReasonText, setRejectionReasonText] = useState('');
+  const [submittingRejection, setSubmittingRejection] = useState(false);
+
+  // Custom modals state
+  const [removingMember, setRemovingMember] = useState<{ id: string; name: string } | null>(null);
+  const [removeReason, setRemoveReason] = useState('Inactive member');
+  const [removeMessage, setRemoveMessage] = useState('');
+  const [submittingRemove, setSubmittingRemove] = useState(false);
 
   // Sync settings form with circle whenever circle changes
   useEffect(() => {
@@ -692,14 +712,23 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     }
   };
 
-  const handleRemoveMember = async (targetUserId: string, targetName: string) => {
-    if (!window.confirm(`Are you sure you want to remove "${targetName}" from this learning circle?`)) {
-      return;
-    }
-    setRemovingMemberId(targetUserId);
+  const handleRemoveMemberClick = (targetUserId: string, targetName: string) => {
+    setRemovingMember({ id: targetUserId, name: targetName });
+    setRemoveReason('Inactive member');
+    setRemoveMessage('');
+  };
+
+  const handleRemoveMemberSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!removingMember) return;
+    setSubmittingRemove(true);
     try {
-      await removeCircleMember(circle.id, targetUserId);
-      toast.success('Member Removed', `Successfully removed "${targetName}" from the study group.`);
+      await removeCircleMember(circle.id, removingMember.id, {
+        reason: removeReason,
+        message: removeMessage
+      });
+      toast.success('Member Removed', `Successfully removed "${removingMember.name}" from the study group.`);
+      setRemovingMember(null);
       await loadMembers();
       
       // Update circle stats (decrement member count)
@@ -712,7 +741,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
       const msg = err instanceof Error ? err.message : 'Could not remove member.';
       toast.error('Action Failed', msg);
     } finally {
-      setRemovingMemberId(null);
+      setSubmittingRemove(false);
     }
   };
 
@@ -733,6 +762,55 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
       toast.success('Pin Status Toggled', 'The resource ranking has been updated.');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not toggle pin.';
+      toast.error('Action Failed', msg);
+    }
+  };
+
+  const handleVerifyResource = async (resourceId: string, recommend: boolean) => {
+    try {
+      await verifyCircleResource(resourceId, { owner_recommended: recommend });
+      toast.success('Resource Verified! ✅', recommend ? 'The resource was approved and marked as Recommended.' : 'The resource was approved.');
+      await loadResources();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not verify resource.';
+      toast.error('Verification Failed', msg);
+    }
+  };
+
+  const handleOpenRejectDialog = (resourceId: string) => {
+    setRejectionResourceId(resourceId);
+    setRejectionReasonText('');
+  };
+
+  const handleRejectResourceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectionResourceId) return;
+    if (rejectionReasonText.trim().length < 5) {
+      toast.error('Rejection Reason Required', 'Please provide a reason of at least 5 characters.');
+      return;
+    }
+    setSubmittingRejection(true);
+    try {
+      await rejectCircleResource(rejectionResourceId, rejectionReasonText);
+      toast.success('Resource Rejected ❌', 'Feedback message saved.');
+      setRejectionResourceId(null);
+      setRejectionReasonText('');
+      await loadResources();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not reject resource.';
+      toast.error('Rejection Failed', msg);
+    } finally {
+      setSubmittingRejection(false);
+    }
+  };
+
+  const handleToggleRecommend = async (resourceId: string) => {
+    try {
+      await toggleOwnerRecommend(resourceId);
+      toast.success('Recommendation Toggled ⭐️', 'Resource ranking updated.');
+      await loadResources();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not toggle recommendation.';
       toast.error('Action Failed', msg);
     }
   };
@@ -780,20 +858,36 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     try {
       const data = await getCircleMembers(circle.id);
       setMembers(data);
+      if (isMember) {
+        const stats = await getCircleMemberResourceStats(circle.id);
+        setMemberStats(stats);
+      }
+    } catch (err) {
+      console.error('loadMembers stats error:', err);
     } finally {
       setLoadingMembers(false);
     }
-  }, [circle.id]);
+  }, [circle.id, isMember]);
 
   const loadResources = useCallback(async () => {
     setLoadingResources(true);
     try {
       const data = await getCircleResources(circle.id);
       setResources(data);
+      if (isOwner) {
+        const queue = await getResourceVerificationQueue(circle.id);
+        setVerificationQueue(queue);
+      }
+      if (isMember) {
+        const myRes = await getMySubmittedResources(circle.id);
+        setMySubmittedResources(myRes);
+      }
+    } catch (err) {
+      console.error('loadResources queue error:', err);
     } finally {
       setLoadingResources(false);
     }
-  }, [circle.id]);
+  }, [circle.id, isOwner, isMember]);
 
   const loadPosts = useCallback(async () => {
     setLoadingPosts(true);
@@ -881,10 +975,17 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
           resource_type: resourceForm.resource_type,
           url: resourceForm.url || undefined,
         });
-        setResources((prev) => [res, ...prev]);
+
+        if (isOwner) {
+          setResources((prev) => [res, ...prev]);
+          toast.success('Resource Added', 'Study resource link shared and verified.');
+        } else {
+          toast.success('Resource Submitted! ⏳', 'Your shared material has been sent to the circle owner for verification.');
+        }
+        setMySubmittedResources((prev) => [res, ...prev]);
+
         setResourceForm({ title: '', description: '', resource_type: 'Link', url: '' });
         setShowResourceForm(false);
-        toast.success('Resource Added', 'Study resource link shared with the circle.');
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Could not share resource.';
         toast.error('Failed', msg);
@@ -929,12 +1030,18 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
           storage_bucket: fileData.storage_bucket,
         });
 
-        setResources((prev) => [res, ...prev]);
+        if (isOwner) {
+          setResources((prev) => [res, ...prev]);
+          toast.success('File Uploaded! 🚀', `"${fileData.file_name}" uploaded and verified.`);
+        } else {
+          toast.success('File Submitted! ⏳', `"${fileData.file_name}" uploaded. Pending owner verification.`);
+        }
+        setMySubmittedResources((prev) => [res, ...prev]);
+
         setResourceForm({ title: '', description: '', resource_type: 'Link', url: '' });
         setSelectedFile(null);
         setResourceMode('link');
         setShowResourceForm(false);
-        toast.success('File Uploaded! 🚀', `"${fileData.file_name}" uploaded and shared.`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Could not upload file.';
         toast.error('Upload Failed', msg);
@@ -945,9 +1052,12 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   };
 
   const handleDeleteResource = async (id: string) => {
+    if (!window.confirm('Are you sure you want to remove this resource?')) return;
     try {
       await deleteCircleResource(id);
       setResources((prev) => prev.filter((r) => r.id !== id));
+      setMySubmittedResources((prev) => prev.filter((r) => r.id !== id));
+      setVerificationQueue((prev) => prev.filter((r) => r.id !== id));
       toast.success('Resource Removed', 'The resource has been deleted.');
     } catch {
       toast.error('Delete Failed', 'Could not remove resource. You may not have permission.');
@@ -1699,7 +1809,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
               ) : sortedMembers.length === 0 ? (
                 <EmptyState icon="👥" message="No members yet." />
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2 text-left">
                   {sortedMembers.map((m) => (
                     <div key={m.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm flex-shrink-0">
@@ -1710,18 +1820,33 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                         <p className="text-xs text-slate-500">{m.profile?.department} · {m.profile?.year_of_study}</p>
                       </div>
                       <div className="flex items-center gap-2">
+                        {/* Member Resource Statistics */}
+                        {isMember && (() => {
+                          const stats = memberStats[m.user_id] || { sharedCount: 0, verifiedCount: 0, pendingCount: 0, rejectedCount: 0 };
+                          return (
+                            <div className="hidden sm:flex items-center gap-1.5 text-[9px] font-extrabold text-slate-500 bg-white border border-slate-200/80 px-2 py-1 rounded-lg mr-1 shadow-xs shrink-0 select-none">
+                              <span className="text-slate-600">Shared: {stats.sharedCount}</span>
+                              <span className="text-slate-350">|</span>
+                              <span className="text-emerald-600">V: {stats.verifiedCount}</span>
+                              <span className="text-slate-355">|</span>
+                              <span className="text-amber-600">P: {stats.pendingCount}</span>
+                              <span className="text-slate-355">|</span>
+                              <span className="text-rose-600">R: {stats.rejectedCount}</span>
+                            </div>
+                          );
+                        })()}
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${m.role === 'owner' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
                           {m.role === 'owner' ? '👑 Owner' : 'Member'}
                         </span>
-                        <span className="text-[10px] text-slate-400 hidden sm:block">Joined {formatDate(m.joined_at)}</span>
+                        <span className="text-[10px] text-slate-400 hidden lg:block">Joined {formatDate(m.joined_at)}</span>
                         {isOwner && m.role !== 'owner' && (
                           <button
-                            onClick={() => handleRemoveMember(m.user_id, m.profile?.full_name ?? 'Unknown')}
-                            disabled={removingMemberId === m.user_id}
+                            onClick={() => handleRemoveMemberClick(m.user_id, m.profile?.full_name ?? 'Unknown')}
+                            disabled={submittingRemove}
                             className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 text-rose-700 font-semibold text-[10px] rounded-lg transition-colors flex items-center gap-1 focus:outline-none shrink-0 active:scale-95 disabled:opacity-50"
                             id={`remove-member-${m.user_id}`}
                           >
-                            {removingMemberId === m.user_id ? 'Removing…' : '❌ Remove'}
+                            ❌ Remove
                           </button>
                         )}
                       </div>
@@ -1869,6 +1994,24 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                               className={`w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${resourceErrors.url ? 'border-rose-400' : 'border-slate-300'}`}
                             />
                             {resourceErrors.url && <p className="text-xs text-rose-500 mt-1">{resourceErrors.url}</p>}
+                            {resourceForm.url && (() => {
+                              const check = runResourceLinkSafetyCheck(resourceForm.url);
+                              return (
+                                <div className={`mt-1.5 p-2 rounded-lg border text-[10px] leading-relaxed text-left font-sans ${
+                                  check.isSafe 
+                                    ? check.warning 
+                                      ? 'bg-amber-50 border-amber-200 text-amber-800' 
+                                      : 'bg-indigo-50/55 border-indigo-100 text-indigo-750'
+                                    : 'bg-rose-50 border-rose-250 text-rose-800'
+                                }`}>
+                                  <p className="font-extrabold flex items-center gap-1 mb-0.5">
+                                    <span>{check.isSafe ? check.warning ? '⚠️' : '🛡️' : '❌'}</span>
+                                    <span>Format Safety Review:</span>
+                                  </p>
+                                  <p className="opacity-95">{check.isSafe ? check.warning || 'URL conforms to secure HTTPS standards and contains no dangerous signatures.' : check.reason}</p>
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
 
@@ -1920,6 +2063,203 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                   </div>
                 )}
 
+                {/* Owner's Resource Verification Queue Section */}
+                {isOwner && verificationQueue.length > 0 && (
+                  <div className="bg-indigo-50/50 border border-indigo-150 rounded-2xl p-5 space-y-4 text-left shadow-sm mt-4">
+                    <div className="flex items-center justify-between border-b border-indigo-150 pb-2">
+                      <h4 className="text-xs font-bold text-indigo-900 flex items-center gap-1.5 uppercase tracking-wide">
+                        <span>🛡️</span> Resource Verification Queue ({verificationQueue.length})
+                      </h4>
+                      <span className="text-[9px] text-indigo-600 font-bold bg-indigo-100/80 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Owner Console</span>
+                    </div>
+
+                    {/* Safety Disclaimer */}
+                    <p className="text-[10px] text-slate-500 leading-relaxed bg-white/80 p-2.5 rounded-xl border border-slate-200">
+                      ⚠️ <span className="font-semibold text-slate-700">Disclaimer:</span> Automated link reviews are basic. Please manually inspect each shared file or URL before approving to maintain study group integrity and prevent spam or malicious content.
+                    </p>
+
+                    <div className="space-y-3">
+                      {verificationQueue.map((r) => {
+                        const check = r.url ? runResourceLinkSafetyCheck(r.url) : { isSafe: true };
+                        return (
+                          <div key={r.id} className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-xs">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-sm font-bold text-slate-800">{r.title}</span>
+                                  <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded font-semibold text-slate-500 capitalize">{r.resource_type}</span>
+                                  {r.file_path && (
+                                    <span className="text-[9px] px-1.5 py-0.2 bg-indigo-55 text-indigo-600 border border-indigo-100 rounded font-bold">
+                                      💾 File
+                                    </span>
+                                  )}
+                                  {r.verification_status === 'rejected' && (
+                                    <span className="text-[9px] px-1.5 py-0.2 bg-rose-100 border border-rose-200 rounded text-rose-700 font-bold uppercase">
+                                      Rejected
+                                    </span>
+                                  )}
+                                </div>
+                                {r.description && <p className="text-xs text-slate-500">{r.description}</p>}
+                                <p className="text-[10px] text-slate-400">
+                                  Uploaded by <span className="font-semibold text-slate-650">{r.uploader_profile?.full_name ?? 'Unknown'}</span> · {formatRelativeTime(r.created_at)}
+                                </p>
+                              </div>
+
+                              <div className="flex gap-2 flex-shrink-0">
+                                {r.file_path ? (
+                                  <>
+                                    <button
+                                      onClick={() => handlePreviewResource(r)}
+                                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-850 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg border border-indigo-150 transition-colors"
+                                    >
+                                      👁️ Preview
+                                    </button>
+                                    <button
+                                      onClick={() => handleDownloadResource(r)}
+                                      className="text-[10px] font-bold text-slate-600 hover:text-slate-850 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200 transition-colors"
+                                    >
+                                      ⬇️ Download
+                                    </button>
+                                  </>
+                                ) : r.url ? (
+                                  <a
+                                    href={r.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-850 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg border border-indigo-150 transition-colors block"
+                                  >
+                                    🔗 Open URL
+                                  </a>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            {/* Safety Checks for Links */}
+                            {r.url && (
+                              <div className={`p-2.5 rounded-xl border text-[10px] leading-relaxed space-y-1 ${
+                                check.isSafe 
+                                  ? check.warning 
+                                    ? 'bg-amber-50 border-amber-200 text-amber-800' 
+                                    : 'bg-emerald-50/50 border-emerald-150 text-emerald-800' 
+                                  : 'bg-rose-50 border-rose-200 text-rose-800'
+                              }`}>
+                                <p className="font-bold flex items-center gap-1">
+                                  <span>{check.isSafe ? check.warning ? '⚠️' : '🛡️' : '❌'}</span>
+                                  <span>Safety Check: {check.isSafe ? check.warning ? 'Warning' : 'Verified Secure Format' : 'Blocked'}</span>
+                                </p>
+                                <p className="opacity-95">{check.isSafe ? check.warning || 'URL conforms to secure HTTPS standards and contains no executable extension signatures.' : check.reason}</p>
+                              </div>
+                            )}
+
+                            {/* Rejection Context Display */}
+                            {r.verification_status === 'rejected' && r.rejection_reason && (
+                              <div className="bg-rose-50/60 text-rose-900 border border-rose-150 text-[10px] p-2.5 rounded-xl">
+                                <span className="font-bold">Prior Rejection Reason:</span> "{r.rejection_reason}"
+                              </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-3 pt-2 border-t border-slate-100">
+                              <button
+                                onClick={() => handleOpenRejectDialog(r.id)}
+                                className="flex-1 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 rounded-lg transition-colors"
+                              >
+                                ❌ Decline & Reject
+                              </button>
+                              <button
+                                onClick={() => handleVerifyResource(r.id, false)}
+                                className="flex-1 py-1.5 text-xs font-semibold text-indigo-750 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 rounded-lg transition-colors"
+                              >
+                                ✅ Approve Only
+                              </button>
+                              <button
+                                onClick={() => handleVerifyResource(r.id, true)}
+                                className="flex-1 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                              >
+                                ⭐ Approve & Recommend
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Member's Own Submitted Resources Section */}
+                {isMember && mySubmittedResources.length > 0 && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 text-left shadow-sm mt-4">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                        <span>📤</span> My Submitted Resources ({mySubmittedResources.length})
+                      </h4>
+                      <p className="text-[10px] text-slate-400">Track verification status of your shared materials.</p>
+                    </div>
+
+                    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                      {mySubmittedResources.map((r) => {
+                        const check = r.url ? runResourceLinkSafetyCheck(r.url) : { isSafe: true };
+                        return (
+                          <div key={r.id} className="p-3 bg-white border border-slate-150 rounded-xl hover:shadow-xs transition-all flex items-start justify-between gap-3 text-xs">
+                            <div className="min-w-0 flex-1 space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-semibold text-slate-800 truncate block max-w-[200px] sm:max-w-xs">{r.title}</span>
+                                <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded font-semibold text-slate-500 capitalize">{r.resource_type}</span>
+                                {r.file_path && (
+                                  <span className="text-[9px] px-1 bg-indigo-50 border border-indigo-100 rounded text-indigo-500">{formatBytes(r.file_size_bytes)}</span>
+                                )}
+                              </div>
+                              {r.description && <p className="text-[10px] text-slate-500 truncate">{r.description}</p>}
+                              {r.url && <p className="text-[9px] text-indigo-600 truncate">{r.url}</p>}
+
+                              {/* Safety warning if applicable */}
+                              {r.url && check.warning && (
+                                <p className="text-[9px] text-amber-600 font-medium bg-amber-50/50 p-1.5 rounded-md border border-amber-100/60 leading-normal max-w-md">
+                                  ⚠️ {check.warning}
+                                </p>
+                              )}
+
+                              {/* Rejection reason details */}
+                              {r.verification_status === 'rejected' && r.rejection_reason && (
+                                <div className="bg-rose-50 text-rose-800 text-[10px] p-2 rounded-lg border border-rose-100/70 leading-normal mt-1">
+                                  <span className="font-bold">Rejection Reason:</span> "{r.rejection_reason}"
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {r.verification_status === 'verified' && (
+                                <span className="px-2 py-0.5 bg-emerald-100 border border-emerald-250 text-emerald-800 text-[9px] font-extrabold rounded-full">
+                                  ✅ Verified
+                                </span>
+                              )}
+                              {r.verification_status === 'pending_verification' && (
+                                <span className="px-2 py-0.5 bg-amber-100 border border-amber-250 text-amber-800 text-[9px] font-extrabold rounded-full animate-pulse">
+                                  ⏳ Pending
+                                </span>
+                              )}
+                              {r.verification_status === 'rejected' && (
+                                <span className="px-2 py-0.5 bg-rose-100 border border-rose-250 text-rose-800 text-[9px] font-extrabold rounded-full">
+                                  ❌ Rejected
+                                </span>
+                              )}
+
+                              {/* Delete action */}
+                              <button
+                                onClick={() => handleDeleteResource(r.id)}
+                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors active:scale-95"
+                                title="Delete submitted resource"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Resource List */}
                 {loadingResources ? (
                   <LoadingSpinner label="Loading resources…" />
@@ -1928,9 +2268,12 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                 ) : (() => {
                   const displayedResources = resources.slice(0, resourceLimit);
                   return (
-                    <div className="space-y-2">
+                    <div className="space-y-3 mt-4 text-left">
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 border-b border-slate-100 pb-2">
+                        📖 Main Library Resources
+                      </h4>
                       {displayedResources.map((r) => (
-                        <div key={r.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
+                        <div key={r.id} className="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100/70 transition-colors">
                           <span className="text-xl flex-shrink-0 mt-0.5">
                             {r.file_path ? (
                               r.file_mime_type === 'application/pdf' ? '📄' :
@@ -1956,7 +2299,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                               ) : (
                                 <p className="text-sm font-semibold text-slate-900">{r.title}</p>
                               )}
-                              <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded font-medium">{r.resource_type}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-650 rounded font-medium">{r.resource_type}</span>
                               {r.file_path && (
                                 <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded font-semibold">
                                   💾 {formatBytes(r.file_size_bytes)}
@@ -1967,8 +2310,13 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                   📌 PINNED
                                 </span>
                               )}
+                              {r.owner_recommended && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-indigo-600 text-white font-bold rounded shadow-xs flex items-center gap-0.5">
+                                  ⭐ RECOMMENDED
+                                </span>
+                              )}
                             </div>
-                            {r.description && <p className="text-xs text-slate-500 mt-0.5">{r.description}</p>}
+                            {r.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{r.description}</p>}
                             {r.file_path && (
                               <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
                                 File: {r.file_name}
@@ -1984,13 +2332,13 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                 <>
                                   <button
                                     onClick={() => handlePreviewResource(r)}
-                                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors"
+                                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-850 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-0.5 rounded transition-colors"
                                   >
                                     👁️ Preview
                                   </button>
                                   <button
                                     onClick={() => handleDownloadResource(r)}
-                                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded transition-colors"
+                                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-850 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-0.5 rounded transition-colors"
                                   >
                                     ⬇️ Download
                                   </button>
@@ -2003,7 +2351,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                 className={`text-[10px] px-2 py-0.5 font-bold rounded border transition-all flex items-center gap-1 shrink-0 active:scale-95 ${
                                   r.liked_by_me
                                     ? 'bg-indigo-50 text-indigo-700 border-indigo-250 hover:bg-indigo-100'
-                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-750'
                                 }`}
                                 id={`like-resource-${r.id}`}
                               >
@@ -2018,11 +2366,26 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                   className={`text-[10px] px-2 py-0.5 font-bold rounded border transition-all shrink-0 active:scale-95 ${
                                     r.is_pinned
                                       ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
-                                      : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+                                      : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-750'
                                   }`}
                                   id={`pin-resource-${r.id}`}
                                 >
                                   {r.is_pinned ? '📌 Unpin' : '📌 Pin'}
+                                </button>
+                              )}
+
+                              {/* Recommend / Unrecommend (Owner Only) */}
+                              {isOwner && (
+                                <button
+                                  onClick={() => handleToggleRecommend(r.id)}
+                                  className={`text-[10px] px-2 py-0.5 font-bold rounded border transition-all shrink-0 active:scale-95 ${
+                                    r.owner_recommended
+                                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                                      : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-755'
+                                  }`}
+                                  id={`recommend-resource-${r.id}`}
+                                >
+                                  {r.owner_recommended ? '⭐ Recommended' : '⭐ Recommend'}
                                 </button>
                               )}
                             </div>
@@ -2263,6 +2626,128 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
           </div>
         </div>
       )}
+
+      {/* Owner Remove Member Modal */}
+      {removingMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-left">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-rose-800 flex items-center gap-1.5">
+                <span>🚫</span> Remove Member: {removingMember.name}
+              </h3>
+              <button
+                onClick={() => setRemovingMember(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleRemoveMemberSubmit} className="p-6 space-y-4">
+              <p className="text-xs text-slate-500 leading-relaxed bg-rose-50/50 text-rose-900 border border-rose-105 p-3 rounded-xl">
+                ⚠️ Removing this student will instantly revoke their access to the workspace. They will lose access to shared notes and coordinates immediately.
+              </p>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Reason for removal <span className="text-rose-500">*</span></label>
+                <select
+                  value={removeReason}
+                  onChange={(e) => setRemoveReason(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option>Inactive member</option>
+                  <option>Inappropriate behavior</option>
+                  <option>Resource misuse</option>
+                  <option>Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Context / message <span className="text-slate-400 font-normal">(visible to removed member)</span></label>
+                <textarea
+                  rows={3}
+                  value={removeMessage}
+                  onChange={(e) => setRemoveMessage(e.target.value)}
+                  placeholder="Provide context explaining the removal..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white text-left"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRemovingMember(null)}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-slate-650 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingRemove}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-lg transition-colors shadow-sm"
+                  id="confirm-remove-btn"
+                >
+                  {submittingRemove ? 'Removing…' : '🚫 Remove Member'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Reason Modal */}
+      {rejectionResourceId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-left">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-rose-800 flex items-center gap-1.5">
+                <span>❌</span> Decline Study Material
+              </h3>
+              <button
+                onClick={() => setRejectionResourceId(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleRejectResourceSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Why are you declining this resource? <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={rejectionReasonText}
+                  onChange={(e) => setRejectionReasonText(e.target.value)}
+                  placeholder="Explain why this resource is being declined (e.g. Broken link, duplicated slides, invalid course contents...) - minimum 5 characters."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white text-left"
+                />
+                <p className="text-[10px] text-slate-450 mt-1.5 leading-normal">This feedback message will be privately visible to the uploader so they can review, fix, and resubmit.</p>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRejectionResourceId(null)}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-slate-650 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingRejection || rejectionReasonText.trim().length < 5}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors shadow-sm"
+                  id="confirm-decline-resource-btn"
+                >
+                  {submittingRejection ? 'Declining…' : 'Decline Material'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -2329,6 +2814,12 @@ export const LearningCirclesPage: React.FC = () => {
   const [roleInterest, setRoleInterest] = useState<LearningCircleRoleInterest>('learner');
   const [submittingRequest, setSubmittingRequest] = useState(false);
   const [requestError, setRequestError] = useState('');
+
+  // Leave circle custom modal states
+  const [leavingCircle, setLeavingCircle] = useState<LearningCircleWithStats | null>(null);
+  const [leaveReason, setLeaveReason] = useState('Leaving by choice');
+  const [leaveMessage, setLeaveMessage] = useState('');
+  const [submittingLeave, setSubmittingLeave] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -2435,20 +2926,38 @@ export const LearningCirclesPage: React.FC = () => {
     }
   };
 
-  const handleLeave = async (circle: LearningCircleWithStats) => {
+  const handleLeaveClick = (circle: LearningCircleWithStats) => {
     if (!userId) return;
     const isOwner = circle.my_role === 'owner' || circle.created_by === userId;
     if (isOwner) {
       toast.error('Leave Failed', 'Owner cannot leave their own circle in MVP. Archive the circle instead.');
       return;
     }
+    setLeavingCircle(circle);
+    setLeaveReason('Leaving by choice');
+    setLeaveMessage('');
+  };
+
+  const handleLeaveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!leavingCircle || !userId) return;
+    setSubmittingLeave(true);
     try {
-      await leaveLearningCircle(circle.id, userId);
-      toast.success('Left Circle', `You have left "${circle.title}".`);
+      await leaveLearningCircle(leavingCircle.id, userId, {
+        leave_reason: leaveReason,
+        leave_message: leaveMessage,
+      });
+      toast.success('Left Circle', `You have left "${leavingCircle.title}".`);
+      setLeavingCircle(null);
       await loadAll();
+      if (workspaceCircle?.id === leavingCircle.id) {
+        setWorkspaceCircle(null);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not leave circle.';
       toast.error('Leave Failed', msg);
+    } finally {
+      setSubmittingLeave(false);
     }
   };
 
@@ -2633,7 +3142,7 @@ export const LearningCirclesPage: React.FC = () => {
                       onView={handleView}
                       onRequestJoin={handleRequestJoinClick}
                       onCancelRequest={handleCancelRequest}
-                      onLeave={handleLeave}
+                      onLeave={handleLeaveClick}
                     />
                   );
                 })}
@@ -2716,7 +3225,7 @@ export const LearningCirclesPage: React.FC = () => {
                           onView={handleView}
                           onRequestJoin={handleRequestJoinClick}
                           onCancelRequest={handleCancelRequest}
-                          onLeave={handleLeave}
+                          onLeave={handleLeaveClick}
                         />
                       );
                     })}
@@ -2813,6 +3322,74 @@ export const LearningCirclesPage: React.FC = () => {
                   id="submit-join-request-btn"
                 >
                   {submittingRequest ? 'Submitting…' : 'Submit Application 🚀'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Leave Circle Modal */}
+      {leavingCircle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-left">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-rose-800 flex items-center gap-1.5 font-sans">
+                <span>🚪</span> Leave Circle: {leavingCircle.title}
+              </h3>
+              <button
+                onClick={() => setLeavingCircle(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleLeaveSubmit} className="p-6 space-y-4">
+              <p className="text-xs text-slate-500 leading-relaxed bg-rose-50/50 text-rose-900 border border-rose-100 p-3 rounded-xl">
+                ⚠️ Leaving this circle will instantly revoke your access to shared resources, private files, and circle discussions. You can request to join again later.
+              </p>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Reason for leaving <span className="text-rose-500">*</span></label>
+                <select
+                  value={leaveReason}
+                  onChange={(e) => setLeaveReason(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option>Leaving by choice</option>
+                  <option>Completed learning goal</option>
+                  <option>No longer interested</option>
+                  <option>Scheduling conflict</option>
+                  <option>Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Optional message <span className="text-slate-400 font-normal">(visible to owner)</span></label>
+                <textarea
+                  rows={3}
+                  value={leaveMessage}
+                  onChange={(e) => setLeaveMessage(e.target.value)}
+                  placeholder="Share a short note about your exit with the study circle…"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white text-left"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setLeavingCircle(null)}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingLeave}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-lg transition-colors shadow-sm"
+                  id="confirm-leave-btn"
+                >
+                  {submittingLeave ? 'Leaving…' : '🚪 Leave Study Circle'}
                 </button>
               </div>
             </form>

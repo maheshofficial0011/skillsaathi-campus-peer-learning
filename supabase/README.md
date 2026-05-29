@@ -281,6 +281,7 @@ A fresh database setup requires executing the SQL files in the following order:
 16. `supabase/phase5-learning-circle-join-requests-patch.sql` (Phase 5.2 Learning Circle Join Requests + Profile Extensions patch: adds join requests table, constraints, partial unique index, and RLS policies, plus extends `public.profiles` with optional academic/learning/work verification columns)
 17. `supabase/phase5-learning-circle-join-requests-rls-fix.sql` (Phase 5.2 RLS INSERT fix patch: drops and recreates `lcm_insert` policy to allow circle owners to insert accepted applicants into memberships)
 18. `supabase/phase5-learning-circle-workflow-polish-patch.sql` (Phase 5.3 Learning Circle Workflow Rules, Owner Settings, and Resource Pinned & Likes patch: adds meeting credentials, resource pinning fields, membership logs on requests, creates `learning_circle_resource_likes` table, and sets up RLS policies)
+19. `supabase/phase5-learning-circle-exit-resource-verification-patch.sql` (Phase 5.4 Learning Circle Exit Workflow & Resource Verification System patch: adds leave log tracking columns to join requests and verification & recommendation columns to study resources, establishes verification status check constraints, and backfills metadata)
 
 ---
 

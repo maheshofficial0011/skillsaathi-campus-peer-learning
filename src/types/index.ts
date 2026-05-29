@@ -341,6 +341,8 @@ export interface LearningCircleMember {
   } | null;
 }
 
+export type ResourceVerificationStatus = 'pending_verification' | 'verified' | 'rejected';
+
 export interface LearningCircleResource {
   id: string;
   circle_id: string;
@@ -359,6 +361,15 @@ export interface LearningCircleResource {
   pinned_at?: string | null;
   likes_count?: number;
   liked_by_me?: boolean;
+  verification_status?: ResourceVerificationStatus;
+  verified_by?: string | null;
+  verified_at?: string | null;
+  rejected_by?: string | null;
+  rejected_at?: string | null;
+  rejection_reason?: string | null;
+  owner_recommended?: boolean;
+  owner_recommended_by?: string | null;
+  owner_recommended_at?: string | null;
   created_at: string;
   updated_at: string;
   uploader_profile?: {
@@ -394,6 +405,10 @@ export interface LearningCircleJoinRequest {
   reviewed_at: string | null;
   membership_created_at?: string | null;
   member_left_at?: string | null;
+  leave_reason?: string | null;
+  leave_message?: string | null;
+  left_by?: string | null;
+  removed_by?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -401,4 +416,5 @@ export interface LearningCircleJoinRequest {
 export interface LearningCircleJoinRequestWithProfile extends LearningCircleJoinRequest {
   requester_profile?: Profile | null;
 }
+
 

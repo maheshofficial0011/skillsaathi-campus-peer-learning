@@ -531,7 +531,11 @@ export const joinLearningCircle = async (circleId: string, userId: string): Prom
  * Leave a learning circle.
  * Owner cannot leave; they must archive/delete instead.
  */
-export const leaveLearningCircle = async (circleId: string, userId: string): Promise<void> => {
+export const leaveLearningCircle = async (
+  circleId: string,
+  userId: string,
+  input?: { leave_reason?: string; leave_message?: string }
+): Promise<void> => {
   try {
     // Fetch membership role
     const { data: membership, error: memErr } = await supabase
@@ -562,7 +566,12 @@ export const leaveLearningCircle = async (circleId: string, userId: string): Pro
     // Track intentional departure in join requests table
     const { error: joinReqErr } = await supabase
       .from('learning_circle_join_requests')
-      .update({ member_left_at: new Date().toISOString() })
+      .update({
+        member_left_at: new Date().toISOString(),
+        leave_reason: input?.leave_reason || 'Leaving by choice',
+        leave_message: input?.leave_message?.trim() || null,
+        left_by: userId
+      })
       .eq('circle_id', circleId)
       .eq('requester_id', userId)
       .eq('status', 'accepted');
@@ -617,11 +626,14 @@ export const getCircleResources = async (circleId: string): Promise<LearningCirc
     const { data, error } = await supabase
       .from('learning_circle_resources')
       .select(`
-        id, circle_id, shared_by, title, description, resource_type, url, file_path, file_name, file_mime_type, file_size_bytes, storage_bucket, is_pinned, pinned_by, pinned_at, created_at, updated_at,
+        id, circle_id, shared_by, title, description, resource_type, url, file_path, file_name, file_mime_type, file_size_bytes, storage_bucket, is_pinned, pinned_by, pinned_at,
+        verification_status, verified_by, verified_at, rejected_by, rejected_at, rejection_reason,
+        owner_recommended, owner_recommended_by, owner_recommended_at, created_at, updated_at,
         uploader_profile:profiles!learning_circle_resources_shared_by_fkey(full_name),
         likes:learning_circle_resource_likes(user_id)
       `)
-      .eq('circle_id', circleId);
+      .eq('circle_id', circleId)
+      .eq('verification_status', 'verified'); // ONLY show verified ones in main list
 
     if (error) throw error;
 
@@ -636,11 +648,15 @@ export const getCircleResources = async (circleId: string): Promise<LearningCirc
       };
     }) as LearningCircleResource[];
 
-    // Sort: pinned first (is_pinned === true), then likes_count desc, then created_at desc
+    // Sort: pinned first -> recommended first -> likes desc -> newest
     return mapped.sort((a, b) => {
       const pinA = a.is_pinned ? 1 : 0;
       const pinB = b.is_pinned ? 1 : 0;
       if (pinB !== pinA) return pinB - pinA;
+
+      const recA = a.owner_recommended ? 1 : 0;
+      const recB = b.owner_recommended ? 1 : 0;
+      if (recB !== recA) return recB - recA;
 
       const likesA = a.likes_count ?? 0;
       const likesB = b.likes_count ?? 0;
@@ -679,6 +695,22 @@ export const addCircleResource = async (input: AddResourceInput): Promise<Learni
       }
     }
 
+    // Check if the uploader is the owner of the circle
+    const { data: memberData, error: memErr } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', input.circle_id)
+      .eq('user_id', input.shared_by)
+      .maybeSingle();
+
+    if (memErr) {
+      console.warn('[addCircleResource] owner status check failed:', memErr);
+    }
+
+    const isOwner = memberData?.role === 'owner';
+    const verification_status = isOwner ? 'verified' : 'pending_verification';
+    const nowStr = new Date().toISOString();
+
     const { data, error } = await supabase
       .from('learning_circle_resources')
       .insert({
@@ -693,9 +725,17 @@ export const addCircleResource = async (input: AddResourceInput): Promise<Learni
         file_mime_type: input.file_mime_type || null,
         file_size_bytes: input.file_size_bytes || null,
         storage_bucket: input.storage_bucket || null,
+        verification_status,
+        verified_by: isOwner ? input.shared_by : null,
+        verified_at: isOwner ? nowStr : null,
+        owner_recommended: isOwner ? true : false,
+        owner_recommended_by: isOwner ? input.shared_by : null,
+        owner_recommended_at: isOwner ? nowStr : null,
       })
       .select(`
-        id, circle_id, shared_by, title, description, resource_type, url, file_path, file_name, file_mime_type, file_size_bytes, storage_bucket, created_at, updated_at,
+        id, circle_id, shared_by, title, description, resource_type, url, file_path, file_name, file_mime_type, file_size_bytes, storage_bucket,
+        verification_status, verified_by, verified_at, rejected_by, rejected_at, rejection_reason,
+        owner_recommended, owner_recommended_by, owner_recommended_at, is_pinned, pinned_by, pinned_at, created_at, updated_at,
         uploader_profile:profiles!learning_circle_resources_shared_by_fkey(full_name)
       `)
       .single();
@@ -705,6 +745,382 @@ export const addCircleResource = async (input: AddResourceInput): Promise<Learni
   } catch (err) {
     console.error('addCircleResource error:', err);
     throw err;
+  }
+};
+
+/**
+ * Verify a study resource (circle owner only).
+ */
+export const verifyCircleResource = async (
+  resourceId: string,
+  input?: { owner_recommended?: boolean }
+): Promise<void> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in to verify resources.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Fetch the resource details
+    const { data: resource, error: fetchErr } = await supabase
+      .from('learning_circle_resources')
+      .select('circle_id')
+      .eq('id', resourceId)
+      .single();
+
+    if (fetchErr || !resource) {
+      throw new Error('Resource not found.');
+    }
+
+    // Check if current user is owner
+    const { data: ownerMembership, error: ownerCheckErr } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', resource.circle_id)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    if (ownerCheckErr) throw ownerCheckErr;
+    if (ownerMembership?.role !== 'owner') {
+      throw new Error('Only the circle owner can verify resources.');
+    }
+
+    const nowStr = new Date().toISOString();
+    const recommend = input?.owner_recommended ?? false;
+
+    const { error: updateErr } = await supabase
+      .from('learning_circle_resources')
+      .update({
+        verification_status: 'verified',
+        verified_by: currentUserId,
+        verified_at: nowStr,
+        rejected_by: null,
+        rejected_at: null,
+        rejection_reason: null,
+        owner_recommended: recommend,
+        owner_recommended_by: recommend ? currentUserId : null,
+        owner_recommended_at: recommend ? nowStr : null
+      })
+      .eq('id', resourceId);
+
+    if (updateErr) throw updateErr;
+  } catch (err) {
+    console.error('verifyCircleResource error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Reject a study resource (circle owner only).
+ */
+export const rejectCircleResource = async (resourceId: string, reason: string): Promise<void> => {
+  try {
+    if (!reason || reason.trim().length < 5) {
+      throw new Error('Please provide a rejection reason (minimum 5 characters).');
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in to reject resources.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Fetch resource details
+    const { data: resource, error: fetchErr } = await supabase
+      .from('learning_circle_resources')
+      .select('circle_id')
+      .eq('id', resourceId)
+      .single();
+
+    if (fetchErr || !resource) {
+      throw new Error('Resource not found.');
+    }
+
+    // Check if current user is owner
+    const { data: ownerMembership, error: ownerCheckErr } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', resource.circle_id)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    if (ownerCheckErr) throw ownerCheckErr;
+    if (ownerMembership?.role !== 'owner') {
+      throw new Error('Only the circle owner can reject resources.');
+    }
+
+    const nowStr = new Date().toISOString();
+
+    const { error: updateErr } = await supabase
+      .from('learning_circle_resources')
+      .update({
+        verification_status: 'rejected',
+        rejected_by: currentUserId,
+        rejected_at: nowStr,
+        rejection_reason: reason.trim(),
+        verified_by: null,
+        verified_at: null,
+        owner_recommended: false,
+        owner_recommended_by: null,
+        owner_recommended_at: null
+      })
+      .eq('id', resourceId);
+
+    if (updateErr) throw updateErr;
+  } catch (err) {
+    console.error('rejectCircleResource error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Toggle the owner recommendation status of a verified study resource (owner only).
+ */
+export const toggleOwnerRecommend = async (resourceId: string): Promise<void> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Fetch current status
+    const { data: resource, error: fetchErr } = await supabase
+      .from('learning_circle_resources')
+      .select('circle_id, owner_recommended, verification_status')
+      .eq('id', resourceId)
+      .single();
+
+    if (fetchErr || !resource) {
+      throw new Error('Resource not found.');
+    }
+
+    if (resource.verification_status !== 'verified') {
+      throw new Error('Only verified resources can be recommended.');
+    }
+
+    // Check owner
+    const { data: ownerMembership, error: ownerCheckErr } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', resource.circle_id)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    if (ownerCheckErr) throw ownerCheckErr;
+    if (ownerMembership?.role !== 'owner') {
+      throw new Error('Only the circle owner can toggle recommendations.');
+    }
+
+    const nextRec = !resource.owner_recommended;
+    const nowStr = new Date().toISOString();
+
+    const { error: updateErr } = await supabase
+      .from('learning_circle_resources')
+      .update({
+        owner_recommended: nextRec,
+        owner_recommended_by: nextRec ? currentUserId : null,
+        owner_recommended_at: nextRec ? nowStr : null
+      })
+      .eq('id', resourceId);
+
+    if (updateErr) throw updateErr;
+  } catch (err) {
+    console.error('toggleOwnerRecommend error:', err);
+    throw err;
+  }
+};
+
+export interface SafetyCheckResult {
+  isSafe: boolean;
+  reason?: string;
+  warning?: string;
+}
+
+/**
+ * Performs a deterministic URL check for security.
+ */
+export const runResourceLinkSafetyCheck = (url: string): SafetyCheckResult => {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return { isSafe: false, reason: 'URL cannot be empty.' };
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'https:') {
+      return { isSafe: false, reason: 'URL protocol must be secure HTTPS (https://).' };
+    }
+
+    // Check for blocked keywords/protocols
+    if (/\b(javascript:|data:|file:\/\/)/i.test(trimmed)) {
+      return { isSafe: false, reason: 'Unsafe URL protocol detected (javascript, data, or file).' };
+    }
+
+    // Warn for potentially executable/dangerous extensions in pathname
+    const lowercasePath = parsed.pathname.toLowerCase();
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.sh', '.js', '.html', '.scr', '.vbs', '.msi', '.com'];
+    for (const ext of dangerousExtensions) {
+      if (lowercasePath.endsWith(ext)) {
+        return {
+          isSafe: true,
+          warning: `This link targets a file type (${ext}) that can be executed. Please verify carefully before opening.`
+        };
+      }
+    }
+
+    return { isSafe: true };
+  } catch {
+    return { isSafe: false, reason: 'Invalid URL format.' };
+  }
+};
+
+/**
+ * Fetch resources requiring verification or already rejected (circle owner only).
+ */
+export const getResourceVerificationQueue = async (circleId: string): Promise<LearningCircleResource[]> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Verify current user is owner
+    const { data: ownerMembership, error: ownerCheckErr } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', circleId)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    if (ownerCheckErr) throw ownerCheckErr;
+    if (ownerMembership?.role !== 'owner') {
+      throw new Error('Only the circle owner can access the verification queue.');
+    }
+
+    const { data, error } = await supabase
+      .from('learning_circle_resources')
+      .select(`
+        id, circle_id, shared_by, title, description, resource_type, url, file_path, file_name, file_mime_type, file_size_bytes, storage_bucket, is_pinned, pinned_by, pinned_at,
+        verification_status, verified_by, verified_at, rejected_by, rejected_at, rejection_reason,
+        owner_recommended, owner_recommended_by, owner_recommended_at, created_at, updated_at,
+        uploader_profile:profiles!learning_circle_resources_shared_by_fkey(full_name),
+        likes:learning_circle_resource_likes(user_id)
+      `)
+      .eq('circle_id', circleId)
+      .in('verification_status', ['pending_verification', 'rejected'])
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const rawResources = data || [];
+    return rawResources.map((r: any) => {
+      const likesList = r.likes || [];
+      return {
+        ...r,
+        likes_count: likesList.length,
+        liked_by_me: likesList.some((l: any) => l.user_id === currentUserId),
+      };
+    }) as LearningCircleResource[];
+  } catch (err) {
+    console.error('getResourceVerificationQueue error:', err);
+    return [];
+  }
+};
+
+/**
+ * Fetch a member's own submitted resources in a circle (for dashboard tracking).
+ */
+export const getMySubmittedResources = async (circleId: string): Promise<LearningCircleResource[]> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      return [];
+    }
+    const userId = authData.user.id;
+
+    const { data, error } = await supabase
+      .from('learning_circle_resources')
+      .select(`
+        id, circle_id, shared_by, title, description, resource_type, url, file_path, file_name, file_mime_type, file_size_bytes, storage_bucket, is_pinned, pinned_by, pinned_at,
+        verification_status, verified_by, verified_at, rejected_by, rejected_at, rejection_reason,
+        owner_recommended, owner_recommended_by, owner_recommended_at, created_at, updated_at,
+        uploader_profile:profiles!learning_circle_resources_shared_by_fkey(full_name),
+        likes:learning_circle_resource_likes(user_id)
+      `)
+      .eq('circle_id', circleId)
+      .eq('shared_by', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const rawResources = data || [];
+    return rawResources.map((r: any) => {
+      const likesList = r.likes || [];
+      return {
+        ...r,
+        likes_count: likesList.length,
+        liked_by_me: likesList.some((l: any) => l.user_id === userId),
+      };
+    }) as LearningCircleResource[];
+  } catch (err) {
+    console.error('getMySubmittedResources error:', err);
+    return [];
+  }
+};
+
+export interface CircleMemberResourceStats {
+  userId: string;
+  sharedCount: number;
+  verifiedCount: number;
+  pendingCount: number;
+  rejectedCount: number;
+}
+
+/**
+ * Aggregates statistics about resources shared by each member in a circle.
+ */
+export const getCircleMemberResourceStats = async (
+  circleId: string
+): Promise<Record<string, CircleMemberResourceStats>> => {
+  try {
+    const { data, error } = await supabase
+      .from('learning_circle_resources')
+      .select('shared_by, verification_status')
+      .eq('circle_id', circleId);
+
+    if (error) throw error;
+
+    const stats: Record<string, CircleMemberResourceStats> = {};
+
+    (data || []).forEach((r: any) => {
+      const uid = r.shared_by;
+      if (!stats[uid]) {
+        stats[uid] = {
+          userId: uid,
+          sharedCount: 0,
+          verifiedCount: 0,
+          pendingCount: 0,
+          rejectedCount: 0,
+        };
+      }
+
+      stats[uid].sharedCount += 1;
+      if (r.verification_status === 'verified') {
+        stats[uid].verifiedCount += 1;
+      } else if (r.verification_status === 'pending_verification') {
+        stats[uid].pendingCount += 1;
+      } else if (r.verification_status === 'rejected') {
+        stats[uid].rejectedCount += 1;
+      }
+    });
+
+    return stats;
+  } catch (err) {
+    console.error('getCircleMemberResourceStats error:', err);
+    return {};
   }
 };
 
@@ -1202,7 +1618,11 @@ export const getJoinRequestStatusForCircle = async (
 /**
  * Remove a member from a learning circle (owner only, RLS enforced).
  */
-export const removeCircleMember = async (circleId: string, userId: string): Promise<void> => {
+export const removeCircleMember = async (
+  circleId: string,
+  userId: string,
+  input?: { reason?: string; message?: string }
+): Promise<void> => {
   try {
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError || !authData.user?.id) {
@@ -1239,7 +1659,12 @@ export const removeCircleMember = async (circleId: string, userId: string): Prom
     // Update latest accepted request to mark the left timestamp
     const { error: joinReqErr } = await supabase
       .from('learning_circle_join_requests')
-      .update({ member_left_at: new Date().toISOString() })
+      .update({
+        member_left_at: new Date().toISOString(),
+        leave_reason: input?.reason || 'Removed by Owner',
+        leave_message: input?.message?.trim() || null,
+        removed_by: currentUserId
+      })
       .eq('circle_id', circleId)
       .eq('requester_id', userId)
       .eq('status', 'accepted');

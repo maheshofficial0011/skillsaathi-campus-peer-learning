@@ -281,9 +281,9 @@ Detailed database tables and policies are summarized in [supabase/README.md](./s
 
 ---
 
-## 🎓 Completed Phase 5, 5.1, 5.2 & 5.3: Learning Circles, Secure Private Resource Uploads & Join Request Workflows
+## 🎓 Completed Phase 5, 5.1, 5.2, 5.3 & 5.4: Learning Circles, Secure Private Resource Uploads, Join Requests & Resource Verification Systems
 
-Learning Circles connect peer study groups, allowing collaborative resource sharing, status locking, coordinate boards, and secure request-based join workflows:
+Learning Circles connect peer study groups, allowing collaborative resource sharing, status locking, coordinate boards, secure request-based join workflows, exit/remove logs, and owner resource verification systems:
 
 1. **Learning Circles Workspace**:
    - Students can create cohort-based study groups, specify department/category/difficulty, limit member counts, and toggle public discoverability.
@@ -325,6 +325,16 @@ Learning Circles connect peer study groups, allowing collaborative resource shar
    - **Roster Alphabetical Sorting & kick controls**: Sorts circle members roster to pin the Owner at the very top, followed by standard members sorted alphabetically by full name. Empowers owners to remove standard members instantly, which cleanly terminates access and allows re-applying.
    - **Resource Pinning & Likes Interaction**: Regular members/owners can like/unlike resources (limit 1 like per student). Owners can pin important materials to the top of the shared directory. Resources are ordered dynamically using `pinned first -> likes count -> newest`.
    - **Pagination**: Supports clean visual pagination of uploaded resources, rendering only the top 3 items initially with smooth "Show more" / "Show fewer" toggles.
+
+8. **Phase 5.4: Learning Circle Exit Workflow & Resource Verification System**:
+   - **Leave Circle Exit Form**: Prompts departing members to choose a reason ("Leaving by choice", "Completed learning goal", etc.) and optional leave message. Correctly records `leave_reason`, `leave_message`, and `left_by` logs, resetting states to avoid false `"Repair Needed"` warnings.
+   - **Owner Remove Member form**: Prompts owners removing a member to choose a reason ("Inactive member", "Resource misuse", etc.) and optional message. Correctly logs removal details.
+   - **Member Submitted Resources Queue**: Regular members' shared resources are placed in `pending_verification` first, and are displayed strictly inside their own tracking dashboard until approved.
+   - **Owner Resource Verification Queue Console**: Circle Owners can review, preview, safely analyze formats, and decline/approve materials with custom feedback logs.
+   - **Link Safety Format Reviews**: Dynamic safety analysis checks protocols and flags potentially executable extensions (`.exe`, `.bat`, `.js`, etc.) dynamically inside forms and queues.
+   - **Roster Resource Statistics**: Displays inline metrics for each roster member representing their contribution counts (`Shared | Verified | Pending | Rejected`).
+   - **Star Recommendation Rank**: Empowers owners to mark exceptional resources as recommended, pinning them above general shared library resources. Sorting resolves to `pinned -> recommended -> likes -> newest`.
+
 
 
 

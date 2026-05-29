@@ -593,6 +593,56 @@ Use this checklist to perform regression testing and ensure full readiness of al
   - Verify that initially only the top 3 resources are rendered.
   - Verify that a **➕ Show more resources** button is rendered at the bottom of the list.
   - Click the button. Verify that the list expands to show all remaining resources, and is replaced by a **➖ Show fewer resources** button to collapse it back.
+## 🌟 Phase 5.4: Learning Circle Exit Workflow & Resource Verification System
 
+### 1. Leave Study Circle Exit Form
+- [ ] **Departing Member Flow**:
+  - Log in as a regular member of a circle.
+  - On the circle card (Discover/My Circles), click the **Leave** button.
+  - Verify that a premium looking **Leave Circle: [Circle Name]** modal is rendered.
+  - Select a reason (e.g., "Completed learning goal") and type an optional message: `"Thanks for the great DSA discussions!"`.
+  - Click **🚪 Leave Study Circle** and confirm the success toast.
+  - Verify that you are instantly removed from the circle, loss of workspace access is immediate, and you can now request to join again cleanly.
+  - Verify that the owner **does not** see the old accepted request as `"Repair Needed"`.
 
+### 2. Owner Remove Member custom form
+- [ ] **Roster Removal Flow**:
+  - As the Owner, navigate to the **Members** tab.
+  - Click the **❌ Remove** button next to a standard member.
+  - Verify that a premium looking **Remove Member: [Member Name]** modal is rendered.
+  - Choose a reason (e.g., "Inactive member") and write a message: `"No updates in over 2 weeks. Removing to open slots."`.
+  - Click **🚫 Remove Member** and confirm the success toast.
+  - Verify that the roster is updated, and the member loses access.
+  - Log in as the removed student. Verify that you can cleanly request to join again, and see the owner's custom removal reason.
 
+### 3. Member Submitted Resources Dashboard
+- [ ] **Pending upload flow**:
+  - Log in as a regular member of an active circle.
+  - Click **+ Share a Resource / File** under the **Resources** tab.
+  - Type a secure URL in link mode (e.g., `https://google.com/notes`). Note the live formatting verification alert.
+  - Click **Share Resource**. Verify the success toast: `"Your shared material has been sent to the circle owner for verification."`
+  - Verify that the link is **not** displayed in the Main Library Resources list yet.
+  - Locate the **My Submitted Resources** panel. Verify that the link is listed with an orange `⏳ Pending` badge.
+
+### 4. Owner Resource Verification Console & Safety Check
+- [ ] **Resource Approval Flow**:
+  - Log in as the Owner of the circle. Open the **Resources** tab.
+  - Locate the **Resource Verification Queue** console. Verify that the member's pending link is listed with uploader name, shared date, link coordinates, safety formats, and Decline/Approve buttons.
+  - Click **✅ Approve Only**. Verify that the resource is removed from the verification queue and added to the **Main Library Resources** list with a success toast.
+- [ ] **Safety warning triggers**:
+  - Log in as a member. Submit a resource URL targeting an executable file (e.g., `https://example.com/malicious.exe`).
+  - Log in as the Owner. Locate the item in the verification queue.
+  - Verify that a prominent amber safety warning is displayed: `"This link targets a file type (.exe) that can be executed."`
+  - Click **❌ Decline & Reject**.
+  - Verify that a custom modal prompts you for a rejection reason.
+  - Type `"Executable file formats are blocked for security."` (must be at least 5 chars). Click **Decline Material**.
+  - Log in as the member. Locate the item in **My Submitted Resources**. Verify that it has a red `❌ Rejected` badge and displays the owner's feedback reason inline.
+
+### 5. Roster Aggregate Stats and Owner Recommendation Ranking
+- [ ] **Members stats display**:
+  - Open the **Members** tab as a member.
+  - Verify that each member card displays inline aggregate metrics, e.g., `Shared: 2 | V: 1 | P: 1 | R: 0`.
+- [ ] **Star Recommendation Rank**:
+  - As the Owner, locate a verified resource in the main library list.
+  - Click **⭐ Recommend**. Verify that a premium blue `⭐ RECOMMENDED` badge is rendered, and the resource is sorted directly above likes/newest (pinned is still at the absolute top).
+  - Regular members see the badge, but **cannot** toggle the recommendation status.
