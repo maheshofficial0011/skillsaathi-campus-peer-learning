@@ -281,5 +281,32 @@ Detailed database tables and policies are summarized in [supabase/README.md](./s
 
 ---
 
-## 🚀 Future Roadmap: Phase 5 & Beyond
-- **Phase 5: Learning Circles & Group Tutoring**: Study group circles, shared files, group doubts, live session booking, and notification boards.
+## 🎓 Completed Phase 5 & 5.1: Learning Circles & Secure Private Resource Uploads
+
+Learning Circles connect peer study groups, allowing collaborative resource sharing, status locking, and coordinate boards:
+
+1. **Learning Circles Workspace**:
+   - Students can create cohort-based study groups, specify department/category/difficulty, limit member counts, and toggle public discoverability.
+   - Dedicated Workspace Tabs: **Overview** (info row grids, uploader, guidelines), **Members** (joined roster list), **Resources** (dual-mode external link sharing and secure file sharing), and **Discussion** (Updates, Questions, Plans, and Announcements).
+
+2. **Secure File Uploads (Supabase Storage)**:
+   - High-fidelity segment control switches between external HTTPS links and native file uploads.
+   - Supports dragging and dropping PDFs, images (PNG, JPG), plain text, and Office docs (Word, Excel, PowerPoint) up to **10MB**.
+   - Enforces automatic title parsing and type suggestions upon choosing files.
+   - Fully protected under a **private** Supabase Storage bucket `learning-circle-resources`. Access is completely blocked from standard public URLs.
+
+3. **Short-Lived Signed Previews & Downloads**:
+   - Files are fetched securely on-demand using short-lived (5-minute expiry) signed URL tokens.
+   - In-app **Media Preview Lightbox Modal**: Native `iframe` PDF reader, image viewer, and highly stylized metadata fallbacks for Word/Excel/PowerPoint documents to preserve platform security.
+   - Non-members are strictly prohibited from previewing, uploading, or downloading resources.
+
+4. **Owner Management Console & Status Locks**:
+   - Circle Owners can manage status locks in a unified interface:
+     * **Active**: All uploads and discussion posts are open.
+     * **Paused**: Resource uploads are locked/disabled. Existing discussions remain open.
+     * **Archived**: Read-only lock state. Restricts new joins, uploads, and discussions.
+
+5. **Split Permission Guidelines & RLS Safety**:
+   - Displays clear Role Guidelines split cards indicating Owner vs Member capabilities.
+   - Enforces cascading deletions: deleting a file resource from the UI safely removes it from the Supabase Storage bucket first before deleting the row from PostgreSQL.
+

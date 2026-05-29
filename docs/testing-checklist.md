@@ -419,3 +419,61 @@ Use this checklist to perform regression testing and ensure full readiness of al
 - [ ] **No Private Data Leaks**:
   - Verify no UUID, email, or phone number is displayed anywhere in the Learning Circles module.
   - Verify all member names resolve to full_name from profiles join.
+
+---
+
+## 🔵 14. Phase 5.1 — Learning Circle Secure Resource Uploads & Owner Status Lock
+
+### Secure File Uploads
+- [ ] **Segment Selector (Link vs File)**:
+  - Visit the resources tab in an active workspace.
+  - Verify the presence of the segmented control: "External HTTPS Link" and "Secure File Upload".
+  - Click on "Secure File Upload". Verify that the drag-and-drop file input is displayed, and the external URL input is hidden.
+- [ ] **File Type Validation**:
+  - Attempt to drag-and-drop or select a file with an unsupported type (e.g. `.exe`, `.dmg`, `.mp3`).
+  - Verify that an inline warning states "Unsupported file type." and blocks selection.
+  - Choose a supported file type (e.g. `.pdf`, `.png`, `.jpg`, `.docx`, `.xlsx`, `.pptx`, `.txt`). Verify that it is accepted, and that the file size is formatted nicely.
+- [ ] **File Size Boundary**:
+  - Attempt to select a file larger than 10MB.
+  - Verify that an error "File size exceeds the 10 MB limit." is shown and selection is cleared.
+- [ ] **Auto-title and Suggest Type**:
+  - Choose a PDF file named `Chemistry_Lecture_Notes.pdf`.
+  - Verify that the title input automatically fills with `Chemistry_Lecture_Notes` and the Resource Type suggests `PDF`.
+- [ ] **File Upload Submission**:
+  - Add an optional description and submit the form.
+  - Verify that the loading state triggers: "+ Uploading..." is displayed, and inputs are disabled.
+  - Once complete, verify that a success toast "File Uploaded! 🚀" is shown, and the new resource appears in the list with a beautiful "💾 [Size]" badge, original uploader name, and secure preview/download actions.
+
+### Secure Preview Lightbox Modal
+- [ ] **PDF Interactive Preview**:
+  - Locate a PDF resource and click **Preview**.
+  - Verify that a secure signed URL is generated with 5-minute expiry.
+  - Verify that the lightbox overlay modal appears containing an interactive `iframe` rendering the PDF document natively in the browser.
+- [ ] **Image Preview**:
+  - Locate a PNG/JPG resource and click **Preview**.
+  - Verify that the lightbox overlay modal displays the image natively with a responsive viewer.
+- [ ] **Office Documents Fallback (Word/Excel/Slides)**:
+  - Locate a `.docx` or `.xlsx` resource and click **Preview**.
+  - Verify that the lightbox modal displays a detailed file metadata card containing the file name, size, type, uploader name, and date.
+  - Verify that the caution message: `"Direct browser preview is not supported for Office documents to preserve security. Please download the file to open it."` is shown.
+  - Click **Download File Securely**. Verify that the file downloads successfully.
+
+### Status Lock Restrictions
+- [ ] **Upload Lock States**:
+  - Log in as the Owner and go to the Overview tab.
+  - Select **🟡 Pause Uploads** status.
+  - Switch to the Resources tab as the Owner or a normal Member.
+  - Verify that the "+ Share a Resource" button and form are replaced by: `"🔒 Resource uploads are disabled because this circle is currently paused."`
+  - Verify that discussions and announcements still remain active.
+  - Select **📦 Archive** status.
+  - Verify that both the resource upload form AND the discussion post forms are completely hidden.
+
+### Secure Role Capabilities
+- [ ] **Role Guidelines Split Card**:
+  - Go to the Overview tab of any circle.
+  - Verify the split Capability Guidelines card displays clear details for Circle Owner and Circle Member permissions.
+- [ ] **Safe Resource Deletion**:
+  - Verify that Owners can delete *any* resource (link or file) by clicking the trash icon.
+  - Verify that normal Members can *only* delete resources they uploaded themselves, and see no trash icons on others' resources.
+  - Verify that when a file resource is deleted, it is securely deleted from the private Supabase Storage bucket first before removing the row from PostgreSQL.
+

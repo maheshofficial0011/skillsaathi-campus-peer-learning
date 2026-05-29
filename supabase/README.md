@@ -276,6 +276,8 @@ A fresh database setup requires executing the SQL files in the following order:
 11. `supabase/phase4-senior-connect-contact-patch.sql` (Session coordination contact fields and mode validation constraint)
 12. `supabase/phase4-contact-privacy-patch.sql` (Secure contact privacy fields and get_shared_contact / get_shared_help_contact DEFINER RPC functions)
 13. `supabase/phase4-senior-reviews-safety-patch.sql` (Senior connect reviews rating and helpfulness table `senior_guidance_feedback` + RLS policies + trigger + partial request indexing)
+14. `supabase/phase5-learning-circles-patch.sql` (Phase 5 Core Learning Circles tables: `learning_circles`, `learning_circle_members`, `learning_circle_resources`, `learning_circle_posts` + RLS helpers + triggers)
+15. `supabase/phase5-learning-circle-resource-files-patch.sql` (Phase 5.1 Secure Resource Files upload patch: extends resources metadata columns + private storage bucket `learning-circle-resources` + storage SELECT/INSERT/DELETE RLS policies)
 
 ---
 
@@ -291,6 +293,15 @@ A fresh database setup requires executing the SQL files in the following order:
 | **`doubt_answer_ratings`** | Authenticated users | Creator (`auth.uid() = created_by` and receiver != creator) | Creator (`auth.uid() = created_by`) | None |
 | **`doubt_answer_replies`** | Authenticated users | Authenticated users | Creator (`auth.uid() = created_by`) | None |
 | **`senior_guidance_requests`** | Participants (`auth.uid() = requester_id` OR `auth.uid() = senior_id`) | Requester (`auth.uid() = requester_id` and not self-request) | Requester (`auth.uid() = requester_id` to cancel) OR Senior (`auth.uid() = senior_id` to respond) | None |
+| **`learning_circles`** | Authenticated users | Authenticated users | Owner (`auth.uid() = created_by`) | None |
+| **`learning_circle_members`** | Authenticated users | Circle members/invited users | None | Member (`auth.uid() = user_id` and not owner) |
+| **`learning_circle_resources`** | Circle members/owners | Circle members/owners | Creator (`auth.uid() = shared_by`) | Creator (`auth.uid() = shared_by`) OR Circle owner |
+| **`learning_circle_posts`** | Circle members/owners | Circle members/owners | Creator (`auth.uid() = created_by`) | Creator (`auth.uid() = created_by`) OR Circle owner |
+
+### 🔒 Storage RLS Policies (Private Bucket: `learning-circle-resources`)
+* **SELECT**: Authorized only for circle members and owners (checked securely via `public.can_access_learning_circle(extract_circle_id_from_path(name), auth.uid())`).
+* **INSERT**: Allowed only for circle members and owners (checked securely via `public.can_access_learning_circle(extract_circle_id_from_path(name), auth.uid())`).
+* **DELETE**: Restrained to the uploader of the storage object OR the circle owner.
 
 > [!TIP]
 > **Setup Reminder**: Always run these SQL patches in the exact order specified above to prevent relation or index errors. Verify that all RLS policies are enabled (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`) and that no root tables are exposed without filters.

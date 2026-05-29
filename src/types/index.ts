@@ -339,6 +339,11 @@ export interface LearningCircleResource {
   description: string | null;
   resource_type: CircleResourceType;
   url: string | null;
+  file_path?: string | null;
+  file_name?: string | null;
+  file_mime_type?: string | null;
+  file_size_bytes?: number | null;
+  storage_bucket?: string | null;
   created_at: string;
   updated_at: string;
   uploader_profile?: {

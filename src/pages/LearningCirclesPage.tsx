@@ -10,6 +10,7 @@ import type {
   CircleMeetingMode,
   CircleResourceType,
   CirclePostType,
+  CircleStatus,
 } from '../types';
 import {
   getLearningCircles,
@@ -22,6 +23,8 @@ import {
   getCircleResources,
   addCircleResource,
   deleteCircleResource,
+  uploadCircleResourceFile,
+  getSignedResourceUrl,
   getCirclePosts,
   addCirclePost,
   deleteCirclePost,
@@ -51,6 +54,14 @@ const formatRelativeTime = (iso: string): string => {
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d ago`;
   return formatDate(iso);
+};
+
+const formatBytes = (bytes?: number | null): string => {
+  if (bytes === undefined || bytes === null || bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
 const DIFFICULTY_COLOR: Record<CircleDifficulty, string> = {
@@ -362,8 +373,6 @@ const CreateCircleModal: React.FC<CreateCircleModalProps> = ({ onClose, onCreate
   );
 };
 
-// ─── CIRCLE CARD ─────────────────────────────────────────────────────────────
-
 interface CircleCardProps {
   circle: LearningCircleWithStats;
   currentUserId: string;
@@ -383,7 +392,7 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, onView, 
   return (
     <div className={`group bg-white rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden ${isArchived ? 'opacity-60' : ''}`}>
       {/* Card top accent */}
-      <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500 opacity-70" />
+      <div className="h-1.5 w-full bg-gradient-to-r from-indigo-50 via-violet-50 to-purple-50 opacity-70" />
 
       <div className="p-5 flex flex-col gap-3 flex-1">
         {/* Header row */}
@@ -431,7 +440,7 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, onView, 
           className="flex-1 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors"
           id={`view-circle-${circle.id}`}
         >
-          {isJoined ? '📂 Open Workspace' : '👁 View Details'}
+          {isOwner ? '⚙ Manage Workspace' : isJoined ? '📂 Open Workspace' : '👁 View Details'}
         </button>
         {!isJoined && !isArchived && !isPaused && (
           <button
@@ -493,10 +502,34 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   const [postType, setPostType] = useState<CirclePostType>('Update');
   const [submittingPost, setSubmittingPost] = useState(false);
 
+  // Resource file mode
+  const [resourceMode, setResourceMode] = useState<'link' | 'file'>('link');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  // Preview lightbox modal state
+  const [previewResource, setPreviewResource] = useState<LearningCircleResource | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
   const isOwner = circle.my_role === 'owner';
   const isMember = !!circle.my_role;
   const isArchived = circle.status === 'archived';
   const isPaused = circle.status === 'paused';
+
+  const ALLOWED_MIME_TYPES = [
+    'application/pdf',
+    'text/plain',
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ];
 
   const loadMembers = useCallback(async () => {
     setLoadingMembers(true);
@@ -534,12 +567,55 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     else if (tab === 'posts') loadPosts();
   }, [tab, loadMembers, loadResources, loadPosts]);
 
+  // ── File Change Handler ────────────────────────────────────────────────────
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileError(null);
+
+    // Validate type
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      setFileError('Unsupported file type. Only PDFs, documents, images, and text files are allowed.');
+      setSelectedFile(null);
+      return;
+    }
+
+    // Validate size (10 MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      setFileError('File size exceeds the 10 MB limit.');
+      setSelectedFile(null);
+      return;
+    }
+
+    setSelectedFile(file);
+
+    // Auto-fill title and suggest resource type
+    setResourceForm((prev) => {
+      const extIndex = file.name.lastIndexOf('.');
+      const autoTitle = extIndex !== -1 ? file.name.substring(0, extIndex) : file.name;
+      const typeSug: CircleResourceType = 
+        file.type === 'application/pdf' ? 'PDF' :
+        file.type.startsWith('image/') ? 'Notes' :
+        'Notes';
+      return {
+        ...prev,
+        title: prev.title.trim() === '' ? autoTitle : prev.title,
+        resource_type: typeSug,
+      };
+    });
+  };
+
   // ── Resource Submit ────────────────────────────────────────────────────────
   const validateResource = () => {
     const e: Record<string, string> = {};
     if (!resourceForm.title.trim()) e.title = 'Title is required.';
-    if (resourceForm.url && !isValidHttpsUrl(resourceForm.url)) {
-      e.url = 'URL must use https:// protocol. Unsafe links are not allowed.';
+    if (resourceMode === 'link') {
+      if (!resourceForm.url?.trim()) {
+        e.url = 'URL is required for link mode.';
+      } else if (!isValidHttpsUrl(resourceForm.url)) {
+        e.url = 'URL must use https:// protocol. Unsafe links are not allowed.';
+      }
     }
     setResourceErrors(e);
     return Object.keys(e).length === 0;
@@ -547,26 +623,79 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
 
   const handleAddResource = async (ev: React.FormEvent) => {
     ev.preventDefault();
-    if (!validateResource()) return;
-    setSubmittingResource(true);
-    try {
-      const res = await addCircleResource({
-        circle_id: circle.id,
-        shared_by: currentUserId,
-        title: resourceForm.title,
-        description: resourceForm.description,
-        resource_type: resourceForm.resource_type,
-        url: resourceForm.url || undefined,
-      });
-      setResources((prev) => [res, ...prev]);
-      setResourceForm({ title: '', description: '', resource_type: 'Link', url: '' });
-      setShowResourceForm(false);
-      toast.success('Resource Added', 'Study resource shared with the circle.');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not share resource.';
-      toast.error('Failed', msg);
-    } finally {
-      setSubmittingResource(false);
+
+    if (resourceMode === 'link') {
+      if (!validateResource()) return;
+      setSubmittingResource(true);
+      try {
+        const res = await addCircleResource({
+          circle_id: circle.id,
+          shared_by: currentUserId,
+          title: resourceForm.title,
+          description: resourceForm.description,
+          resource_type: resourceForm.resource_type,
+          url: resourceForm.url || undefined,
+        });
+        setResources((prev) => [res, ...prev]);
+        setResourceForm({ title: '', description: '', resource_type: 'Link', url: '' });
+        setShowResourceForm(false);
+        toast.success('Resource Added', 'Study resource link shared with the circle.');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not share resource.';
+        toast.error('Failed', msg);
+      } finally {
+        setSubmittingResource(false);
+      }
+    } else {
+      // File upload mode
+      if (!selectedFile) {
+        setFileError('Please select a file to upload.');
+        return;
+      }
+      if (!resourceForm.title.trim()) {
+        setResourceErrors({ title: 'Title is required for the file.' });
+        return;
+      }
+      setSubmittingResource(true);
+      try {
+        // Generate unique folder ID client-side
+        const resId = (typeof window !== 'undefined' && window.crypto?.randomUUID)
+          ? window.crypto.randomUUID()
+          : Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+        // 1. Upload to private bucket
+        const fileData = await uploadCircleResourceFile({
+          circleId: circle.id,
+          file: selectedFile,
+          resourceId: resId,
+        });
+
+        // 2. Write metadata row to Postgres
+        const res = await addCircleResource({
+          circle_id: circle.id,
+          shared_by: currentUserId,
+          title: resourceForm.title,
+          description: resourceForm.description,
+          resource_type: resourceForm.resource_type,
+          file_path: fileData.file_path,
+          file_name: fileData.file_name,
+          file_mime_type: fileData.file_mime_type,
+          file_size_bytes: fileData.file_size_bytes,
+          storage_bucket: fileData.storage_bucket,
+        });
+
+        setResources((prev) => [res, ...prev]);
+        setResourceForm({ title: '', description: '', resource_type: 'Link', url: '' });
+        setSelectedFile(null);
+        setResourceMode('link');
+        setShowResourceForm(false);
+        toast.success('File Uploaded! 🚀', `"${fileData.file_name}" uploaded and shared.`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not upload file.';
+        toast.error('Upload Failed', msg);
+      } finally {
+        setSubmittingResource(false);
+      }
     }
   };
 
@@ -577,6 +706,42 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
       toast.success('Resource Removed', 'The resource has been deleted.');
     } catch {
       toast.error('Delete Failed', 'Could not remove resource. You may not have permission.');
+    }
+  };
+
+  // ── Preview & Download Actions ─────────────────────────────────────────────
+  const handlePreviewResource = async (r: LearningCircleResource) => {
+    if (!r.storage_bucket || !r.file_path) return;
+    setPreviewResource(r);
+    setLoadingPreview(true);
+    setPreviewUrl('');
+    try {
+      const url = await getSignedResourceUrl(r.storage_bucket, r.file_path);
+      setPreviewUrl(url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not generate preview link.';
+      toast.error('Preview Failed', msg);
+      setPreviewResource(null);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const handleDownloadResource = async (r: LearningCircleResource) => {
+    if (!r.storage_bucket || !r.file_path) return;
+    try {
+      const url = await getSignedResourceUrl(r.storage_bucket, r.file_path);
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.download = r.file_name || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Download Started', `Downloading "${r.file_name}"`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not download file.';
+      toast.error('Download Failed', msg);
     }
   };
 
@@ -611,21 +776,21 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     }
   };
 
-  // ── Archive Toggle ─────────────────────────────────────────────────────────
-  const handleToggleArchive = async () => {
+  // ── Owner Status Update Console ────────────────────────────────────────────
+  const handleUpdateStatus = async (newStatus: CircleStatus) => {
     if (!isOwner) return;
-    const newStatus = isArchived ? 'active' : 'archived';
     setArchiving(true);
     try {
       const updated = await updateLearningCircle(circle.id, { status: newStatus });
       const updatedWithStats: LearningCircleWithStats = {
+        ...circle,
         ...updated,
         creator_name: circle.creator_name,
         member_count: circle.member_count,
         my_role: circle.my_role,
       };
       onCircleUpdated(updatedWithStats);
-      toast.success(newStatus === 'archived' ? 'Circle Archived' : 'Circle Restored', newStatus === 'archived' ? 'No new joins or posts allowed.' : 'Circle is active again.');
+      toast.success('Status Updated! ⚙️', `Circle is now "${newStatus}".`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not update status.';
       toast.error('Failed', msg);
@@ -642,7 +807,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   ];
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden relative">
       {/* Workspace Header */}
       <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-5 text-white">
         <div className="flex items-start justify-between gap-4">
@@ -662,14 +827,9 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
             </div>
           </div>
           {isOwner && (
-            <button
-              onClick={handleToggleArchive}
-              disabled={archiving}
-              className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-indigo-100 hover:text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-colors disabled:opacity-50"
-              id="toggle-archive-circle"
-            >
-              {archiving ? '…' : isArchived ? '♻ Restore' : '📦 Archive'}
-            </button>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 text-xs font-bold bg-white/20 border border-white/20 rounded-lg text-white">👑 Owner Workspace</span>
+            </div>
           )}
         </div>
       </div>
@@ -697,10 +857,78 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
 
         {/* ── OVERVIEW ── */}
         {tab === 'overview' && (
-          <div className="space-y-5">
+          <div className="space-y-6">
+            {/* Owner Management Console */}
+            {isOwner && (
+              <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5 space-y-4 shadow-inner">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-1.5">
+                      👑 Owner Control Console
+                    </h3>
+                    <p className="text-xs text-slate-500">Manage status, upload locks, and visibility settings for your circle.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                      circle.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                      circle.status === 'paused' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                      'bg-slate-100 text-slate-700 border-slate-200'
+                    }`}>
+                      Current Status: {circle.status.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Active button */}
+                  <button
+                    onClick={() => handleUpdateStatus('active')}
+                    disabled={archiving}
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      circle.status === 'active'
+                        ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="block text-sm font-bold text-emerald-900">🟢 Active</span>
+                    <span className="block text-[11px] text-slate-500 mt-1">Resource uploads and discussions are fully open for all members.</span>
+                  </button>
+
+                  {/* Paused button */}
+                  <button
+                    onClick={() => handleUpdateStatus('paused')}
+                    disabled={archiving}
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      circle.status === 'paused'
+                        ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-500/20'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="block text-sm font-bold text-amber-900">🟡 Pause Uploads</span>
+                    <span className="block text-[11px] text-slate-500 mt-1">Locks new resource uploads. Existing posts and discussions remain active.</span>
+                  </button>
+
+                  {/* Archived button */}
+                  <button
+                    onClick={() => handleUpdateStatus('archived')}
+                    disabled={archiving}
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      circle.status === 'archived'
+                        ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-500/20'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="block text-sm font-bold text-rose-900">📦 Archive</span>
+                    <span className="block text-[11px] text-slate-500 mt-1">Read-only state. Restricts joins, resource uploads, and discussions.</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="prose prose-sm max-w-none">
-              <p className="text-slate-700 leading-relaxed">{circle.description}</p>
+              <p className="text-slate-700 leading-relaxed font-sans text-sm">{circle.description}</p>
             </div>
+            
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InfoRow icon="🏷" label="Category" value={circle.category} />
               <InfoRow icon="📊" label="Difficulty" value={circle.difficulty_level} />
@@ -728,14 +956,53 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
               <InfoRow icon="🌐" label="Visibility" value={circle.is_public ? 'Public' : 'Private'} />
             </div>
 
+            {/* Split Capability Guidelines Card */}
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden mt-6">
+              <div className="bg-slate-100/80 px-5 py-3 border-b border-slate-200">
+                <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                  📋 Workspace Roles & Capability Guidelines
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200 text-xs">
+                {/* Left Column: Owner */}
+                <div className="p-5 space-y-3 bg-white">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
+                    <span>👑</span>
+                    <span>Circle Owner Capabilities</span>
+                  </div>
+                  <ul className="space-y-2 text-slate-600 list-disc pl-4 leading-relaxed">
+                    <li>Full administrative management of the workspace.</li>
+                    <li>Ability to change circle status (Active, Paused, Archived) to lock/unlock uploads.</li>
+                    <li>Upload, view, and securely download study resource files (&lt;10MB).</li>
+                    <li>Post announcements, plans, updates, and questions.</li>
+                    <li>Delete <strong className="text-rose-600">any</strong> resource or post shared in the workspace.</li>
+                  </ul>
+                </div>
+                {/* Right Column: Member */}
+                <div className="p-5 space-y-3 bg-white">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
+                    <span>👥</span>
+                    <span>Circle Member Capabilities</span>
+                  </div>
+                  <ul className="space-y-2 text-slate-600 list-disc pl-4 leading-relaxed">
+                    <li>Access all shared study materials, resources, files, and links.</li>
+                    <li>Interactive file previews (PDFs, images) and secure signed downloads.</li>
+                    <li>Upload study resources (only allowed when circle status is <strong className="text-emerald-600">Active</strong>).</li>
+                    <li>Participate in discussions by posting questions, plans, or updates.</li>
+                    <li>Delete <strong className="text-slate-800">only</strong> resources and posts shared by yourself.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
             {!isMember && !isArchived && !isPaused && (
               <div className="mt-4 p-4 bg-indigo-50 rounded-xl border border-indigo-200 text-center">
                 <p className="text-sm text-indigo-700 font-medium">You are not a member yet. Join to access resources and discussions.</p>
               </div>
             )}
-            {(isArchived || isPaused) && (
+            {(isArchived || isPaused) && !isOwner && (
               <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200 text-center">
-                <p className="text-sm text-amber-700 font-medium">⚠ This circle is {circle.status}. New joins and posts are disabled.</p>
+                <p className="text-sm text-amber-700 font-medium">⚠ This circle is {circle.status}. Resource sharing and discussions may be locked.</p>
               </div>
             )}
           </div>
@@ -775,114 +1042,274 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
         {/* ── RESOURCES ── */}
         {tab === 'resources' && (
           <div className="space-y-4">
-            {isMember && !isArchived && (
-              <div>
-                {!showResourceForm ? (
-                  <button
-                    onClick={() => setShowResourceForm(true)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors"
-                    id="show-add-resource-form"
-                  >
-                    + Share a Resource
-                  </button>
-                ) : (
-                  <form onSubmit={handleAddResource} className="p-4 bg-indigo-50 rounded-xl border border-indigo-200 space-y-3">
-                    <h4 className="text-sm font-semibold text-indigo-800">Share a Study Resource</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Title <span className="text-rose-500">*</span></label>
-                        <input
-                          id="resource-title"
-                          type="text"
-                          value={resourceForm.title}
-                          onChange={(e) => setResourceForm((f) => ({ ...f, title: e.target.value }))}
-                          placeholder="e.g., React Hooks Guide"
-                          className={`w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${resourceErrors.title ? 'border-rose-400' : 'border-slate-300'}`}
-                        />
-                        {resourceErrors.title && <p className="text-xs text-rose-500 mt-1">{resourceErrors.title}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Type</label>
-                        <select
-                          id="resource-type"
-                          value={resourceForm.resource_type}
-                          onChange={(e) => setResourceForm((f) => ({ ...f, resource_type: e.target.value as CircleResourceType }))}
-                          className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                        >
-                          {CIRCLE_RESOURCE_TYPES.map((t) => <option key={t}>{t}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">URL <span className="text-slate-400">(optional, must be https://)</span></label>
-                      <input
-                        id="resource-url"
-                        type="url"
-                        value={resourceForm.url}
-                        onChange={(e) => setResourceForm((f) => ({ ...f, url: e.target.value }))}
-                        placeholder="https://..."
-                        className={`w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${resourceErrors.url ? 'border-rose-400' : 'border-slate-300'}`}
-                      />
-                      {resourceErrors.url && <p className="text-xs text-rose-500 mt-1">{resourceErrors.url}</p>}
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Description <span className="text-slate-400">(optional)</span></label>
-                      <input
-                        id="resource-description"
-                        type="text"
-                        value={resourceForm.description}
-                        onChange={(e) => setResourceForm((f) => ({ ...f, description: e.target.value }))}
-                        placeholder="Short note about this resource…"
-                        className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => setShowResourceForm(false)} className="px-4 py-1.5 text-sm text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors" id="cancel-add-resource">Cancel</button>
-                      <button type="submit" disabled={submittingResource} className="px-4 py-1.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition-colors" id="submit-add-resource">
-                        {submittingResource ? 'Sharing…' : 'Share Resource'}
-                      </button>
-                    </div>
-                  </form>
-                )}
+            {!isMember ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4 border border-slate-200 rounded-2xl bg-slate-50 text-center gap-3 shadow-sm">
+                <span className="text-5xl">🔒</span>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-base">Members Only Workspace</h4>
+                  <p className="text-sm text-slate-500 mt-1 max-w-sm">Circle resources, file uploads, and study guides are private. Join this circle to access and share learning materials.</p>
+                </div>
               </div>
-            )}
-
-            {loadingResources ? (
-              <LoadingSpinner label="Loading resources…" />
-            ) : resources.length === 0 ? (
-              <EmptyState icon="📚" message="No resources shared yet. Be the first to add one!" />
             ) : (
-              <div className="space-y-2">
-                {resources.map((r) => (
-                  <div key={r.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
-                    <span className="text-xl flex-shrink-0 mt-0.5">{RESOURCE_TYPE_ICON[r.resource_type]}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {r.url ? (
-                          <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-indigo-700 hover:underline truncate">
-                            {r.title}
-                          </a>
-                        ) : (
-                          <p className="text-sm font-semibold text-slate-900">{r.title}</p>
-                        )}
-                        <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded font-medium">{r.resource_type}</span>
+              <>
+                {/* Share resource form trigger */}
+                {isMember && (
+                  <div>
+                    {circle.status !== 'active' ? (
+                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center gap-2 font-medium">
+                        <span>🔒 Resource uploads are disabled because this circle is currently {circle.status}.</span>
                       </div>
-                      {r.description && <p className="text-xs text-slate-500 mt-0.5">{r.description}</p>}
-                      <p className="text-[11px] text-slate-400 mt-1">By {r.uploader_profile?.full_name ?? 'Unknown'} · {formatRelativeTime(r.created_at)}</p>
-                    </div>
-                    {(r.shared_by === currentUserId || isOwner) && (
+                    ) : !showResourceForm ? (
                       <button
-                        onClick={() => handleDeleteResource(r.id)}
-                        className="flex-shrink-0 p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                        title="Remove resource"
-                        id={`delete-resource-${r.id}`}
+                        onClick={() => setShowResourceForm(true)}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors"
+                        id="show-add-resource-form"
                       >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        + Share a Resource / File
                       </button>
+                    ) : (
+                      <form onSubmit={handleAddResource} className="p-4 bg-indigo-50 rounded-xl border border-indigo-200 space-y-4 shadow-sm">
+                        <h4 className="text-sm font-bold text-indigo-800 flex items-center gap-1.5">
+                          <span>📤</span>
+                          <span>Share a Study Resource</span>
+                        </h4>
+
+                        {/* Link vs File segment control */}
+                        <div className="flex rounded-lg bg-slate-200 p-0.5 border border-slate-300">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResourceMode('link');
+                              setResourceErrors({});
+                              setFileError(null);
+                            }}
+                            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                              resourceMode === 'link' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            🔗 External HTTPS Link
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResourceMode('file');
+                              setResourceErrors({});
+                              setFileError(null);
+                            }}
+                            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                              resourceMode === 'file' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            📤 Secure File Upload
+                          </button>
+                        </div>
+
+                        {/* File Selector (File mode only) */}
+                        {resourceMode === 'file' && (
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Select File <span className="text-rose-500">*</span></label>
+                            <div className="relative border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-xl p-6 bg-white flex flex-col items-center justify-center cursor-pointer transition-colors">
+                              <input
+                                type="file"
+                                onChange={handleFileChange}
+                                accept=".pdf,.txt,.png,.jpg,.jpeg,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+                                className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                id="resource-file-input"
+                              />
+                              <span className="text-3xl mb-1.5">📁</span>
+                              {selectedFile ? (
+                                <div className="text-center">
+                                  <p className="text-xs font-semibold text-indigo-900 truncate max-w-xs">{selectedFile.name}</p>
+                                  <p className="text-[10px] text-slate-400 mt-1">{formatBytes(selectedFile.size)}</p>
+                                </div>
+                              ) : (
+                                <div className="text-center">
+                                  <p className="text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors">Click to choose a file</p>
+                                  <p className="text-[10px] text-slate-400 mt-1">PDF, Word, Excel, PowerPoint, Text, PNG, JPG (Max 10MB)</p>
+                                </div>
+                              )}
+                            </div>
+                            {fileError && <p className="text-xs text-rose-500 mt-1.5 font-medium">{fileError}</p>}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {/* Title */}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Title <span className="text-rose-500">*</span></label>
+                            <input
+                              id="resource-title"
+                              type="text"
+                              value={resourceForm.title}
+                              onChange={(e) => setResourceForm((f) => ({ ...f, title: e.target.value }))}
+                              placeholder={resourceMode === 'file' ? "e.g., Week 1 Lecture Slides" : "e.g., React Hooks Guide"}
+                              className={`w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${resourceErrors.title ? 'border-rose-400' : 'border-slate-300'}`}
+                            />
+                            {resourceErrors.title && <p className="text-xs text-rose-500 mt-1">{resourceErrors.title}</p>}
+                          </div>
+
+                          {/* Resource Type */}
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Type</label>
+                            <select
+                              id="resource-type"
+                              value={resourceForm.resource_type}
+                              onChange={(e) => setResourceForm((f) => ({ ...f, resource_type: e.target.value as CircleResourceType }))}
+                              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                            >
+                              {CIRCLE_RESOURCE_TYPES.map((t) => <option key={t}>{t}</option>)}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* URL (Link mode only) */}
+                        {resourceMode === 'link' && (
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">URL <span className="text-rose-500">*</span> <span className="text-slate-400 font-normal">(must be https://)</span></label>
+                            <input
+                              id="resource-url"
+                              type="url"
+                              value={resourceForm.url}
+                              onChange={(e) => setResourceForm((f) => ({ ...f, url: e.target.value }))}
+                              placeholder="https://example.com/notes"
+                              className={`w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${resourceErrors.url ? 'border-rose-400' : 'border-slate-300'}`}
+                            />
+                            {resourceErrors.url && <p className="text-xs text-rose-500 mt-1">{resourceErrors.url}</p>}
+                          </div>
+                        )}
+
+                        {/* Description */}
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Description <span className="text-slate-400 font-normal">(optional)</span></label>
+                          <input
+                            id="resource-description"
+                            type="text"
+                            value={resourceForm.description}
+                            onChange={(e) => setResourceForm((f) => ({ ...f, description: e.target.value }))}
+                            placeholder="Short note about this resource…"
+                            className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowResourceForm(false);
+                              setSelectedFile(null);
+                              setFileError(null);
+                              setResourceForm({ title: '', description: '', resource_type: 'Link', url: '' });
+                            }}
+                            className="px-4 py-1.5 text-sm text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                            id="cancel-add-resource"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={submittingResource}
+                            className="px-4 py-1.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition-colors flex items-center gap-1.5"
+                            id="submit-add-resource"
+                          >
+                            {submittingResource ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                {resourceMode === 'file' ? 'Uploading…' : 'Sharing…'}
+                              </>
+                            ) : (
+                              resourceMode === 'file' ? '📤 Upload & Share' : 'Share Resource'
+                            )}
+                          </button>
+                        </div>
+                      </form>
                     )}
                   </div>
-                ))}
-              </div>
+                )}
+
+                {/* Resource List */}
+                {loadingResources ? (
+                  <LoadingSpinner label="Loading resources…" />
+                ) : resources.length === 0 ? (
+                  <EmptyState icon="📚" message="No resources shared yet. Be the first to add one!" />
+                ) : (
+                  <div className="space-y-2">
+                    {resources.map((r) => (
+                      <div key={r.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
+                        <span className="text-xl flex-shrink-0 mt-0.5">
+                          {r.file_path ? (
+                            r.file_mime_type === 'application/pdf' ? '📄' :
+                            r.file_mime_type?.startsWith('image/') ? '🖼️' :
+                            '📁'
+                          ) : (
+                            RESOURCE_TYPE_ICON[r.resource_type]
+                          )}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {r.file_path ? (
+                              <button
+                                onClick={() => handlePreviewResource(r)}
+                                className="text-sm font-semibold text-indigo-700 hover:underline truncate text-left"
+                              >
+                                {r.title}
+                              </button>
+                            ) : r.url ? (
+                              <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-indigo-700 hover:underline truncate">
+                                {r.title}
+                              </a>
+                            ) : (
+                              <p className="text-sm font-semibold text-slate-900">{r.title}</p>
+                            )}
+                            <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded font-medium">{r.resource_type}</span>
+                            {r.file_path && (
+                              <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded font-semibold">
+                                💾 {formatBytes(r.file_size_bytes)}
+                              </span>
+                            )}
+                          </div>
+                          {r.description && <p className="text-xs text-slate-500 mt-0.5">{r.description}</p>}
+                          {r.file_path && (
+                            <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
+                              File: {r.file_name}
+                            </p>
+                          )}
+                          <p className="text-[11px] text-slate-400 mt-1">
+                            By {r.uploader_profile?.full_name ?? 'Unknown'} · {formatRelativeTime(r.created_at)}
+                          </p>
+
+                          {/* Preview & Download Row for file resources */}
+                          {r.file_path && (
+                            <div className="flex items-center gap-3 mt-2">
+                              <button
+                                onClick={() => handlePreviewResource(r)}
+                                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded transition-colors"
+                              >
+                                👁️ Preview
+                              </button>
+                              <button
+                                onClick={() => handleDownloadResource(r)}
+                                className="text-[11px] font-bold text-emerald-600 hover:text-emerald-800 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded transition-colors"
+                              >
+                                ⬇️ Download
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {(r.shared_by === currentUserId || isOwner) && (
+                          <button
+                            onClick={() => handleDeleteResource(r.id)}
+                            className="flex-shrink-0 p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Remove resource"
+                            id={`delete-resource-${r.id}`}
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -890,85 +1317,200 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
         {/* ── POSTS / DISCUSSION ── */}
         {tab === 'posts' && (
           <div className="space-y-4">
-            {isMember && !isArchived && (
-              <form onSubmit={handleAddPost} className="p-4 bg-gradient-to-br from-indigo-50 to-violet-50 rounded-xl border border-indigo-200 space-y-3">
-                <div className="flex gap-2 flex-wrap">
-                  {CIRCLE_POST_TYPES.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setPostType(t)}
-                      className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all ${postType === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-400'}`}
-                      id={`post-type-${t}`}
-                    >
-                      {POST_TYPE_ICON[t]} {t}
-                    </button>
-                  ))}
+            {!isMember ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4 border border-slate-200 rounded-2xl bg-slate-50 text-center gap-3 shadow-sm">
+                <span className="text-5xl">🔒</span>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-base">Members Only Discussion</h4>
+                  <p className="text-sm text-slate-500 mt-1 max-w-sm">Circle announcement boards and questions are restricted to joined members. Join this circle to participate in workspace discussions.</p>
                 </div>
-                <textarea
-                  id="new-post-content"
-                  rows={3}
-                  value={postContent}
-                  onChange={(e) => setPostContent(e.target.value)}
-                  placeholder={`Share an ${postType.toLowerCase()} with your circle…`}
-                  className="w-full px-3 py-2 rounded-lg border border-indigo-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                />
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={submittingPost || !postContent.trim()}
-                    className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                    id="submit-post"
-                  >
-                    {submittingPost ? 'Posting…' : `Post ${POST_TYPE_ICON[postType]}`}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {loadingPosts ? (
-              <LoadingSpinner label="Loading discussion…" />
-            ) : posts.length === 0 ? (
-              <EmptyState icon="💬" message="No posts yet. Start the discussion!" />
-            ) : (
-              <div className="space-y-3">
-                {posts.map((p) => (
-                  <div key={p.id} className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs flex-shrink-0">
-                          {p.author_profile?.full_name?.[0]?.toUpperCase() ?? '?'}
-                        </div>
-                        <p className="text-sm font-semibold text-slate-900">{p.author_profile?.full_name ?? 'Unknown'}</p>
-                        <span className={`px-2 py-0.5 text-[10px] rounded border font-semibold ${POST_TYPE_COLOR[p.post_type]}`}>
-                          {POST_TYPE_ICON[p.post_type]} {p.post_type}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-[11px] text-slate-400">{formatRelativeTime(p.created_at)}</span>
-                        {(p.created_by === currentUserId || isOwner) && (
-                          <button
-                            onClick={() => handleDeletePost(p.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                            title="Delete post"
-                            id={`delete-post-${p.id}`}
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{p.content}</p>
-                  </div>
-                ))}
               </div>
+            ) : (
+              <>
+                {isMember && !isArchived && (
+                  <form onSubmit={handleAddPost} className="p-4 bg-gradient-to-br from-indigo-50 to-violet-50 rounded-xl border border-indigo-200 space-y-3 shadow-sm">
+                    <div className="flex gap-2 flex-wrap">
+                      {CIRCLE_POST_TYPES.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setPostType(t)}
+                          className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all ${postType === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-400'}`}
+                          id={`post-type-${t}`}
+                        >
+                          {POST_TYPE_ICON[t]} {t}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      id="new-post-content"
+                      rows={3}
+                      value={postContent}
+                      onChange={(e) => setPostContent(e.target.value)}
+                      placeholder={`Share an ${postType.toLowerCase()} with your circle…`}
+                      className="w-full px-3 py-2 rounded-lg border border-indigo-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={submittingPost || !postContent.trim()}
+                        className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                        id="submit-post"
+                      >
+                        {submittingPost ? 'Posting…' : `Post ${POST_TYPE_ICON[postType]}`}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {loadingPosts ? (
+                  <LoadingSpinner label="Loading discussion…" />
+                ) : posts.length === 0 ? (
+                  <EmptyState icon="💬" message="No posts yet. Start the discussion!" />
+                ) : (
+                  <div className="space-y-3">
+                    {posts.map((p) => (
+                      <div key={p.id} className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs flex-shrink-0">
+                              {p.author_profile?.full_name?.[0]?.toUpperCase() ?? '?'}
+                            </div>
+                            <p className="text-sm font-semibold text-slate-900">{p.author_profile?.full_name ?? 'Unknown'}</p>
+                            <span className={`px-2 py-0.5 text-[10px] rounded border font-semibold ${POST_TYPE_COLOR[p.post_type]}`}>
+                              {POST_TYPE_ICON[p.post_type]} {p.post_type}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-[11px] text-slate-400">{formatRelativeTime(p.created_at)}</span>
+                            {(p.created_by === currentUserId || isOwner) && (
+                              <button
+                                onClick={() => handleDeletePost(p.id)}
+                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                                title="Delete post"
+                                id={`delete-post-${p.id}`}
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{p.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
       </div>
+
+      {/* Media Preview Lightbox Modal */}
+      {previewResource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="min-w-0 pr-4">
+                <h3 className="text-sm font-bold text-slate-900 truncate">
+                  👁️ Preview: {previewResource.title}
+                </h3>
+                <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                  File: {previewResource.file_name} · Size: {formatBytes(previewResource.file_size_bytes)}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setPreviewResource(null);
+                  setPreviewUrl('');
+                }}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100 flex-shrink-0"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 min-h-[400px] max-h-[70vh] bg-slate-100 overflow-y-auto flex items-center justify-center p-4">
+              {loadingPreview ? (
+                <div className="flex flex-col items-center justify-center gap-3 text-slate-500">
+                  <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-xs font-semibold">Generating secure preview link…</p>
+                </div>
+              ) : !previewUrl ? (
+                <div className="text-center p-6 space-y-2 max-w-sm">
+                  <span className="text-3xl">⚠️</span>
+                  <p className="text-sm font-bold text-slate-800">Preview Link Generation Failed</p>
+                  <p className="text-xs text-slate-500">Could not retrieve secure URL for this resource. Try downloading the file instead.</p>
+                </div>
+              ) : previewResource.file_mime_type === 'application/pdf' ? (
+                <iframe
+                  src={previewUrl}
+                  className="w-full h-full min-h-[500px] border-0 rounded-lg shadow-inner bg-white"
+                  title={previewResource.title}
+                />
+              ) : previewResource.file_mime_type?.startsWith('image/') ? (
+                <img
+                  src={previewUrl}
+                  alt={previewResource.title}
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-md"
+                />
+              ) : (
+                /* Fallback detailed metadata card for documents */
+                <div className="bg-white rounded-xl border border-slate-200 shadow-lg p-6 max-w-md w-full space-y-4 text-center">
+                  <span className="text-5xl block">📂</span>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 truncate">{previewResource.file_name}</h4>
+                    <p className="text-xs text-slate-500 mt-1">Shared by {previewResource.uploader_profile?.full_name ?? 'Unknown'}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg p-3 text-left text-xs space-y-1.5 border border-slate-100 font-mono">
+                    <p className="text-slate-600"><span className="font-semibold text-slate-800">Mime-Type:</span> {previewResource.file_mime_type}</p>
+                    <p className="text-slate-600"><span className="font-semibold text-slate-800">File-Size:</span> {formatBytes(previewResource.file_size_bytes)}</p>
+                    <p className="text-slate-600"><span className="font-semibold text-slate-800">Shared-On:</span> {formatDate(previewResource.created_at)}</p>
+                  </div>
+                  <p className="text-xs text-amber-600 bg-amber-50 p-2.5 rounded-lg border border-amber-100 leading-relaxed">
+                    ℹ️ Direct browser preview is not supported for Office documents (Word, Excel, PowerPoint) to preserve security. Please download the file to open it.
+                  </p>
+                  <button
+                    onClick={() => handleDownloadResource(previewResource)}
+                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    ⬇️ Download File Securely
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+              <div className="flex gap-2">
+                {previewUrl && (
+                  <button
+                    onClick={() => handleDownloadResource(previewResource)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5"
+                  >
+                    ⬇️ Download
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setPreviewResource(null);
+                  setPreviewUrl('');
+                }}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
 
 // ─── SMALL HELPERS ────────────────────────────────────────────────────────────
 

@@ -573,7 +573,7 @@ export const getCircleResources = async (circleId: string): Promise<LearningCirc
     const { data, error } = await supabase
       .from('learning_circle_resources')
       .select(`
-        id, circle_id, shared_by, title, description, resource_type, url, created_at, updated_at,
+        id, circle_id, shared_by, title, description, resource_type, url, file_path, file_name, file_mime_type, file_size_bytes, storage_bucket, created_at, updated_at,
         uploader_profile:profiles!learning_circle_resources_shared_by_fkey(full_name)
       `)
       .eq('circle_id', circleId)
@@ -594,6 +594,11 @@ export interface AddResourceInput {
   description?: string;
   resource_type: CircleResourceType;
   url?: string;
+  file_path?: string;
+  file_name?: string;
+  file_mime_type?: string;
+  file_size_bytes?: number;
+  storage_bucket?: string;
 }
 
 /**
@@ -616,9 +621,14 @@ export const addCircleResource = async (input: AddResourceInput): Promise<Learni
         description: input.description?.trim() || null,
         resource_type: input.resource_type,
         url: input.url?.trim() || null,
+        file_path: input.file_path || null,
+        file_name: input.file_name || null,
+        file_mime_type: input.file_mime_type || null,
+        file_size_bytes: input.file_size_bytes || null,
+        storage_bucket: input.storage_bucket || null,
       })
       .select(`
-        id, circle_id, shared_by, title, description, resource_type, url, created_at, updated_at,
+        id, circle_id, shared_by, title, description, resource_type, url, file_path, file_name, file_mime_type, file_size_bytes, storage_bucket, created_at, updated_at,
         uploader_profile:profiles!learning_circle_resources_shared_by_fkey(full_name)
       `)
       .single();
@@ -636,16 +646,145 @@ export const addCircleResource = async (input: AddResourceInput): Promise<Learni
  */
 export const deleteCircleResource = async (resourceId: string): Promise<void> => {
   try {
-    const { error } = await supabase
+    // 1. Fetch metadata row to see if there is an associated file
+    const { data: resource, error: fetchErr } = await supabase
+      .from('learning_circle_resources')
+      .select('file_path, storage_bucket')
+      .eq('id', resourceId)
+      .maybeSingle();
+
+    if (fetchErr) {
+      console.warn('[deleteCircleResource] metadata fetch failed:', fetchErr);
+    }
+
+    // 2. Delete row from database
+    const { error: dbErr } = await supabase
       .from('learning_circle_resources')
       .delete()
       .eq('id', resourceId);
 
-    if (error) throw error;
+    if (dbErr) throw dbErr;
+
+    // 3. If file exists in storage, delete it
+    if (resource?.file_path && resource?.storage_bucket) {
+      const { error: storageErr } = await supabase.storage
+        .from(resource.storage_bucket)
+        .remove([resource.file_path]);
+
+      if (storageErr) {
+        console.error('[deleteCircleResource] storage file remove failed:', storageErr);
+      } else {
+        console.log('[deleteCircleResource] storage file deleted successfully:', resource.file_path);
+      }
+    }
   } catch (err) {
     console.error('deleteCircleResource error:', err);
     throw err;
   }
+};
+
+export interface UploadResourceFileInput {
+  circleId: string;
+  file: File;
+  resourceId: string;
+}
+
+export interface UploadResourceFileResult {
+  file_path: string;
+  file_name: string;
+  file_mime_type: string;
+  file_size_bytes: number;
+  storage_bucket: string;
+}
+
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'text/plain',
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+];
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+/**
+ * Upload a study resource file to Supabase Storage.
+ */
+export const uploadCircleResourceFile = async (
+  input: UploadResourceFileInput
+): Promise<UploadResourceFileResult> => {
+  const { circleId, file, resourceId } = input;
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user?.id) {
+    throw new Error('Please sign in again before uploading files.');
+  }
+
+  // Validate type
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    throw new Error('Unsupported file type. Only PDFs, documents, images, and text files are allowed.');
+  }
+
+  // Validate size
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error('File size exceeds the 10 MB limit.');
+  }
+
+  // Sanitize filename
+  const extIndex = file.name.lastIndexOf('.');
+  const ext = extIndex !== -1 ? file.name.substring(extIndex) : '';
+  const baseName = extIndex !== -1 ? file.name.substring(0, extIndex) : file.name;
+  const cleanBase = baseName.replace(/[^a-zA-Z0-9-_]/g, '_');
+  const safeFileName = `${cleanBase}${ext}`;
+
+  // Storage path: learning-circles/{circleId}/{resourceId}/{safeFileName}
+  const filePath = `learning-circles/${circleId}/${resourceId}/${safeFileName}`;
+
+  const { error: uploadErr } = await supabase.storage
+    .from('learning-circle-resources')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: true
+    });
+
+  if (uploadErr) {
+    console.error('[uploadCircleResourceFile] upload failed:', uploadErr);
+    throw new Error(uploadErr.message || 'Could not upload file.');
+  }
+
+  return {
+    file_path: filePath,
+    file_name: file.name,
+    file_mime_type: file.type,
+    file_size_bytes: file.size,
+    storage_bucket: 'learning-circle-resources'
+  };
+};
+
+/**
+ * Create a short-lived (5 minutes) signed URL for viewing/downloading a file resource.
+ * Only works if user is authorized under Storage RLS policies.
+ */
+export const getSignedResourceUrl = async (
+  bucket: string,
+  path: string
+): Promise<string> => {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, 300); // 300 seconds = 5 minutes
+
+  if (error) {
+    console.error('[getSignedResourceUrl] failed:', error);
+    throw new Error(error.message || 'Could not generate preview link.');
+  }
+
+  return data.signedUrl;
 };
 
 // ──────────────────────────────────────────
