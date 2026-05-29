@@ -281,7 +281,7 @@ Detailed database tables and policies are summarized in [supabase/README.md](./s
 
 ---
 
-## 🎓 Completed Phase 5, 5.1 & 5.2: Learning Circles, Secure Private Resource Uploads & Join Request Workflows
+## 🎓 Completed Phase 5, 5.1, 5.2 & 5.3: Learning Circles, Secure Private Resource Uploads & Join Request Workflows
 
 Learning Circles connect peer study groups, allowing collaborative resource sharing, status locking, coordinate boards, and secure request-based join workflows:
 
@@ -318,5 +318,13 @@ Learning Circles connect peer study groups, allowing collaborative resource shar
    - **Paused/Archived State Protection**: New join requests are blocked on paused/archived circles, and owners cannot accept pending applications unless they return the circle to **Active** first.
    - **Student Academic Profiles**: Students can enrich their accounts with optional headline, academic interests, learning goals, current focus, and achievements.
    - **Strict URL & Privacy Controls**: External profile links (GitHub, LinkedIn, Portfolio) strictly require secure `https://` protocol and reject relative or dangerous inputs. Requester reviews hide all private contact info (email, phone, WhatsApp) and database UUIDs to prevent off-platform spamming or privacy leaks.
+
+7. **Phase 5.3: Workflow Rules, Owner Settings, and Resource Ranking**:
+   - **Confidential Meeting Coordinates**: Shielded display of `meeting_link` and `meeting_password` strictly to accepted members and owners. Completely hidden from public discover views and cards. Enforces `https://` protocol constraint.
+   - **Cohort Capacity Bounds**: Enforces limits between 2 and 100, blocking owners from setting capacity below their active member count. Displays a prominent warning banner and disables accept triggers when full.
+   - **Roster Alphabetical Sorting & kick controls**: Sorts circle members roster to pin the Owner at the very top, followed by standard members sorted alphabetically by full name. Empowers owners to remove standard members instantly, which cleanly terminates access and allows re-applying.
+   - **Resource Pinning & Likes Interaction**: Regular members/owners can like/unlike resources (limit 1 like per student). Owners can pin important materials to the top of the shared directory. Resources are ordered dynamically using `pinned first -> likes count -> newest`.
+   - **Pagination**: Supports clean visual pagination of uploaded resources, rendering only the top 3 items initially with smooth "Show more" / "Show fewer" toggles.
+
 
 

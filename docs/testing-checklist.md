@@ -542,3 +542,57 @@ Use this checklist to perform regression testing and ensure full readiness of al
   - Change all URL inputs to start with strictly `https://` (e.g., `https://github.com/user`, `https://linkedin.com/in/user`). Click **Save Changes**. Verify that saving succeeds without issue.
 
 
+## 🌟 Phase 5.3: Learning Circle Workflow Rules, Owner Management, Resource Ranking Polish
+
+### 1. Private Meeting Coordinates Access
+- [ ] **Owner Setup**:
+  - In your owner workspace, open the **Overview** tab and click **Manage Settings**.
+  - Fill in the **Member-Only Meeting Link** (must strictly be an `https://` URL, e.g. `https://meet.google.com/abc-defg-hij`) and **Member-Only Password** (e.g. `secret123`).
+  - Click **Save Settings** and confirm the success toast.
+- [ ] **Accepted Member View**:
+  - Log in as an accepted member of the circle. Open the circle workspace **Overview** tab.
+  - Verify that a premium looking **Confidential Meeting Coordinates** card is rendered, displaying a clickable **Join Online Session** button and a selectable access password.
+- [ ] **Public / Non-Member View**:
+  - Log in as a non-member student, or browse the discover cards.
+  - Verify that the private coordinates, meeting link, and password are **never** shown on discover cards, public circles list, or the non-member details view.
+
+### 2. Cohort Capacity Constraints
+- [ ] **Settings Lower Bound Guard**:
+  - As the Owner, go to **Manage Settings** and attempt to set the maximum capacity lower than 2, higher than 100, or lower than the current active member count.
+  - Verify that saving is blocked, and an explicit validation error is displayed.
+- [ ] **Active Requests Capacity Warning**:
+  - Simulate/fill the cohort to the capacity limit.
+  - Go to the **Join Requests** tab.
+  - Verify that a warning banner states: `"Circle capacity limit reached"`.
+  - Verify that the **Accept Application** action button is completely disabled for all pending requests.
+  - Verify that you can still decline/reject requests while full.
+  - Go to **Manage Settings**, increase the capacity, and verify that the warning banner disappears and the accept button becomes active.
+
+### 3. Owner Roster Controls & Alphabetical Members List
+- [ ] **Roster Alphabetical Sorting**:
+  - Open the **Members** tab in your workspace.
+  - Verify that the **Owner** is strictly pinned at the very top of the list with a `"👑 Owner"` badge.
+  - Verify that all other members are sorted strictly **alphabetically** by their public full name.
+- [ ] **Member Removal**:
+  - As the Owner, locate a standard member on the roster.
+  - Click the **❌ Remove** button next to their name and confirm the browser alert.
+  - Verify that the member is removed from the roster instantly, and the member count is decremented.
+  - Log in as the removed member. Verify that you have lost access to the workspace, resources, and discussions, and can now cleanly submit a new join request.
+
+### 4. Resource Pinning & Likes Interaction
+- [ ] **One Like Per User Constraint**:
+  - Open the **Resources** tab as a member.
+  - Locate a resource and click the **🤍 Like** button. Verify that the like count is incremented and the button changes to `❤️ Liked`.
+  - Click the button again. Verify that it unlikes the resource, decrementing the count back to 0.
+- [ ] **Owner-only Resource Pinning**:
+  - As a circle owner, locate a resource. Click **📌 Pin**.
+  - Verify that a vibrant `📌 PINNED` badge is rendered, and the resource is instantly ranked at the very top of the list.
+  - Verify that regular members **do not** see the pin/unpin action button.
+- [ ] **Resource Paging / Pagination**:
+  - Upload 4 or more study resources.
+  - Verify that initially only the top 3 resources are rendered.
+  - Verify that a **➕ Show more resources** button is rendered at the bottom of the list.
+  - Click the button. Verify that the list expands to show all remaining resources, and is replaced by a **➖ Show fewer resources** button to collapse it back.
+
+
+

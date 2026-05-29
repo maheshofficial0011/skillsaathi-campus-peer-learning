@@ -312,6 +312,8 @@ export interface LearningCircle {
   meeting_mode: CircleMeetingMode;
   meeting_schedule: string | null;
   location_or_link: string | null;
+  meeting_link?: string | null;
+  meeting_password?: string | null;
   max_members: number;
   is_public: boolean;
   created_by: string;
@@ -352,6 +354,11 @@ export interface LearningCircleResource {
   file_mime_type?: string | null;
   file_size_bytes?: number | null;
   storage_bucket?: string | null;
+  is_pinned?: boolean;
+  pinned_by?: string | null;
+  pinned_at?: string | null;
+  likes_count?: number;
+  liked_by_me?: boolean;
   created_at: string;
   updated_at: string;
   uploader_profile?: {
@@ -385,6 +392,8 @@ export interface LearningCircleJoinRequest {
   response_message: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
+  membership_created_at?: string | null;
+  member_left_at?: string | null;
   created_at: string;
   updated_at: string;
 }

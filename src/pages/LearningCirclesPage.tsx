@@ -42,6 +42,9 @@ import {
   getCircleJoinRequests,
   respondToJoinRequest,
   cancelJoinRequest,
+  removeCircleMember,
+  toggleResourcePin,
+  toggleResourceLike,
 } from '../lib/learningCircles';
 import { PublicProfileModal } from '../components/profile/PublicProfileModal';
 
@@ -531,6 +534,45 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   const [requestFeedbackMsgs, setRequestFeedbackMsgs] = useState<Record<string, string>>({});
   const [viewPublicProfileId, setViewPublicProfileId] = useState<string | null>(null);
 
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsForm, setSettingsForm] = useState({
+    title: circle.title,
+    description: circle.description,
+    category: circle.category,
+    department: circle.department || '',
+    difficulty_level: circle.difficulty_level,
+    meeting_mode: circle.meeting_mode,
+    meeting_schedule: circle.meeting_schedule || '',
+    location_or_link: circle.location_or_link || '',
+    meeting_link: circle.meeting_link || '',
+    meeting_password: circle.meeting_password || '',
+    max_members: circle.max_members,
+    status: circle.status
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [resourceLimit, setResourceLimit] = useState(3);
+
+  // Sync settings form with circle whenever circle changes
+  useEffect(() => {
+    setSettingsForm({
+      title: circle.title,
+      description: circle.description,
+      category: circle.category,
+      department: circle.department || '',
+      difficulty_level: circle.difficulty_level,
+      meeting_mode: circle.meeting_mode,
+      meeting_schedule: circle.meeting_schedule || '',
+      location_or_link: circle.location_or_link || '',
+      meeting_link: circle.meeting_link || '',
+      meeting_password: circle.meeting_password || '',
+      max_members: circle.max_members,
+      status: circle.status
+    });
+  }, [circle]);
+
   const loadRequests = useCallback(async () => {
     if (!isOwner) return;
     setLoadingRequests(true);
@@ -577,6 +619,121 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
       toast.error('Action Failed', msg);
     } finally {
       setRespondingRequestId(null);
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    setSettingsError(null);
+
+    // URL validation
+    if (settingsForm.meeting_link && settingsForm.meeting_link.trim() !== '') {
+      if (!isValidHttpsUrl(settingsForm.meeting_link)) {
+        setSettingsError('Member-only meeting link must strictly use the https:// protocol. http://, data:, javascript:, or file: links are not allowed.');
+        setSavingSettings(false);
+        return;
+      }
+    }
+
+    if (settingsForm.location_or_link && settingsForm.location_or_link.trim() !== '') {
+      if (!isValidMeetingLinkOrLocation(settingsForm.location_or_link)) {
+        setSettingsError('Public Location / Coordinator Link must use https:// if it is a URL.');
+        setSavingSettings(false);
+        return;
+      }
+    }
+
+    if (settingsForm.max_members < 2 || settingsForm.max_members > 100) {
+      setSettingsError('Maximum cohort capacity must be between 2 and 100.');
+      setSavingSettings(false);
+      return;
+    }
+
+    if (settingsForm.max_members < members.length) {
+      setSettingsError(`Maximum cohort capacity cannot be lower than the current member count (${members.length}).`);
+      setSavingSettings(false);
+      return;
+    }
+
+    try {
+      const updated = await updateLearningCircle(circle.id, {
+        title: settingsForm.title,
+        description: settingsForm.description,
+        category: settingsForm.category,
+        department: settingsForm.department || null,
+        difficulty_level: settingsForm.difficulty_level,
+        meeting_mode: settingsForm.meeting_mode,
+        meeting_schedule: settingsForm.meeting_schedule || null,
+        location_or_link: settingsForm.location_or_link || null,
+        meeting_link: settingsForm.meeting_link || null,
+        meeting_password: settingsForm.meeting_password || null,
+        max_members: settingsForm.max_members,
+        status: settingsForm.status
+      });
+
+      // Update circle stats to match
+      const updatedWithStats: LearningCircleWithStats = {
+        ...circle,
+        ...updated,
+        creator_name: circle.creator_name,
+        member_count: circle.member_count,
+        my_role: circle.my_role
+      };
+
+      onCircleUpdated(updatedWithStats);
+      toast.success('Settings Saved Successfully! 🎉', 'Your learning circle parameters have been updated.');
+      setShowSettings(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not save settings.';
+      setSettingsError(msg);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleRemoveMember = async (targetUserId: string, targetName: string) => {
+    if (!window.confirm(`Are you sure you want to remove "${targetName}" from this learning circle?`)) {
+      return;
+    }
+    setRemovingMemberId(targetUserId);
+    try {
+      await removeCircleMember(circle.id, targetUserId);
+      toast.success('Member Removed', `Successfully removed "${targetName}" from the study group.`);
+      await loadMembers();
+      
+      // Update circle stats (decrement member count)
+      const updated = {
+        ...circle,
+        member_count: Math.max(0, (circle.member_count ?? 0) - 1)
+      };
+      onCircleUpdated(updated);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not remove member.';
+      toast.error('Action Failed', msg);
+    } finally {
+      setRemovingMemberId(null);
+    }
+  };
+
+  const handleToggleLike = async (resourceId: string) => {
+    try {
+      await toggleResourceLike(resourceId);
+      await loadResources();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not toggle like.';
+      toast.error('Action Failed', msg);
+    }
+  };
+
+  const handleTogglePin = async (resourceId: string) => {
+    try {
+      await toggleResourcePin(resourceId);
+      await loadResources();
+      toast.success('Pin Status Toggled', 'The resource ranking has been updated.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not toggle pin.';
+      toast.error('Action Failed', msg);
     }
   };
 
@@ -887,7 +1044,9 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     }
   };
 
-  const activeRequests = joinRequests.filter(r => r.status === 'pending' || (r.status === 'accepted' && !members.some(m => m.user_id === r.requester_id)));
+  const isFull = (circle.member_count ?? 0) >= circle.max_members;
+
+  const activeRequests = joinRequests.filter(r => r.status === 'pending' || (r.status === 'accepted' && r.member_left_at === null && !members.some(m => m.user_id === r.requester_id)));
   const pendingRequestsCount = activeRequests.length;
 
   const TABS: { id: WorkspaceTab; label: string; icon: string }[] = [
@@ -953,12 +1112,12 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
             {/* Owner Management Console */}
             {isOwner && (
               <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5 space-y-4 shadow-inner">
-                <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-200/60 pb-3">
                   <div>
                     <h3 className="text-base font-bold text-slate-900 flex items-center gap-1.5">
                       👑 Owner Control Console
                     </h3>
-                    <p className="text-xs text-slate-500">Manage status, upload locks, and visibility settings for your circle.</p>
+                    <p className="text-xs text-slate-500">Manage status, capacity, member permissions, and private links.</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
@@ -966,60 +1125,275 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                       circle.status === 'paused' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                       'bg-slate-100 text-slate-700 border-slate-200'
                     }`}>
-                      Current Status: {circle.status.toUpperCase()}
+                      Status: {circle.status.toUpperCase()}
                     </span>
+                    <button
+                      onClick={() => setShowSettings(!showSettings)}
+                      className="px-3 py-1 bg-white hover:bg-slate-100 border border-slate-250 text-indigo-700 font-bold text-xs rounded-lg shadow-sm transition flex items-center gap-1.5 focus:outline-none"
+                    >
+                      {showSettings ? '❌ Close Settings' : '⚙️ Manage Settings'}
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Active button */}
-                  <button
-                    onClick={() => handleUpdateStatus('active')}
-                    disabled={archiving}
-                    className={`p-3 rounded-xl border text-left transition-all ${
-                      circle.status === 'active'
-                        ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20'
-                        : 'bg-white border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="block text-sm font-bold text-emerald-900">🟢 Active</span>
-                    <span className="block text-[11px] text-slate-500 mt-1">Resource uploads and discussions are fully open for all members.</span>
-                  </button>
+                {showSettings ? (
+                  <form onSubmit={handleSaveSettings} className="bg-white p-5 rounded-xl border border-slate-200 space-y-4 text-left font-sans text-xs">
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center gap-1">
+                      <span>⚙️</span> Edit Workspace Settings
+                    </h4>
 
-                  {/* Paused button */}
-                  <button
-                    onClick={() => handleUpdateStatus('paused')}
-                    disabled={archiving}
-                    className={`p-3 rounded-xl border text-left transition-all ${
-                      circle.status === 'paused'
-                        ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-500/20'
-                        : 'bg-white border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="block text-sm font-bold text-amber-900">🟡 Pause Uploads</span>
-                    <span className="block text-[11px] text-slate-500 mt-1">Locks new resource uploads. Existing posts and discussions remain active.</span>
-                  </button>
+                    {settingsError && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 font-medium">
+                        {settingsError}
+                      </div>
+                    )}
 
-                  {/* Archived button */}
-                  <button
-                    onClick={() => handleUpdateStatus('archived')}
-                    disabled={archiving}
-                    className={`p-3 rounded-xl border text-left transition-all ${
-                      circle.status === 'archived'
-                        ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-500/20'
-                        : 'bg-white border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="block text-sm font-bold text-rose-900">📦 Archive</span>
-                    <span className="block text-[11px] text-slate-500 mt-1">Read-only state. Restricts joins, resource uploads, and discussions.</span>
-                  </button>
-                </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Title */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Circle Title <span className="text-rose-500">*</span></label>
+                        <input
+                          type="text"
+                          required
+                          value={settingsForm.title}
+                          onChange={(e) => setSettingsForm(prev => ({ ...prev, title: e.target.value }))}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                        />
+                      </div>
+                      
+                      {/* Category */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Category <span className="text-rose-500">*</span></label>
+                        <select
+                          value={settingsForm.category}
+                          onChange={(e) => setSettingsForm(prev => ({ ...prev, category: e.target.value }))}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-850 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        >
+                          {CIRCLE_CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Difficulty */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Difficulty Level <span className="text-rose-500">*</span></label>
+                        <select
+                          value={settingsForm.difficulty_level}
+                          onChange={(e) => setSettingsForm(prev => ({ ...prev, difficulty_level: e.target.value as any }))}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-855 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        >
+                          {CIRCLE_DIFFICULTIES.map((diff) => (
+                            <option key={diff} value={diff}>{diff}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Mode */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Meeting Mode <span className="text-rose-500">*</span></label>
+                        <select
+                          value={settingsForm.meeting_mode}
+                          onChange={(e) => setSettingsForm(prev => ({ ...prev, meeting_mode: e.target.value as any }))}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-855 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        >
+                          {CIRCLE_MEETING_MODES.map((mode) => (
+                            <option key={mode} value={mode}>{mode}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Department */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Department (Optional)</label>
+                        <input
+                          type="text"
+                          value={settingsForm.department}
+                          onChange={(e) => setSettingsForm(prev => ({ ...prev, department: e.target.value }))}
+                          placeholder="e.g. Computer Science"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Schedule */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Meeting Schedule (Optional)</label>
+                        <input
+                          type="text"
+                          value={settingsForm.meeting_schedule}
+                          onChange={(e) => setSettingsForm(prev => ({ ...prev, meeting_schedule: e.target.value }))}
+                          placeholder="e.g. Saturdays at 4:00 PM"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Public Location or Link */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Public Location / Coordinator Link</label>
+                        <input
+                          type="text"
+                          value={settingsForm.location_or_link}
+                          onChange={(e) => setSettingsForm(prev => ({ ...prev, location_or_link: e.target.value }))}
+                          placeholder="e.g. Room 201 or Coordinator Link"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Capacity limit */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Maximum Cohort Capacity (2-100)</label>
+                        <input
+                          type="number"
+                          required
+                          min={2}
+                          max={100}
+                          value={settingsForm.max_members}
+                          onChange={(e) => setSettingsForm(prev => ({ ...prev, max_members: Number(e.target.value) }))}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+                      {/* Private Meeting Link */}
+                      <div>
+                        <label className="block font-bold text-indigo-700 mb-1">🔐 Member-Only Meeting Link (Optional)</label>
+                        <input
+                          type="text"
+                          value={settingsForm.meeting_link}
+                          onChange={(e) => setSettingsForm(prev => ({ ...prev, meeting_link: e.target.value }))}
+                          placeholder="e.g. https://meet.google.com/private-id (https:// strictly required)"
+                          className="w-full px-3 py-2 border border-indigo-200 rounded-xl text-xs bg-white text-indigo-900 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Private Meeting Password */}
+                      <div>
+                        <label className="block font-bold text-indigo-700 mb-1">🔐 Member-Only Password / Access Code (Optional)</label>
+                        <input
+                          type="text"
+                          value={settingsForm.meeting_password}
+                          onChange={(e) => setSettingsForm(prev => ({ ...prev, meeting_password: e.target.value }))}
+                          placeholder="e.g. password123"
+                          className="w-full px-3 py-2 border border-indigo-200 rounded-xl text-xs bg-white text-indigo-900 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-normal bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100/50">
+                      ℹ️ <strong>Privacy Lock Active:</strong> Private meeting link and password are confidential and shown strictly inside the workspace to accepted members. They are completely hidden on public discover cards and non-member views.
+                    </p>
+
+                    <div className="flex gap-3 pt-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowSettings(false)}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition focus:outline-none"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={savingSettings}
+                        className="px-5 py-2 bg-indigo-650 hover:bg-indigo-750 text-white font-bold rounded-xl transition disabled:opacity-50 focus:outline-none"
+                      >
+                        {savingSettings ? 'Saving Changes…' : '💾 Save Settings'}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Active button */}
+                    <button
+                      onClick={() => handleUpdateStatus('active')}
+                      disabled={archiving}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        circle.status === 'active'
+                          ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="block text-sm font-bold text-emerald-900">🟢 Active</span>
+                      <span className="block text-[11px] text-slate-500 mt-1">Resource uploads and discussions are fully open for all members.</span>
+                    </button>
+
+                    {/* Paused button */}
+                    <button
+                      onClick={() => handleUpdateStatus('paused')}
+                      disabled={archiving}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        circle.status === 'paused'
+                          ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-500/20'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="block text-sm font-bold text-amber-900">🟡 Pause Uploads</span>
+                      <span className="block text-[11px] text-slate-500 mt-1">Locks new resource uploads. Existing posts and discussions remain active.</span>
+                    </button>
+
+                    {/* Archived button */}
+                    <button
+                      onClick={() => handleUpdateStatus('archived')}
+                      disabled={archiving}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        circle.status === 'archived'
+                          ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-500/20'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="block text-sm font-bold text-rose-900">📦 Archive</span>
+                      <span className="block text-[11px] text-slate-500 mt-1">Read-only state. Restricts joins, resource uploads, and discussions.</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
             <div className="prose prose-sm max-w-none">
               <p className="text-slate-700 leading-relaxed font-sans text-sm">{circle.description}</p>
             </div>
+
+            {/* Member-Only Private Meeting Access Coordinates */}
+            {isMember && (circle.meeting_link || circle.meeting_password) && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 space-y-3.5 shadow-sm text-left">
+                <div className="flex items-center gap-2 border-b border-indigo-100 pb-2.5">
+                  <span className="text-xl">🔐</span>
+                  <div>
+                    <h4 className="text-sm font-bold text-indigo-900">Confidential Meeting Coordinates</h4>
+                    <p className="text-[10px] text-indigo-500 font-medium">Visible strictly to verified cohort members & owner.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {circle.meeting_link && (
+                    <div>
+                      <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-1">Private Meeting Link</span>
+                      <a
+                        href={circle.meeting_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm transition break-all"
+                        id="private-meeting-link"
+                      >
+                        🌐 Join Online Session
+                      </a>
+                    </div>
+                  )}
+                  {circle.meeting_password && (
+                    <div>
+                      <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-1">Access Password / Access Code</span>
+                      <div className="px-3 py-2 bg-white rounded-xl border border-indigo-150 text-indigo-950 font-mono font-bold text-xs select-all inline-block">
+                        {circle.meeting_password}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InfoRow icon="🏷" label="Category" value={circle.category} />
@@ -1117,6 +1491,16 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
               </div>
             ) : null}
 
+            {isFull ? (
+              <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-center gap-2 animate-in slide-in-from-top-2 duration-200">
+                <span>⚠️</span>
+                <div>
+                  <strong className="block">Circle capacity limit reached ({circle.member_count}/{circle.max_members})</strong>
+                  <span>You cannot accept any new join requests because this cohort is full. To admit more students, please increase maximum cohort capacity inside your settings panel in the Overview tab or remove an existing member first.</span>
+                </div>
+              </div>
+            ) : null}
+
             {loadingRequests ? (
               <LoadingSpinner label="Loading join requests…" />
             ) : activeRequests.length === 0 ? (
@@ -1142,7 +1526,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                       </div>
                       
                       <div className="flex items-center gap-2 shrink-0">
-                        {req.status === 'accepted' && (
+                        {req.status === 'accepted' && req.member_left_at === null && (
                           <span className="px-2.5 py-0.5 bg-amber-100 border border-amber-300 text-amber-800 text-[10px] font-extrabold rounded-full">
                             ⚠️ Repair Needed (Membership Missing)
                           </span>
@@ -1273,8 +1657,8 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                         </button>
                         <button
                           onClick={() => handleRespondToRequest(req.id, 'accept')}
-                          disabled={respondingRequestId === req.id || isPaused || isArchived}
-                          className="flex-1 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50"
+                          disabled={respondingRequestId === req.id || isPaused || isArchived || isFull}
+                          className="flex-1 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           id={`accept-btn-${req.id}`}
                         >
                           {respondingRequestId === req.id ? 'Reviewing…' : '✅ Accept Application'}
@@ -1299,35 +1683,55 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
         )}
 
         {/* ── MEMBERS ── */}
-        {tab === 'members' && (
-          <div>
-            {loadingMembers ? (
-              <LoadingSpinner label="Loading members…" />
-            ) : members.length === 0 ? (
-              <EmptyState icon="👥" message="No members yet." />
-            ) : (
-              <div className="space-y-2">
-                {members.map((m) => (
-                  <div key={m.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm flex-shrink-0">
-                      {m.profile?.full_name?.[0]?.toUpperCase() ?? '?'}
+        {tab === 'members' && (() => {
+          const sortedMembers = [...members].sort((a, b) => {
+            const roleA = a.role === 'owner' ? 1 : 0;
+            const roleB = b.role === 'owner' ? 1 : 0;
+            if (roleB !== roleA) return roleB - roleA;
+            const nameA = a.profile?.full_name?.trim() || '';
+            const nameB = b.profile?.full_name?.trim() || '';
+            return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+          });
+          return (
+            <div>
+              {loadingMembers ? (
+                <LoadingSpinner label="Loading members…" />
+              ) : sortedMembers.length === 0 ? (
+                <EmptyState icon="👥" message="No members yet." />
+              ) : (
+                <div className="space-y-2">
+                  {sortedMembers.map((m) => (
+                    <div key={m.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm flex-shrink-0">
+                        {m.profile?.full_name?.[0]?.toUpperCase() ?? '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{m.profile?.full_name ?? 'Unknown'}</p>
+                        <p className="text-xs text-slate-500">{m.profile?.department} · {m.profile?.year_of_study}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${m.role === 'owner' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                          {m.role === 'owner' ? '👑 Owner' : 'Member'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 hidden sm:block">Joined {formatDate(m.joined_at)}</span>
+                        {isOwner && m.role !== 'owner' && (
+                          <button
+                            onClick={() => handleRemoveMember(m.user_id, m.profile?.full_name ?? 'Unknown')}
+                            disabled={removingMemberId === m.user_id}
+                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 text-rose-700 font-semibold text-[10px] rounded-lg transition-colors flex items-center gap-1 focus:outline-none shrink-0 active:scale-95 disabled:opacity-50"
+                            id={`remove-member-${m.user_id}`}
+                          >
+                            {removingMemberId === m.user_id ? 'Removing…' : '❌ Remove'}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{m.profile?.full_name ?? 'Unknown'}</p>
-                      <p className="text-xs text-slate-500">{m.profile?.department} · {m.profile?.year_of_study}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${m.role === 'owner' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                        {m.role === 'owner' ? '👑 Owner' : 'Member'}
-                      </span>
-                      <span className="text-[10px] text-slate-400 hidden sm:block">Joined {formatDate(m.joined_at)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── RESOURCES ── */}
         {tab === 'resources' && (
@@ -1521,84 +1925,146 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                   <LoadingSpinner label="Loading resources…" />
                 ) : resources.length === 0 ? (
                   <EmptyState icon="📚" message="No resources shared yet. Be the first to add one!" />
-                ) : (
-                  <div className="space-y-2">
-                    {resources.map((r) => (
-                      <div key={r.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
-                        <span className="text-xl flex-shrink-0 mt-0.5">
-                          {r.file_path ? (
-                            r.file_mime_type === 'application/pdf' ? '📄' :
-                            r.file_mime_type?.startsWith('image/') ? '🖼️' :
-                            '📁'
-                          ) : (
-                            RESOURCE_TYPE_ICON[r.resource_type]
-                          )}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
+                ) : (() => {
+                  const displayedResources = resources.slice(0, resourceLimit);
+                  return (
+                    <div className="space-y-2">
+                      {displayedResources.map((r) => (
+                        <div key={r.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
+                          <span className="text-xl flex-shrink-0 mt-0.5">
                             {r.file_path ? (
-                              <button
-                                onClick={() => handlePreviewResource(r)}
-                                className="text-sm font-semibold text-indigo-700 hover:underline truncate text-left"
-                              >
-                                {r.title}
-                              </button>
-                            ) : r.url ? (
-                              <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-indigo-700 hover:underline truncate">
-                                {r.title}
-                              </a>
+                              r.file_mime_type === 'application/pdf' ? '📄' :
+                              r.file_mime_type?.startsWith('image/') ? '🖼️' :
+                              '📁'
                             ) : (
-                              <p className="text-sm font-semibold text-slate-900">{r.title}</p>
+                              RESOURCE_TYPE_ICON[r.resource_type]
                             )}
-                            <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded font-medium">{r.resource_type}</span>
-                            {r.file_path && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded font-semibold">
-                                💾 {formatBytes(r.file_size_bytes)}
-                              </span>
-                            )}
-                          </div>
-                          {r.description && <p className="text-xs text-slate-500 mt-0.5">{r.description}</p>}
-                          {r.file_path && (
-                            <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
-                              File: {r.file_name}
-                            </p>
-                          )}
-                          <p className="text-[11px] text-slate-400 mt-1">
-                            By {r.uploader_profile?.full_name ?? 'Unknown'} · {formatRelativeTime(r.created_at)}
-                          </p>
-
-                          {/* Preview & Download Row for file resources */}
-                          {r.file_path && (
-                            <div className="flex items-center gap-3 mt-2">
-                              <button
-                                onClick={() => handlePreviewResource(r)}
-                                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded transition-colors"
-                              >
-                                👁️ Preview
-                              </button>
-                              <button
-                                onClick={() => handleDownloadResource(r)}
-                                className="text-[11px] font-bold text-emerald-600 hover:text-emerald-800 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded transition-colors"
-                              >
-                                ⬇️ Download
-                              </button>
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {r.file_path ? (
+                                <button
+                                  onClick={() => handlePreviewResource(r)}
+                                  className="text-sm font-semibold text-indigo-700 hover:underline truncate text-left"
+                                >
+                                  {r.title}
+                                </button>
+                              ) : r.url ? (
+                                <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-indigo-700 hover:underline truncate">
+                                  {r.title}
+                                </a>
+                              ) : (
+                                <p className="text-sm font-semibold text-slate-900">{r.title}</p>
+                              )}
+                              <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded font-medium">{r.resource_type}</span>
+                              {r.file_path && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded font-semibold">
+                                  💾 {formatBytes(r.file_size_bytes)}
+                                </span>
+                              )}
+                              {r.is_pinned && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-amber-500 text-white font-extrabold rounded shadow-sm flex items-center gap-0.5 animate-pulse">
+                                  📌 PINNED
+                                </span>
+                              )}
                             </div>
+                            {r.description && <p className="text-xs text-slate-500 mt-0.5">{r.description}</p>}
+                            {r.file_path && (
+                              <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
+                                File: {r.file_name}
+                              </p>
+                            )}
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              By {r.uploader_profile?.full_name ?? 'Unknown'} · {formatRelativeTime(r.created_at)}
+                            </p>
+
+                            {/* Actions and Interactions Row */}
+                            <div className="flex items-center gap-2.5 mt-2 flex-wrap">
+                              {r.file_path && (
+                                <>
+                                  <button
+                                    onClick={() => handlePreviewResource(r)}
+                                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors"
+                                  >
+                                    👁️ Preview
+                                  </button>
+                                  <button
+                                    onClick={() => handleDownloadResource(r)}
+                                    className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded transition-colors"
+                                  >
+                                    ⬇️ Download
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Like / Unlike (Member / Owner Only) */}
+                              <button
+                                onClick={() => handleToggleLike(r.id)}
+                                className={`text-[10px] px-2 py-0.5 font-bold rounded border transition-all flex items-center gap-1 shrink-0 active:scale-95 ${
+                                  r.liked_by_me
+                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-250 hover:bg-indigo-100'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+                                }`}
+                                id={`like-resource-${r.id}`}
+                              >
+                                {r.liked_by_me ? '❤️' : '🤍'} Like
+                                <span className="bg-slate-200/60 px-1 rounded text-[9px] font-extrabold">{r.likes_count ?? 0}</span>
+                              </button>
+
+                              {/* Pin / Unpin (Owner Only) */}
+                              {isOwner && (
+                                <button
+                                  onClick={() => handleTogglePin(r.id)}
+                                  className={`text-[10px] px-2 py-0.5 font-bold rounded border transition-all shrink-0 active:scale-95 ${
+                                    r.is_pinned
+                                      ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                                      : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+                                  }`}
+                                  id={`pin-resource-${r.id}`}
+                                >
+                                  {r.is_pinned ? '📌 Unpin' : '📌 Pin'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {(r.shared_by === currentUserId || isOwner) && (
+                            <button
+                              onClick={() => handleDeleteResource(r.id)}
+                              className="flex-shrink-0 p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              title="Remove resource"
+                              id={`delete-resource-${r.id}`}
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
                           )}
                         </div>
-                        {(r.shared_by === currentUserId || isOwner) && (
-                          <button
-                            onClick={() => handleDeleteResource(r.id)}
-                            className="flex-shrink-0 p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Remove resource"
-                            id={`delete-resource-${r.id}`}
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                      {resources.length > 3 && (
+                        <div className="flex justify-center pt-3 border-t border-slate-150">
+                          {resourceLimit < resources.length ? (
+                            <button
+                              type="button"
+                              onClick={() => setResourceLimit((prev) => Math.min(prev + 10, resources.length))}
+                              className="px-4 py-1.5 bg-white hover:bg-slate-50 border border-slate-250 text-indigo-700 font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5 focus:outline-none shrink-0 active:scale-95"
+                              id="show-more-resources"
+                            >
+                              ➕ Show more resources ({resources.length - resourceLimit} remaining)
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setResourceLimit(3)}
+                              className="px-4 py-1.5 bg-white hover:bg-slate-50 border border-slate-250 text-indigo-700 font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5 focus:outline-none shrink-0 active:scale-95"
+                              id="show-fewer-resources"
+                            >
+                              ➖ Show fewer resources
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>

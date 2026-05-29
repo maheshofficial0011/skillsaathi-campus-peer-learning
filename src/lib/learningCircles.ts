@@ -399,6 +399,8 @@ export interface UpdateCircleInput {
   meeting_mode?: CircleMeetingMode;
   meeting_schedule?: string | null;
   location_or_link?: string | null;
+  meeting_link?: string | null;
+  meeting_password?: string | null;
   max_members?: number;
   is_public?: boolean;
   status?: CircleStatus;
@@ -418,6 +420,28 @@ export const updateLearningCircle = async (
       }
     }
 
+    if (input.meeting_link !== undefined && input.meeting_link !== null && input.meeting_link.trim() !== '') {
+      if (!isValidHttpsUrl(input.meeting_link)) {
+        throw new Error('Meeting link must strictly use the https:// protocol. http://, data:, javascript:, or file: links are not allowed.');
+      }
+    }
+
+    if (input.max_members !== undefined) {
+      if (input.max_members < 2 || input.max_members > 100) {
+        throw new Error('Maximum members capacity must be between 2 and 100.');
+      }
+      // Check current member count
+      const { count, error: countErr } = await supabase
+        .from('learning_circle_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('circle_id', circleId);
+
+      if (countErr) throw countErr;
+      if (count && input.max_members < count) {
+        throw new Error(`Maximum members capacity cannot be set lower than the current member count (${count}).`);
+      }
+    }
+
     const payload: Record<string, unknown> = {};
     if (input.title !== undefined) payload.title = input.title.trim();
     if (input.description !== undefined) payload.description = input.description.trim();
@@ -427,7 +451,9 @@ export const updateLearningCircle = async (
     if (input.meeting_mode !== undefined) payload.meeting_mode = input.meeting_mode;
     if (input.meeting_schedule !== undefined) payload.meeting_schedule = input.meeting_schedule?.trim() || null;
     if (input.location_or_link !== undefined) payload.location_or_link = input.location_or_link?.trim() || null;
-    if (input.max_members !== undefined) payload.max_members = input.max_members;
+    if (input.meeting_link !== undefined) payload.meeting_link = input.meeting_link?.trim() || null;
+    if (input.meeting_password !== undefined) payload.meeting_password = input.meeting_password?.trim() || null;
+    if (input.max_members !== undefined) payload.max_members = Number(input.max_members);
     if (input.is_public !== undefined) payload.is_public = input.is_public;
     if (input.status !== undefined) payload.status = input.status;
 
@@ -532,6 +558,18 @@ export const leaveLearningCircle = async (circleId: string, userId: string): Pro
       .eq('user_id', userId);
 
     if (error) throw error;
+
+    // Track intentional departure in join requests table
+    const { error: joinReqErr } = await supabase
+      .from('learning_circle_join_requests')
+      .update({ member_left_at: new Date().toISOString() })
+      .eq('circle_id', circleId)
+      .eq('requester_id', userId)
+      .eq('status', 'accepted');
+
+    if (joinReqErr) {
+      console.warn('[leaveLearningCircle] join requests leave update failed:', joinReqErr);
+    }
   } catch (err) {
     console.error('leaveLearningCircle error:', err);
     throw err;
@@ -569,21 +607,47 @@ export const getCircleMembers = async (circleId: string): Promise<LearningCircle
 // ──────────────────────────────────────────
 
 /**
- * Fetch all study resources for a circle.
+ * Fetch all study resources for a circle with like aggregates, sorted: pinned -> likes -> newest.
  */
 export const getCircleResources = async (circleId: string): Promise<LearningCircleResource[]> => {
   try {
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData?.user?.id;
+
     const { data, error } = await supabase
       .from('learning_circle_resources')
       .select(`
-        id, circle_id, shared_by, title, description, resource_type, url, file_path, file_name, file_mime_type, file_size_bytes, storage_bucket, created_at, updated_at,
-        uploader_profile:profiles!learning_circle_resources_shared_by_fkey(full_name)
+        id, circle_id, shared_by, title, description, resource_type, url, file_path, file_name, file_mime_type, file_size_bytes, storage_bucket, is_pinned, pinned_by, pinned_at, created_at, updated_at,
+        uploader_profile:profiles!learning_circle_resources_shared_by_fkey(full_name),
+        likes:learning_circle_resource_likes(user_id)
       `)
-      .eq('circle_id', circleId)
-      .order('created_at', { ascending: false });
+      .eq('circle_id', circleId);
 
     if (error) throw error;
-    return (data || []) as unknown as LearningCircleResource[];
+
+    const rawResources = data || [];
+
+    const mapped = rawResources.map((r: any) => {
+      const likesList = r.likes || [];
+      return {
+        ...r,
+        likes_count: likesList.length,
+        liked_by_me: userId ? likesList.some((l: any) => l.user_id === userId) : false,
+      };
+    }) as LearningCircleResource[];
+
+    // Sort: pinned first (is_pinned === true), then likes_count desc, then created_at desc
+    return mapped.sort((a, b) => {
+      const pinA = a.is_pinned ? 1 : 0;
+      const pinB = b.is_pinned ? 1 : 0;
+      if (pinB !== pinA) return pinB - pinA;
+
+      const likesA = a.likes_count ?? 0;
+      const likesB = b.likes_count ?? 0;
+      if (likesB !== likesA) return likesB - likesA;
+
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
   } catch (err) {
     console.error('getCircleResources error:', err);
     return [];
@@ -955,13 +1019,19 @@ export const getCircleJoinRequests = async (
       )
     `)
     .eq('circle_id', circleId)
+    .in('status', ['pending', 'accepted'])
     .order('created_at', { ascending: false });
 
   if (error) {
     console.error('[getCircleJoinRequests] failed:', error);
     return [];
   }
-  return data as unknown as LearningCircleJoinRequestWithProfile[];
+
+  // Filter: only show pending requests OR accepted requests where requester has not intentionally left or been removed
+  const rawData = data || [];
+  return rawData.filter(
+    (r: any) => r.status === 'pending' || (r.status === 'accepted' && r.member_left_at === null)
+  ) as unknown as LearningCircleJoinRequestWithProfile[];
 };
 
 /**
@@ -1013,7 +1083,7 @@ export const respondToJoinRequest = async (
 
       if (countErr) throw countErr;
       if ((count ?? 0) >= circle.max_members) {
-        throw new Error('This circle is full. You cannot accept more members.');
+        throw new Error('Circle is full. Increase max members or remove a member before accepting new requests.');
       }
 
       // Update request status to accepted (only if not already accepted)
@@ -1051,6 +1121,19 @@ export const respondToJoinRequest = async (
         if (memberErr) {
           console.error('[respondToJoinRequest] member insert error:', memberErr);
           throw new Error('Request accepted, but failed to create membership: ' + memberErr.message);
+        }
+
+        // Set membership timestamp fields upon successful insert
+        const { error: updateJoinErr } = await supabase
+          .from('learning_circle_join_requests')
+          .update({
+            membership_created_at: new Date().toISOString(),
+            member_left_at: null
+          })
+          .eq('id', requestId);
+
+        if (updateJoinErr) {
+          console.warn('[respondToJoinRequest] failed to set membership timestamps:', updateJoinErr);
         }
       }
     } else {
@@ -1115,4 +1198,180 @@ export const getJoinRequestStatusForCircle = async (
     return null;
   }
 };
+
+/**
+ * Remove a member from a learning circle (owner only, RLS enforced).
+ */
+export const removeCircleMember = async (circleId: string, userId: string): Promise<void> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in to perform this action.');
+    }
+    const currentUserId = authData.user.id;
+
+    if (currentUserId === userId) {
+      throw new Error('You cannot remove yourself from your own circle. If you want to delete the circle, please archive it.');
+    }
+
+    // Verify current user is the owner
+    const { data: ownerMembership, error: ownerCheckErr } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', circleId)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    if (ownerCheckErr) throw ownerCheckErr;
+    if (ownerMembership?.role !== 'owner') {
+      throw new Error('Only the circle owner is authorized to remove members.');
+    }
+
+    // Delete membership row
+    const { error } = await supabase
+      .from('learning_circle_members')
+      .delete()
+      .eq('circle_id', circleId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+
+    // Update latest accepted request to mark the left timestamp
+    const { error: joinReqErr } = await supabase
+      .from('learning_circle_join_requests')
+      .update({ member_left_at: new Date().toISOString() })
+      .eq('circle_id', circleId)
+      .eq('requester_id', userId)
+      .eq('status', 'accepted');
+
+    if (joinReqErr) {
+      console.warn('[removeCircleMember] join request leave update failed:', joinReqErr);
+    }
+  } catch (err) {
+    console.error('removeCircleMember error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Toggle the pinned status of a study resource (owner only).
+ */
+export const toggleResourcePin = async (resourceId: string): Promise<void> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in to pin resources.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Fetch the resource details
+    const { data: resource, error: fetchErr } = await supabase
+      .from('learning_circle_resources')
+      .select('circle_id, is_pinned')
+      .eq('id', resourceId)
+      .single();
+
+    if (fetchErr || !resource) {
+      throw new Error('Resource not found.');
+    }
+
+    // Check if the current user is owner
+    const { data: ownerMembership, error: ownerCheckErr } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', resource.circle_id)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    if (ownerCheckErr) throw ownerCheckErr;
+    if (ownerMembership?.role !== 'owner') {
+      throw new Error('Only the circle owner can pin or unpin resources.');
+    }
+
+    const nextPinned = !resource.is_pinned;
+
+    const { error: updateErr } = await supabase
+      .from('learning_circle_resources')
+      .update({
+        is_pinned: nextPinned,
+        pinned_by: nextPinned ? currentUserId : null,
+        pinned_at: nextPinned ? new Date().toISOString() : null
+      })
+      .eq('id', resourceId);
+
+    if (updateErr) throw updateErr;
+  } catch (err) {
+    console.error('toggleResourcePin error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Toggle resource like for the signed-in member/owner.
+ */
+export const toggleResourceLike = async (resourceId: string): Promise<void> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in to like resources.');
+    }
+    const userId = authData.user.id;
+
+    // Fetch resource to get its circle_id
+    const { data: resource, error: fetchErr } = await supabase
+      .from('learning_circle_resources')
+      .select('circle_id')
+      .eq('id', resourceId)
+      .single();
+
+    if (fetchErr || !resource) {
+      throw new Error('Resource not found.');
+    }
+
+    // Verify current user can access/is member/owner of the circle
+    const { data: membership, error: memErr } = await supabase
+      .from('learning_circle_members')
+      .select('id')
+      .eq('circle_id', resource.circle_id)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (memErr) throw memErr;
+    if (!membership) {
+      throw new Error('Only members of this learning circle can like resources.');
+    }
+
+    // Check if already liked
+    const { data: existingLike, error: likeCheckErr } = await supabase
+      .from('learning_circle_resource_likes')
+      .select('id')
+      .eq('resource_id', resourceId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (likeCheckErr) throw likeCheckErr;
+
+    if (existingLike) {
+      // Unlike (delete row)
+      const { error: deleteErr } = await supabase
+        .from('learning_circle_resource_likes')
+        .delete()
+        .eq('id', existingLike.id);
+      if (deleteErr) throw deleteErr;
+    } else {
+      // Like (insert row)
+      const { error: insertErr } = await supabase
+        .from('learning_circle_resource_likes')
+        .insert({
+          resource_id: resourceId,
+          user_id: userId
+        });
+      if (insertErr) throw insertErr;
+    }
+  } catch (err) {
+    console.error('toggleResourceLike error:', err);
+    throw err;
+  }
+};
+
 

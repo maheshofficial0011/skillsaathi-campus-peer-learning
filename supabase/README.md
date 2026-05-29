@@ -280,6 +280,7 @@ A fresh database setup requires executing the SQL files in the following order:
 15. `supabase/phase5-learning-circle-resource-files-patch.sql` (Phase 5.1 Secure Resource Files upload patch: extends resources metadata columns + private storage bucket `learning-circle-resources` + storage SELECT/INSERT/DELETE RLS policies)
 16. `supabase/phase5-learning-circle-join-requests-patch.sql` (Phase 5.2 Learning Circle Join Requests + Profile Extensions patch: adds join requests table, constraints, partial unique index, and RLS policies, plus extends `public.profiles` with optional academic/learning/work verification columns)
 17. `supabase/phase5-learning-circle-join-requests-rls-fix.sql` (Phase 5.2 RLS INSERT fix patch: drops and recreates `lcm_insert` policy to allow circle owners to insert accepted applicants into memberships)
+18. `supabase/phase5-learning-circle-workflow-polish-patch.sql` (Phase 5.3 Learning Circle Workflow Rules, Owner Settings, and Resource Pinned & Likes patch: adds meeting credentials, resource pinning fields, membership logs on requests, creates `learning_circle_resource_likes` table, and sets up RLS policies)
 
 ---
 
@@ -300,6 +301,7 @@ A fresh database setup requires executing the SQL files in the following order:
 | **`learning_circle_resources`** | Circle members/owners | Circle members/owners | Creator (`auth.uid() = shared_by`) | Creator (`auth.uid() = shared_by`) OR Circle owner |
 | **`learning_circle_posts`** | Circle members/owners | Circle members/owners | Creator (`auth.uid() = created_by`) | Creator (`auth.uid() = created_by`) OR Circle owner |
 | **`learning_circle_join_requests`** | Requester OR Circle Owner | Requester (`auth.uid() = requester_id`, circle is active, and not member) | Requester (`status` to `'cancelled'`) OR Owner (`status` to `'accepted'` or `'rejected'`) | None |
+| **`learning_circle_resource_likes`** | Circle members/owners | Circle members/owners | None | Owner (`auth.uid() = user_id`) |
 
 ### 🔒 Storage RLS Policies (Private Bucket: `learning-circle-resources`)
 * **SELECT**: Authorized only for circle members and owners (checked securely via `public.can_access_learning_circle(extract_circle_id_from_path(name), auth.uid())`).
