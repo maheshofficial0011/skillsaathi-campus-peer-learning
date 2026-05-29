@@ -112,6 +112,7 @@ const CreateCircleModal: React.FC<CreateCircleModalProps> = ({ onClose, onCreate
     max_members: 20,
     is_public: true,
   });
+  const [customCategory, setCustomCategory] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -124,12 +125,20 @@ const CreateCircleModal: React.FC<CreateCircleModalProps> = ({ onClose, onCreate
     if (form.location_or_link && !isValidMeetingLinkOrLocation(form.location_or_link)) {
       e.location_or_link = 'If this is a URL, it must use https://. Plain text locations are also fine.';
     }
+    if (form.category === 'Other') {
+      const trimmed = customCategory.trim();
+      if (!trimmed) {
+        e.customCategory = 'Custom category is required.';
+      } else if (trimmed.length < 2) {
+        e.customCategory = 'Custom category must be at least 2 characters.';
+      }
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (ev: React.FormEvent) => {
+    ev.preventDefault();
     // Guard: must have a valid auth user ID before attempting any DB write
     if (!userId) {
       toast.error('Not signed in', 'Please sign in again before creating a circle.');
@@ -138,7 +147,11 @@ const CreateCircleModal: React.FC<CreateCircleModalProps> = ({ onClose, onCreate
     if (!validate()) return;
     setLoading(true);
     try {
-      const circle = await createLearningCircle(form);
+      const categoryToSave = form.category === 'Other' ? customCategory.trim() : form.category;
+      const circle = await createLearningCircle({
+        ...form,
+        category: categoryToSave,
+      });
       const withStats: LearningCircleWithStats = {
         ...circle,
         creator_name: 'You',
@@ -223,6 +236,23 @@ const CreateCircleModal: React.FC<CreateCircleModalProps> = ({ onClose, onCreate
               </select>
             </div>
           </div>
+
+          {/* Custom Category Input if "Other" is selected */}
+          {form.category === 'Other' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Custom Category <span className="text-rose-500">*</span></label>
+              <input
+                id="create-circle-custom-category"
+                type="text"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder="e.g., Cloud Computing, Rust Programming"
+                className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${errors.customCategory ? 'border-rose-400' : 'border-slate-300'}`}
+              />
+              <p className="text-xs text-slate-400 mt-1">Add a custom topic/category for your circle.</p>
+              {errors.customCategory && <p className="text-xs text-rose-500 mt-1">{errors.customCategory}</p>}
+            </div>
+          )}
 
           {/* Department */}
           <div>
@@ -342,9 +372,10 @@ interface CircleCardProps {
   onLeave: (circle: LearningCircleWithStats) => void;
 }
 
-const CircleCard: React.FC<CircleCardProps> = ({ circle, onView, onJoin, onLeave }) => {
-  const isMember = !!circle.my_role;
-  const isOwner = circle.my_role === 'owner';
+const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, onView, onJoin, onLeave }) => {
+  const isOwner = circle.my_role === 'owner' || circle.created_by === currentUserId;
+  const isMember = circle.my_role === 'member';
+  const isJoined = isOwner || isMember;
   const isFull = (circle.member_count ?? 0) >= circle.max_members;
   const isArchived = circle.status === 'archived';
   const isPaused = circle.status === 'paused';
@@ -370,7 +401,7 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, onView, onJoin, onLeave
           {isOwner && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600 text-white">👑 Owner</span>
           )}
-          {isMember && !isOwner && (
+          {isMember && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white">✓ Joined</span>
           )}
         </div>
@@ -400,9 +431,9 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, onView, onJoin, onLeave
           className="flex-1 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors"
           id={`view-circle-${circle.id}`}
         >
-          {isMember ? '📂 Open Workspace' : '👁 View Details'}
+          {isJoined ? '📂 Open Workspace' : '👁 View Details'}
         </button>
-        {!isMember && !isArchived && !isPaused && (
+        {!isJoined && !isArchived && !isPaused && (
           <button
             onClick={() => onJoin(circle)}
             disabled={isFull}
@@ -412,7 +443,7 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, onView, onJoin, onLeave
             {isFull ? 'Full' : '+ Join'}
           </button>
         )}
-        {isMember && !isOwner && (
+        {isMember && (
           <button
             onClick={() => onLeave(circle)}
             className="px-3 py-2 text-sm font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 hover:border-rose-200 transition-colors"
@@ -999,6 +1030,25 @@ export const LearningCirclesPage: React.FC = () => {
   const [filterDifficulty, setFilterDifficulty] = useState('');
   const [filterMode, setFilterMode] = useState('');
 
+  // Dynamic categories: default ones + any unique ones from fetched circles
+  const dynamicCategories = React.useMemo(() => {
+    const categoriesSet = new Set<string>();
+    CIRCLE_CATEGORIES.forEach((c) => {
+      if (c !== 'Other') categoriesSet.add(c);
+    });
+    allCircles.forEach((c) => {
+      if (c.category) {
+        const existing = Array.from(categoriesSet).find(
+          (item) => item.toLowerCase() === c.category.trim().toLowerCase()
+        );
+        if (!existing) {
+          categoriesSet.add(c.category.trim());
+        }
+      }
+    });
+    return Array.from(categoriesSet).sort((a, b) => a.localeCompare(b));
+  }, [allCircles]);
+
   // Load data
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -1022,7 +1072,7 @@ export const LearningCirclesPage: React.FC = () => {
   const filteredCircles = allCircles.filter((c) => {
     const q = searchQuery.toLowerCase();
     const matchSearch = !q || [c.title, c.description, c.category, c.department ?? ''].some((s) => s.toLowerCase().includes(q));
-    const matchCat = !filterCategory || c.category === filterCategory;
+    const matchCat = !filterCategory || c.category.trim().toLowerCase() === filterCategory.trim().toLowerCase();
     const matchDiff = !filterDifficulty || c.difficulty_level === filterDifficulty;
     const matchMode = !filterMode || c.meeting_mode === filterMode;
     return matchSearch && matchCat && matchDiff && matchMode;
@@ -1045,6 +1095,11 @@ export const LearningCirclesPage: React.FC = () => {
 
   const handleLeave = async (circle: LearningCircleWithStats) => {
     if (!userId) return;
+    const isOwner = circle.my_role === 'owner' || circle.created_by === userId;
+    if (isOwner) {
+      toast.error('Leave Failed', 'Owner cannot leave their own circle in MVP. Archive the circle instead.');
+      return;
+    }
     try {
       await leaveLearningCircle(circle.id, userId);
       toast.success('Left Circle', `You have left "${circle.title}".`);
@@ -1147,7 +1202,7 @@ export const LearningCirclesPage: React.FC = () => {
       {mainTab === 'discover' && (
         <div className="space-y-4">
           {/* Search & Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 font-sans">
             <div className="flex-1 relative">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8"/><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35"/></svg>
               <input
@@ -1166,7 +1221,7 @@ export const LearningCirclesPage: React.FC = () => {
               className="px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">All Categories</option>
-              {CIRCLE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              {dynamicCategories.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
             <select
               id="filter-difficulty"
@@ -1186,6 +1241,18 @@ export const LearningCirclesPage: React.FC = () => {
               <option value="">All Modes</option>
               {CIRCLE_MEETING_MODES.map((m) => <option key={m}>{m}</option>)}
             </select>
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setFilterCategory('');
+                setFilterDifficulty('');
+                setFilterMode('');
+              }}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border border-slate-200 flex items-center justify-center gap-1.5"
+              id="reset-filters"
+            >
+              🔄 Reset
+            </button>
           </div>
 
           {loading ? (
@@ -1193,13 +1260,19 @@ export const LearningCirclesPage: React.FC = () => {
           ) : filteredCircles.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
               <span className="text-5xl">🔍</span>
-              <p className="text-base font-medium text-slate-500">No circles found</p>
-              <p className="text-sm">Try adjusting your filters or search terms.</p>
-              {userId && (
-                <button onClick={() => setShowCreate(true)} className="mt-2 px-5 py-2 text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors">
-                  + Create the first one
-                </button>
-              )}
+              <p className="text-base font-medium text-slate-500">No circles match your filters. Try resetting filters.</p>
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilterCategory('');
+                  setFilterDifficulty('');
+                  setFilterMode('');
+                }}
+                className="mt-2 px-5 py-2 text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors"
+                id="empty-reset-filters"
+              >
+                🔄 Reset All Filters
+              </button>
             </div>
           ) : (
             <>

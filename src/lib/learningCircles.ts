@@ -18,20 +18,19 @@ import type {
 // ──────────────────────────────────────────
 
 export const CIRCLE_CATEGORIES: string[] = [
-  'Programming',
-  'Web Development',
-  'Data Science',
-  'Machine Learning',
-  'Cyber Security',
-  'Cloud Computing',
-  'Mobile Development',
-  'Design & UI/UX',
   'Mathematics',
   'Physics',
   'Chemistry',
+  'Programming',
+  'Java',
+  'DSA',
+  'Web Development',
+  'AI/ML',
+  'Cybersecurity',
+  'Communication Skills',
   'Placement Prep',
-  'Competitive Coding',
-  'Research',
+  'Exam Revision',
+  'Project Group',
   'Other',
 ];
 
@@ -122,6 +121,10 @@ export const getLearningCircles = async (userId?: string): Promise<LearningCircl
 
     return circles.map((c) => {
       const myMembership = myMemberships.find((m) => m.circle_id === c.id);
+      let myRole: CircleRole | null = (myMembership?.role as CircleRole) ?? null;
+      if (!myRole && userId && c.created_by === userId) {
+        myRole = 'owner';
+      }
       return {
         id: c.id,
         title: c.title,
@@ -140,7 +143,7 @@ export const getLearningCircles = async (userId?: string): Promise<LearningCircl
         updated_at: c.updated_at,
         creator_name: c.creator_profile?.full_name ?? 'Unknown',
         member_count: c.members?.[0]?.count ?? 0,
-        my_role: (myMembership?.role as CircleRole) ?? null,
+        my_role: myRole,
       } as LearningCircleWithStats;
     });
   } catch (err) {
@@ -181,6 +184,10 @@ export const getMyLearningCircles = async (userId: string): Promise<LearningCirc
 
     return circles.map((c) => {
       const myMembership = myMems.find((m) => m.circle_id === c.id);
+      let myRole: CircleRole | null = (myMembership?.role as CircleRole) ?? null;
+      if (!myRole && userId && c.created_by === userId) {
+        myRole = 'owner';
+      }
       return {
         id: c.id,
         title: c.title,
@@ -199,7 +206,7 @@ export const getMyLearningCircles = async (userId: string): Promise<LearningCirc
         updated_at: c.updated_at,
         creator_name: c.creator_profile?.full_name ?? 'Unknown',
         member_count: c.members?.[0]?.count ?? 0,
-        my_role: (myMembership?.role as CircleRole) ?? null,
+        my_role: myRole,
       } as LearningCircleWithStats;
     });
   } catch (err) {
@@ -238,6 +245,9 @@ export const getLearningCircleById = async (
         .eq('user_id', userId)
         .maybeSingle();
       myRole = (memData?.role as CircleRole) ?? null;
+      if (!myRole && c.created_by === userId) {
+        myRole = 'owner';
+      }
     }
 
     return {
