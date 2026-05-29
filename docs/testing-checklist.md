@@ -672,3 +672,71 @@ Use this checklist to perform regression testing and ensure full readiness of al
   - Click `"Request Again"`. Type a new application message (minimum 10 chars) and submit.
   - Verify the application goes to pending status, and displays `"⌛ Pending (Cancel)"` to block duplicates.
 
+## 💎 Phase 5.5: Learning Circles Final Polish & Stability Checklist
+
+### 1. Verification Queue & Rejected Resource Polish
+- [ ] **Active Owner Verification Queue Filtering**:
+  - Log in as the Owner. Navigate to the circle's **Resources** tab.
+  - Verify that the active **Resource Verification Queue** shows ONLY resources with status `pending_verification`.
+  - Verify that rejected resources **do not** appear in this active queue list.
+- [ ] **Owner-only Rejected Resource History Collapsible**:
+  - Verify that a collapsible section titled `"Rejected Resource History"` appears below the active queue when there are rejected files.
+  - Toggle the collapsible section open. Verify that historically rejected resources are displayed with their title, uploader name, rejected date, and rejection reason, and that **no** Accept/Decline action buttons are shown.
+- [ ] **Uploader-only Rejected Status Panel**:
+  - Log in as the member whose resource was rejected.
+  - Verify that the rejected resource remains visible strictly inside **My Submitted Resources** dashboard panel, showing a red `❌ Rejected` badge and the owner's custom rejection feedback reason.
+  - Verify that this rejected resource is completely invisible inside the **Main Library Resources** view.
+- [ ] **Empty Active Queue State**:
+  - As the Owner, verify that if there are no pending resources waiting for review, the verification console renders a clean status label: `"No resources waiting for verification."`
+
+### 2. Workspace Roster & Spacing Details
+- [ ] **Owner Roster Priority**:
+  - Open the **Members** tab in the circle workspace.
+  - Verify that the Owner is strictly displayed at the very top of the list with a `"👑 Owner"` badge.
+- [ ] **Alphabetical Standard Members Sorting**:
+  - Verify that all standard members are sorted strictly alphabetically by their full profile name.
+- [ ] **Tablet/Mobile Spacing and Joined Dates**:
+  - Resize the viewport to simulated tablet/mobile widths.
+  - Verify that the joined date (e.g., `"Joined 30 May 2026"`) remains cleanly visible and does not wrap awkwardly or overlap.
+- [ ] **Compact Resource stats**:
+  - Verify that every member's roster listing displays their contribution metrics compactly (`Shared | V | P | R`) and that stats increment correctly on approvals/rejections.
+
+### 3. Resource Ordering & Badges
+- [ ] **Tab Header Resource Counters**:
+  - Verify that the tab header displays the exact current library resources count, e.g., `"Resources (3)"`.
+- [ ] **Main Library Badges**:
+  - Open the verified resources list. Verify that every resource renders a green `"✅ Verified by Owner"` badge.
+  - Verify that owner-pinned resources render `"📌 Pinned"` and owner-recommended resources render `"⭐ Owner Recommended"`.
+  - Verify that likes display in a clean `"👍 X likes"` button format.
+- [ ] **Resource Slicing and Expansion Toggles**:
+  - Verify that if there are 4 or more verified resources, only the first 3 are rendered, with smooth `➕ Show more resources` and `➖ Show fewer resources` buttons to toggle expansion.
+- [ ] **Resource Sorting Hierarchy**:
+  - Verify resources are ranked in the following exact hierarchy: `Pinned first -> Recommended second -> Likes count third -> Newest first`.
+
+### 4. Meeting Privacy & Clipboard Copy Controls
+- [ ] **Meeting Details Access Rights**:
+  - Log in as a non-member. Verify that no meeting coordinates or credentials are shown on discover cards or non-member views.
+  - Log in as a member. Verify that the credentials card is titled `"Members-only meeting details"`.
+  - Verify that if meeting details are empty, the coordinates container displays: `"Meeting details will be shared by the owner."`
+- [ ] **Clipboard Copy Triggers**:
+  - Click the **Copy (📋)** button next to the meeting link. Verify that it copies the URL to your clipboard and fires a success toast: `"Meeting link copied to clipboard."`
+  - Click the **Copy (📋)** button next to the meeting password. Verify that it copies the passcode to your clipboard and fires a success toast: `"Meeting password copied to clipboard."`
+
+### 5. Standard Empty States & Fallbacks
+- [ ] **Main Verified Resources Fallback**:
+  - Verify that if there are no verified study materials shared yet, the view shows: `"No verified resources yet."`
+- [ ] **My Submitted Resources Fallback**:
+  - As a member, if you have not shared any materials yet, verify that the panel shows: `"You have not submitted resources yet."`
+- [ ] **Discussion Tab Fallback**:
+  - Verify that if there are no posts shared yet, the view shows: `"No discussion posts yet."`
+- [ ] **Join Requests Tab Fallback**:
+  - As the Owner, verify that if there are no pending join requests, the tab shows: `"No pending join requests."`
+
+### 6. Cohort Capacity Bounds and request Again
+- [ ] **Discover Cards cohort limits**:
+  - Locate a full circle. Verify that the card displays a red `"Full"` badge and shows members count as `C/M` (e.g. `20/20`).
+  - Verify that the join button is active but displays a clear warning: `"Full — owner must increase capacity before accepting."`
+  - Verify that the join application is still allowed to be sent to the owner, but the owner is blocked from accepting until they increase maximum capacity.
+- [ ] **Request Again Verification**:
+  - After a member intentionally leaves or is removed, verify that the Discover card join button displays `"Request Again"` and lets the student re-apply.
+

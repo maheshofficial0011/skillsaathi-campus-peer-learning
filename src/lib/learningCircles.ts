@@ -1038,7 +1038,7 @@ export const getResourceVerificationQueue = async (circleId: string): Promise<Le
         likes:learning_circle_resource_likes(user_id)
       `)
       .eq('circle_id', circleId)
-      .in('verification_status', ['pending_verification', 'rejected'])
+      .eq('verification_status', 'pending_verification')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -1054,6 +1054,60 @@ export const getResourceVerificationQueue = async (circleId: string): Promise<Le
     }) as LearningCircleResource[];
   } catch (err) {
     console.error('getResourceVerificationQueue error:', err);
+    return [];
+  }
+};
+
+/**
+ * Fetch resources that have been rejected in a circle (circle owner only).
+ */
+export const getCircleRejectedResources = async (circleId: string): Promise<LearningCircleResource[]> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Verify current user is owner
+    const { data: ownerMembership, error: ownerCheckErr } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', circleId)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    if (ownerCheckErr) throw ownerCheckErr;
+    if (ownerMembership?.role !== 'owner') {
+      throw new Error('Only the circle owner can access the rejected resources list.');
+    }
+
+    const { data, error } = await supabase
+      .from('learning_circle_resources')
+      .select(`
+        id, circle_id, shared_by, title, description, resource_type, url, file_path, file_name, file_mime_type, file_size_bytes, storage_bucket, is_pinned, pinned_by, pinned_at,
+        verification_status, verified_by, verified_at, rejected_by, rejected_at, rejection_reason,
+        owner_recommended, owner_recommended_by, owner_recommended_at, created_at, updated_at,
+        uploader_profile:profiles!learning_circle_resources_shared_by_fkey(full_name),
+        likes:learning_circle_resource_likes(user_id)
+      `)
+      .eq('circle_id', circleId)
+      .eq('verification_status', 'rejected')
+      .order('rejected_at', { ascending: false });
+
+    if (error) throw error;
+
+    const rawResources = data || [];
+    return rawResources.map((r: any) => {
+      const likesList = r.likes || [];
+      return {
+        ...r,
+        likes_count: likesList.length,
+        liked_by_me: likesList.some((l: any) => l.user_id === currentUserId),
+      };
+    }) as LearningCircleResource[];
+  } catch (err) {
+    console.error('getCircleRejectedResources error:', err);
     return [];
   }
 };

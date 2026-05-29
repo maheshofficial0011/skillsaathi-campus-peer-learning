@@ -2282,11 +2282,11 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                 {loadingResources ? (
                   <LoadingSpinner label="Loading resources…" />
                 ) : resources.length === 0 ? (
-                  <EmptyState icon="📚" message="No resources shared yet. Be the first to add one!" />
+                  <EmptyState icon="📚" message="No verified resources yet." />
                 ) : (() => {
                   const displayedResources = resources.slice(0, resourceLimit);
                   return (
-                    <div className="space-y-3 mt-4 text-left">
+                    <div className="space-y-3 mt-4 text-left font-sans">
                       <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 border-b border-slate-100 pb-2">
                         📖 Main Library Resources
                       </h4>
@@ -2302,9 +2302,10 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                             )}
                           </span>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap text-[10px]">
                               {r.file_path ? (
                                 <button
+                                  type="button"
                                   onClick={() => handlePreviewResource(r)}
                                   className="text-sm font-semibold text-indigo-700 hover:underline truncate text-left"
                                 >
@@ -2315,22 +2316,25 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                   {r.title}
                                 </a>
                               ) : (
-                                <p className="text-sm font-semibold text-slate-900">{r.title}</p>
+                                <p className="text-sm font-semibold text-slate-900 truncate">{r.title}</p>
                               )}
-                              <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-650 rounded font-medium">{r.resource_type}</span>
+                              <span className="px-1.5 py-0.5 bg-slate-200 text-slate-650 rounded font-medium">{r.resource_type}</span>
                               {r.file_path && (
-                                <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded font-semibold">
+                                <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded font-semibold">
                                   💾 {formatBytes(r.file_size_bytes)}
                                 </span>
                               )}
+                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold rounded shadow-xs flex items-center gap-0.5">
+                                ✅ Verified by Owner
+                              </span>
                               {r.is_pinned && (
-                                <span className="text-[10px] px-1.5 py-0.5 bg-amber-500 text-white font-extrabold rounded shadow-sm flex items-center gap-0.5 animate-pulse">
-                                  📌 PINNED
+                                <span className="px-1.5 py-0.5 bg-amber-500 text-white font-extrabold rounded shadow-sm flex items-center gap-0.5">
+                                  📌 Pinned
                                 </span>
                               )}
                               {r.owner_recommended && (
-                                <span className="text-[10px] px-1.5 py-0.5 bg-indigo-600 text-white font-bold rounded shadow-xs flex items-center gap-0.5">
-                                  ⭐ RECOMMENDED
+                                <span className="px-1.5 py-0.5 bg-indigo-600 text-white font-bold rounded shadow-xs flex items-center gap-0.5">
+                                  ⭐ Owner Recommended
                                 </span>
                               )}
                             </div>
@@ -2349,12 +2353,14 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                               {r.file_path && (
                                 <>
                                   <button
+                                    type="button"
                                     onClick={() => handlePreviewResource(r)}
                                     className="text-[10px] font-bold text-indigo-600 hover:text-indigo-850 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-0.5 rounded transition-colors"
                                   >
                                     👁️ Preview
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() => handleDownloadResource(r)}
                                     className="text-[10px] font-bold text-emerald-600 hover:text-emerald-850 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-0.5 rounded transition-colors"
                                   >
@@ -2365,6 +2371,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
 
                               {/* Like / Unlike (Member / Owner Only) */}
                               <button
+                                type="button"
                                 onClick={() => handleToggleLike(r.id)}
                                 className={`text-[10px] px-2 py-0.5 font-bold rounded border transition-all flex items-center gap-1 shrink-0 active:scale-95 ${
                                   r.liked_by_me
@@ -2373,13 +2380,14 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                 }`}
                                 id={`like-resource-${r.id}`}
                               >
-                                {r.liked_by_me ? '❤️' : '🤍'} Like
-                                <span className="bg-slate-200/60 px-1 rounded text-[9px] font-extrabold">{r.likes_count ?? 0}</span>
+                                <span>{r.liked_by_me ? '❤️' : '🤍'}</span>
+                                <span>👍 {r.likes_count ?? 0} likes</span>
                               </button>
 
                               {/* Pin / Unpin (Owner Only) */}
                               {isOwner && (
                                 <button
+                                  type="button"
                                   onClick={() => handleTogglePin(r.id)}
                                   className={`text-[10px] px-2 py-0.5 font-bold rounded border transition-all shrink-0 active:scale-95 ${
                                     r.is_pinned
@@ -2395,6 +2403,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                               {/* Recommend / Unrecommend (Owner Only) */}
                               {isOwner && (
                                 <button
+                                  type="button"
                                   onClick={() => handleToggleRecommend(r.id)}
                                   className={`text-[10px] px-2 py-0.5 font-bold rounded border transition-all shrink-0 active:scale-95 ${
                                     r.owner_recommended
@@ -2403,7 +2412,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                   }`}
                                   id={`recommend-resource-${r.id}`}
                                 >
-                                  {r.owner_recommended ? '⭐ Recommended' : '⭐ Recommend'}
+                                  {r.owner_recommended ? '⭐ Owner Recommended' : '⭐ Owner Recommend'}
                                 </button>
                               )}
                             </div>
@@ -2503,7 +2512,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                 {loadingPosts ? (
                   <LoadingSpinner label="Loading discussion…" />
                 ) : posts.length === 0 ? (
-                  <EmptyState icon="💬" message="No posts yet. Start the discussion!" />
+                  <EmptyState icon="💬" message="No discussion posts yet." />
                 ) : (
                   <div className="space-y-3">
                     {posts.map((p) => (
