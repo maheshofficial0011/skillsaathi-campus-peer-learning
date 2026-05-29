@@ -315,3 +315,107 @@ Use this checklist to perform regression testing and ensure full readiness of al
     * **Cancelled**: `"🚫 You cancelled this request."` or `"🚫 Student cancelled this request."`
   - Verify duplicate requests show descriptive info: `"ℹ️ You already have an active request with this mentor. New requests are allowed after completed, cancelled, or declined sessions."`
 
+---
+
+## 🔵 13. Phase 5 — Learning Circles Module
+
+### Circle Discovery & Filters
+- [ ] **Discover Circles Tab**:
+  - Navigate to Learning Circles → Discover tab.
+  - Verify search bar filters circles by title, description, category, and department.
+  - Verify Category, Difficulty, and Meeting Mode dropdowns filter results correctly.
+  - Verify "X circles found" count updates dynamically.
+  - Verify each circle card shows: title, description, category badge, difficulty badge, meeting mode, member count/max, and creator name.
+  - Verify "View Details" button opens the Circle Workspace in Overview tab.
+
+### Circle Creation
+- [ ] **Create Circle Modal**:
+  - Click "Start a Circle" button.
+  - Leave Title blank → submit → verify inline error "Title is required."
+  - Enter a Title shorter than 5 chars → verify "Title must be at least 5 characters."
+  - Enter Description shorter than 20 chars → verify "Description must be at least 20 characters."
+  - Enter Max Members = 1 → verify "Max members must be between 2 and 100."
+  - Enter Meeting Location as `http://insecure.com` → verify error about https://.
+  - Enter Meeting Location as plain text "Room 203 Block B" → verify accepted (no error).
+  - Enter Meeting Location as `https://meet.google.com/xyz` → verify accepted.
+  - Fill all fields correctly → submit → verify success toast "Circle Created! 🎉".
+  - Verify circle appears in "My Circles" tab with "👑 Owner" badge.
+  - Verify workspace opens automatically after creation.
+
+### Join & Leave
+- [ ] **Join Circle**:
+  - As a different user, find an active public circle.
+  - Click "+ Join" → verify success toast "Joined! 🎉".
+  - Verify "✓ Joined" badge appears on card.
+  - Verify "Open Workspace" button replaces "Join" button.
+  - Try joining again → verify error "You are already a member of this circle."
+  - Set max_members to current count → try to join → verify "This circle is full." error.
+  - Archive the circle → try joining → verify "This circle is not accepting new members right now." error.
+
+### Leave Circle
+- [ ] **Leave Circle**:
+  - As a member (non-owner), click "Leave" button.
+  - Verify "Left Circle" success toast.
+  - Verify "Join" button reappears on the card.
+  - As the owner, verify no "Leave" button is shown (only "Open Workspace" action).
+
+### Circle Workspace
+- [ ] **Overview Tab**:
+  - Open a circle workspace → verify Overview shows description, category, difficulty, mode, schedule, location/link, creator, created date, member count, visibility.
+  - If location is a URL (https://), verify it renders as a clickable link.
+  - If location is plain text, verify it renders as text.
+  - If archived/paused, verify amber warning banner appears.
+  - If not a member, verify "You are not a member yet" info box appears.
+
+- [ ] **Members Tab**:
+  - Open Members tab → verify all members are listed with name, department, year, join date.
+  - Verify Owner has "👑 Owner" badge, others have "Member" badge.
+  - Verify names do not expose raw UUIDs or emails.
+
+- [ ] **Resources Tab**:
+  - As a member, click "Share a Resource".
+  - Submit with empty Title → verify "Title is required."
+  - Enter URL as `http://insecure.com` → verify "URL must use https:// protocol" error.
+  - Enter URL as `javascript:alert(1)` → verify blocked with https error.
+  - Enter URL as `https://youtube.com` → verify accepted.
+  - Verify resource appears in list with type icon, title, uploader name, relative timestamp.
+  - Verify uploader can delete their own resource (trash icon visible).
+  - Verify owner can also delete any resource.
+  - Verify non-uploader non-owner sees no delete icon.
+  - As an archived circle member, verify "Share a Resource" form is hidden.
+
+- [ ] **Discussion Tab**:
+  - As a member, post a message with type "Update".
+  - Verify post appears at top with author name, time, type badge.
+  - Post with type "Question", "Plan", "Announcement" → verify different badge colors.
+  - Verify post author can delete their own post.
+  - Verify circle owner can delete any post.
+  - Verify non-author non-owner cannot see delete icon on others' posts.
+  - As an archived circle member, verify post form is hidden.
+
+### Archive / Restore
+- [ ] **Archive Circle (Owner only)**:
+  - In workspace header, click "📦 Archive".
+  - Verify success toast "Circle Archived".
+  - Verify workspace header shows "archived" badge.
+  - Verify "Archived" status badge appears on circle card.
+  - Verify Join button is hidden on archived circles.
+  - Verify post form and resource form are hidden in workspace.
+  - Click "♻ Restore" → verify "Circle Restored" toast and active status restored.
+
+### Profile Integration
+- [ ] **My Profile – Learning Circles Count**:
+  - After joining 1+ circles, navigate to My Profile.
+  - Verify "🔵 Learning Circles" section appears below Doubts section.
+  - Verify the count displayed matches the number of circles joined/owned.
+  - Verify the section is hidden if user has 0 circles.
+
+### Security & Privacy
+- [ ] **URL Safety**:
+  - Attempt to share a resource with URL `javascript:void(0)` → blocked.
+  - Attempt to share a resource with URL `data:text/html,...` → blocked.
+  - Attempt to share a resource with URL `file:///etc/passwd` → blocked.
+  - Attempt to share a resource with URL `https://drive.google.com/...` → accepted.
+- [ ] **No Private Data Leaks**:
+  - Verify no UUID, email, or phone number is displayed anywhere in the Learning Circles module.
+  - Verify all member names resolve to full_name from profiles join.

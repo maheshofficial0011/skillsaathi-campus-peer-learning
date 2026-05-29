@@ -282,3 +282,79 @@ export interface SeniorGuidanceFeedbackWithProfiles extends SeniorGuidanceFeedba
     topic: string;
   } | null;
 }
+
+// ==========================================
+// PHASE 5: LEARNING CIRCLES TYPES
+// ==========================================
+
+export type CircleRole = 'owner' | 'member';
+export type CircleDifficulty = 'Beginner' | 'Intermediate' | 'Advanced' | 'Mixed';
+export type CircleMeetingMode = 'Online' | 'In-Person' | 'Hybrid';
+export type CircleStatus = 'active' | 'paused' | 'archived';
+export type CircleResourceType = 'Link' | 'PDF' | 'Video' | 'Notes' | 'Book' | 'Other';
+export type CirclePostType = 'Update' | 'Question' | 'Plan' | 'Announcement';
+
+export interface LearningCircle {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  department: string | null;
+  difficulty_level: CircleDifficulty;
+  meeting_mode: CircleMeetingMode;
+  meeting_schedule: string | null;
+  location_or_link: string | null;
+  max_members: number;
+  is_public: boolean;
+  created_by: string;
+  status: CircleStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LearningCircleWithStats extends LearningCircle {
+  creator_name?: string;
+  member_count?: number;
+  my_role?: CircleRole | null;
+}
+
+export interface LearningCircleMember {
+  id: string;
+  circle_id: string;
+  user_id: string;
+  role: CircleRole;
+  joined_at: string;
+  profile?: {
+    full_name: string;
+    department: string;
+    year_of_study: string;
+  } | null;
+}
+
+export interface LearningCircleResource {
+  id: string;
+  circle_id: string;
+  shared_by: string;
+  title: string;
+  description: string | null;
+  resource_type: CircleResourceType;
+  url: string | null;
+  created_at: string;
+  updated_at: string;
+  uploader_profile?: {
+    full_name: string;
+  } | null;
+}
+
+export interface LearningCirclePost {
+  id: string;
+  circle_id: string;
+  created_by: string;
+  content: string;
+  post_type: CirclePostType;
+  created_at: string;
+  updated_at: string;
+  author_profile?: {
+    full_name: string;
+  } | null;
+}

@@ -27,6 +27,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [recentReviews, setRecentReviews] = useState<ReviewItem[]>([]);
   const [viewReviewerProfileId, setViewReviewerProfileId] = useState<string | null>(null);
   const [doubtStats, setDoubtStats] = useState<DoubtContributionStats | null>(null);
+  const [circlesJoined, setCirclesJoined] = useState<number>(0);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -173,6 +174,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
         // Doubt contribution stats
         const ds = await getDoubtContributionStats(userId);
         setDoubtStats(ds);
+
+        // Learning Circles joined count
+        const { count: circleCount } = await supabase
+          .from('learning_circle_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId);
+        setCirclesJoined(circleCount ?? 0);
 
         if (data.is_senior_mentor) {
           const ms = await getSeniorMentorStats(userId);
@@ -1136,6 +1144,27 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
               </>
             )}
           </div>
+          {/* ================================================ */}
+
+          {/* ======== LEARNING CIRCLES ACTIVITY ======== */}
+          {circlesJoined > 0 && (
+            <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h3 className="text-lg font-bold text-slate-900">🔵 Learning Circles</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Collaborative study groups joined or created</p>
+              </div>
+              <div className="flex items-center gap-4 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                <div className="text-center px-6 border-r border-indigo-200">
+                  <p className="text-3xl font-extrabold text-indigo-700">{circlesJoined}</p>
+                  <p className="text-[11px] font-bold text-indigo-500 mt-1">Circles Joined</p>
+                </div>
+                <div className="text-sm text-indigo-700 leading-relaxed">
+                  <p className="font-medium">Active in {circlesJoined} learning circle{circlesJoined !== 1 ? 's' : ''}.</p>
+                  <p className="text-xs text-indigo-500 mt-0.5">View all your circles in the Learning Circles dashboard.</p>
+                </div>
+              </div>
+            </div>
+          )}
           {/* ================================================ */}
 
           {/* Reviewer Public Profile Modal */}
