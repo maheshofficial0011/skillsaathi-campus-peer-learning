@@ -488,7 +488,7 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, request,
                 className="flex-1 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                 id={`request-join-circle-${circle.id}`}
               >
-                {isFull ? 'Full' : request?.status === 'rejected' ? 'Request Again' : 'Request to Join'}
+                {isFull ? 'Full' : (request?.status === 'rejected' || request?.status === 'cancelled' || request?.status === 'accepted') ? 'Request Again' : 'Request to Join'}
               </button>
             )}
           </>
@@ -1156,7 +1156,20 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
 
   const isFull = (circle.member_count ?? 0) >= circle.max_members;
 
-  const activeRequests = joinRequests.filter(r => r.status === 'pending' || (r.status === 'accepted' && r.member_left_at === null && !members.some(m => m.user_id === r.requester_id)));
+  const activeRequests = joinRequests.filter(r => {
+    if (r.status === 'pending') return true;
+    if (r.status === 'accepted') {
+      const hasMember = members.some(m => m.user_id === r.requester_id);
+      return (
+        !hasMember &&
+        !r.member_left_at &&
+        !r.left_by &&
+        !r.removed_by &&
+        !!r.membership_created_at
+      );
+    }
+    return false;
+  });
   const pendingRequestsCount = activeRequests.length;
 
   const TABS: { id: WorkspaceTab; label: string; icon: string }[] = [
@@ -1636,7 +1649,12 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                       </div>
                       
                       <div className="flex items-center gap-2 shrink-0">
-                        {req.status === 'accepted' && req.member_left_at === null && (
+                        {req.status === 'accepted' &&
+                          !members.some(m => m.user_id === req.requester_id) &&
+                          !req.member_left_at &&
+                          !req.left_by &&
+                          !req.removed_by &&
+                          !!req.membership_created_at && (
                           <span className="px-2.5 py-0.5 bg-amber-100 border border-amber-300 text-amber-800 text-[10px] font-extrabold rounded-full">
                             ⚠️ Repair Needed (Membership Missing)
                           </span>
@@ -3130,9 +3148,9 @@ export const LearningCirclesPage: React.FC = () => {
               <p className="text-sm text-slate-500">{filteredCircles.length} circle{filteredCircles.length !== 1 ? 's' : ''} found</p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {filteredCircles.map((circle) => {
-                  const matchingReq = myJoinRequests.find(r => r.circle_id === circle.id && r.status === 'pending') || 
-                                      myJoinRequests.find(r => r.circle_id === circle.id && r.status === 'rejected') || 
-                                      myJoinRequests.find(r => r.circle_id === circle.id && r.status === 'cancelled');
+                  const matchingReq = myJoinRequests
+                    .filter(r => r.circle_id === circle.id)
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
                   return (
                     <CircleCard
                       key={circle.id}

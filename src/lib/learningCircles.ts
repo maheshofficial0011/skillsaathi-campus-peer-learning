@@ -533,16 +533,23 @@ export const joinLearningCircle = async (circleId: string, userId: string): Prom
  */
 export const leaveLearningCircle = async (
   circleId: string,
-  userId: string,
+  _userId: string, // Keep signature for backward compatibility
   input?: { leave_reason?: string; leave_message?: string }
 ): Promise<void> => {
   try {
-    // Fetch membership role
+    // 1. Fetch auth user
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in to perform this action.');
+    }
+    const authUserId = authData.user.id;
+
+    // 2. Fetch membership role
     const { data: membership, error: memErr } = await supabase
       .from('learning_circle_members')
       .select('role')
       .eq('circle_id', circleId)
-      .eq('user_id', userId)
+      .eq('user_id', authUserId)
       .maybeSingle();
 
     if (memErr) throw memErr;
@@ -551,33 +558,54 @@ export const leaveLearningCircle = async (
       throw new Error('You are not a member of this circle.');
     }
 
+    // 3. Block owner leave
     if (membership.role === 'owner') {
       throw new Error('As the owner, you cannot leave your own circle. You can archive or delete it instead.');
     }
 
-    const { error } = await supabase
+    // 4. Delete membership row
+    const { error: deleteErr } = await supabase
       .from('learning_circle_members')
       .delete()
       .eq('circle_id', circleId)
-      .eq('user_id', userId);
+      .eq('user_id', authUserId);
 
-    if (error) throw error;
+    if (deleteErr) throw deleteErr;
 
-    // Track intentional departure in join requests table
-    const { error: joinReqErr } = await supabase
+    // 5. Find the latest accepted join request by id
+    const { data: reqs, error: fetchReqErr } = await supabase
       .from('learning_circle_join_requests')
-      .update({
-        member_left_at: new Date().toISOString(),
-        leave_reason: input?.leave_reason || 'Leaving by choice',
-        leave_message: input?.leave_message?.trim() || null,
-        left_by: userId
-      })
+      .select('id')
       .eq('circle_id', circleId)
-      .eq('requester_id', userId)
-      .eq('status', 'accepted');
+      .eq('requester_id', authUserId)
+      .eq('status', 'accepted')
+      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-    if (joinReqErr) {
-      console.warn('[leaveLearningCircle] join requests leave update failed:', joinReqErr);
+    if (fetchReqErr) {
+      console.warn('[leaveLearningCircle] fetching requests failed:', fetchReqErr);
+    }
+
+    const latestRequest = reqs && reqs.length > 0 ? reqs[0] : null;
+
+    if (latestRequest) {
+      // 6. Update that exact request by id
+      const { error: joinReqErr } = await supabase
+        .from('learning_circle_join_requests')
+        .update({
+          member_left_at: new Date().toISOString(),
+          leave_reason: input?.leave_reason || 'Leaving by choice',
+          leave_message: input?.leave_message?.trim() || null,
+          left_by: authUserId,
+          removed_by: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', latestRequest.id);
+
+      if (joinReqErr) {
+        console.warn('[leaveLearningCircle] join requests leave update failed:', joinReqErr);
+      }
     }
   } catch (err) {
     console.error('leaveLearningCircle error:', err);
@@ -1410,6 +1438,17 @@ export const getMyJoinRequests = async (): Promise<LearningCircleJoinRequest[]> 
 export const getCircleJoinRequests = async (
   circleId: string
 ): Promise<LearningCircleJoinRequestWithProfile[]> => {
+  // Fetch active member user IDs in the circle to verify membership status
+  const { data: memberData, error: memberErr } = await supabase
+    .from('learning_circle_members')
+    .select('user_id')
+    .eq('circle_id', circleId);
+
+  if (memberErr) {
+    console.error('[getCircleJoinRequests] failed to fetch circle members:', memberErr);
+  }
+  const memberUserIds = new Set((memberData || []).map((m: any) => m.user_id));
+
   const { data, error } = await supabase
     .from('learning_circle_join_requests')
     .select(`
@@ -1443,11 +1482,24 @@ export const getCircleJoinRequests = async (
     return [];
   }
 
-  // Filter: only show pending requests OR accepted requests where requester has not intentionally left or been removed
+  // Filter: only show pending requests OR true repair-needed requests
   const rawData = data || [];
-  return rawData.filter(
-    (r: any) => r.status === 'pending' || (r.status === 'accepted' && r.member_left_at === null)
-  ) as unknown as LearningCircleJoinRequestWithProfile[];
+  return rawData.filter((r: any) => {
+    if (r.status === 'pending') {
+      return true;
+    }
+    if (r.status === 'accepted') {
+      const hasMember = memberUserIds.has(r.requester_id);
+      return (
+        !hasMember &&
+        r.member_left_at === null &&
+        r.left_by === null &&
+        r.removed_by === null &&
+        r.membership_created_at !== null
+      );
+    }
+    return false;
+  }) as unknown as LearningCircleJoinRequestWithProfile[];
 };
 
 /**
@@ -1620,26 +1672,27 @@ export const getJoinRequestStatusForCircle = async (
  */
 export const removeCircleMember = async (
   circleId: string,
-  userId: string,
+  userId: string, // targetUserId
   input?: { reason?: string; message?: string }
 ): Promise<void> => {
   try {
+    // 1. Fetch auth user
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError || !authData.user?.id) {
       throw new Error('Please sign in to perform this action.');
     }
-    const currentUserId = authData.user.id;
+    const authUserId = authData.user.id;
 
-    if (currentUserId === userId) {
+    if (authUserId === userId) {
       throw new Error('You cannot remove yourself from your own circle. If you want to delete the circle, please archive it.');
     }
 
-    // Verify current user is the owner
+    // 2. Confirm auth user is circle owner
     const { data: ownerMembership, error: ownerCheckErr } = await supabase
       .from('learning_circle_members')
       .select('role')
       .eq('circle_id', circleId)
-      .eq('user_id', currentUserId)
+      .eq('user_id', authUserId)
       .maybeSingle();
 
     if (ownerCheckErr) throw ownerCheckErr;
@@ -1647,30 +1700,65 @@ export const removeCircleMember = async (
       throw new Error('Only the circle owner is authorized to remove members.');
     }
 
-    // Delete membership row
-    const { error } = await supabase
+    // 3. Confirm target user is member and not owner
+    const { data: targetMembership, error: targetCheckErr } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', circleId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (targetCheckErr) throw targetCheckErr;
+    if (!targetMembership) {
+      throw new Error('Target user is not a member of this circle.');
+    }
+    if (targetMembership.role === 'owner') {
+      throw new Error('You cannot remove the circle owner.');
+    }
+
+    // 4. Delete target member row
+    const { error: deleteErr } = await supabase
       .from('learning_circle_members')
       .delete()
       .eq('circle_id', circleId)
       .eq('user_id', userId);
 
-    if (error) throw error;
+    if (deleteErr) throw deleteErr;
 
-    // Update latest accepted request to mark the left timestamp
-    const { error: joinReqErr } = await supabase
+    // 5. Find latest accepted join request for target
+    const { data: reqs, error: fetchReqErr } = await supabase
       .from('learning_circle_join_requests')
-      .update({
-        member_left_at: new Date().toISOString(),
-        leave_reason: input?.reason || 'Removed by Owner',
-        leave_message: input?.message?.trim() || null,
-        removed_by: currentUserId
-      })
+      .select('id')
       .eq('circle_id', circleId)
       .eq('requester_id', userId)
-      .eq('status', 'accepted');
+      .eq('status', 'accepted')
+      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-    if (joinReqErr) {
-      console.warn('[removeCircleMember] join request leave update failed:', joinReqErr);
+    if (fetchReqErr) {
+      console.warn('[removeCircleMember] fetching requests failed:', fetchReqErr);
+    }
+
+    const latestRequest = reqs && reqs.length > 0 ? reqs[0] : null;
+
+    if (latestRequest) {
+      // 6. Update that request by id
+      const { error: joinReqErr } = await supabase
+        .from('learning_circle_join_requests')
+        .update({
+          member_left_at: new Date().toISOString(),
+          leave_reason: input?.reason || 'Removed by Owner',
+          leave_message: input?.message?.trim() || null,
+          removed_by: authUserId,
+          left_by: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', latestRequest.id);
+
+      if (joinReqErr) {
+        console.warn('[removeCircleMember] join request leave update failed:', joinReqErr);
+      }
     }
   } catch (err) {
     console.error('removeCircleMember error:', err);

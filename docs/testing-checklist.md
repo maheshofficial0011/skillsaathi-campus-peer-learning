@@ -646,3 +646,29 @@ Use this checklist to perform regression testing and ensure full readiness of al
   - As the Owner, locate a verified resource in the main library list.
   - Click **⭐ Recommend**. Verify that a premium blue `⭐ RECOMMENDED` badge is rendered, and the resource is sorted directly above likes/newest (pinned is still at the absolute top).
   - Regular members see the badge, but **cannot** toggle the recommendation status.
+
+## ⚙️ Phase 5.4A: Leave Lifecycle Tracking and Old Accepted Request Cleanup
+
+### 1. Old Accepted Request Filtering (Anti-"Repair Needed" check)
+- [ ] **False Repair Shield**:
+  - Run the diagnostic query (from `supabase/README.md`) on the Supabase console. Confirm that any old accepted join requests that exist *without* a corresponding active `learning_circle_members` row (e.g. users who intentionally left before lifecycle logs existed) are correctly retrieved.
+  - Log in as the Circle Owner. Navigate to the circle's **Requests** tab.
+  - Verify that old accepted request entries with no `membership_created_at` (null in the database) **do not** render at all and do **not** trigger a false `"Repair Needed"` warning banner.
+  - Check that ONLY actual active pending requests OR true, broken accepted requests (`membership_created_at` is NOT null and `member_left_at` is null) appear.
+
+### 2. Precise exit/kick logs tracking by ID
+- [ ] **Precise Leave Logs**:
+  - Log in as a member and click **Leave**. Provide a reason and message.
+  - Verify in the database (or via local UI checks) that the `member_left_at`, `leave_reason`, `leave_message`, and `left_by` fields are successfully saved **specifically on the single, latest accepted join request row** using its unique ID, and that previous historic join requests for that user are unaffected.
+- [ ] **Precise Kick Logs**:
+  - Log in as the Circle Owner, navigate to the **Members** roster, and remove a member with a custom message.
+  - Verify in the database (or via local UI checks) that the `member_left_at`, `leave_reason`, `leave_message`, and `removed_by` fields are successfully recorded on the latest accepted join request row by ID.
+
+### 3. Request Again flow
+- [ ] **Re-Request lifecycle**:
+  - Log in as a student who previously left or was removed from a circle.
+  - Navigate to the **Discover** tab. Locate the circle card.
+  - Verify that the card's join request button renders `"Request Again"`.
+  - Click `"Request Again"`. Type a new application message (minimum 10 chars) and submit.
+  - Verify the application goes to pending status, and displays `"⌛ Pending (Cancel)"` to block duplicates.
+

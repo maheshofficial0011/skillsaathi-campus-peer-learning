@@ -33,3 +33,34 @@ ALTER TABLE public.learning_circle_resources
 UPDATE public.learning_circle_resources
   SET verification_status = 'verified'
   WHERE verification_status IS NULL OR verification_status = '';
+
+-- ====================================================================
+-- PHASE 5.4A: MANUAL DIAGNOSTIC & REMEDIATION NOTE
+-- ====================================================================
+-- Use the following queries to diagnose and clean up old accepted join requests
+-- that were created before Phase 5.4 lifecycle tracking was introduced.
+-- These queries should be run manually after confirming that the user 
+-- intentionally left the circle. Do NOT run broad automatic updates.
+
+-- Diagnostic Query:
+-- select r.*
+-- from public.learning_circle_join_requests r
+-- where r.status = 'accepted'
+--   and r.member_left_at is null
+--   and not exists (
+--     select 1
+--     from public.learning_circle_members m
+--     where m.circle_id = r.circle_id
+--       and m.user_id = r.requester_id
+--   );
+
+-- Manual Cleanup Query:
+-- update public.learning_circle_join_requests
+-- set member_left_at = now(),
+--     leave_reason = 'Leaving by choice',
+--     leave_message = 'Marked as intentionally left after lifecycle tracking was added.',
+--     left_by = requester_id,
+--     removed_by = null,
+--     updated_at = now()
+-- where id = '<confirmed_request_id>';
+

@@ -312,3 +312,36 @@ A fresh database setup requires executing the SQL files in the following order:
 > [!TIP]
 > **Setup Reminder**: Always run these SQL patches in the exact order specified above to prevent relation or index errors. Verify that all RLS policies are enabled (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`) and that no root tables are exposed without filters.
 
+---
+
+### 🔍 Phase 5.4A: Old Accepted Requests Diagnostic & Remediation
+For older accepted join requests that were created before Phase 5.4 lifecycle tracking was introduced (meaning `membership_created_at` or lifecycle fields are null), a user who left might trigger a false "Repair Needed (Membership Missing)" alert for the owner. 
+
+To clean up those records, run the following diagnostic query first:
+```sql
+select r.*
+from public.learning_circle_join_requests r
+where r.status = 'accepted'
+  and r.member_left_at is null
+  and not exists (
+    select 1
+    from public.learning_circle_members m
+    where m.circle_id = r.circle_id
+      and m.user_id = r.requester_id
+  );
+```
+
+After confirming the user intentionally left (e.g., they are no longer in the members list), perform the manual cleanup by updating that specific request ID:
+```sql
+update public.learning_circle_join_requests
+set member_left_at = now(),
+    leave_reason = 'Leaving by choice',
+    leave_message = 'Marked as intentionally left after lifecycle tracking was added.',
+    left_by = requester_id,
+    removed_by = null,
+    updated_at = now()
+where id = '<confirmed_request_id>';
+```
+
+> [!WARNING]
+> Do NOT execute automated, broad destructive queries on production data. Always target verified request IDs.
