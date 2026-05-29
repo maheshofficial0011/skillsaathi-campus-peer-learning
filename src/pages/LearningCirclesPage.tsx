@@ -18,6 +18,7 @@ import type {
 import {
   getLearningCircles,
   getMyLearningCircles,
+  getLearningCircleById,
   createLearningCircle,
   updateLearningCircle,
   leaveLearningCircle,
@@ -52,6 +53,7 @@ import {
   getResourceVerificationQueue,
   getMySubmittedResources,
   getCircleMemberResourceStats,
+  getCircleRejectedResources,
 } from '../lib/learningCircles';
 import { PublicProfileModal } from '../components/profile/PublicProfileModal';
 
@@ -426,6 +428,8 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, request,
             </span>
             {isArchived && <span className="inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-bold uppercase text-slate-500 bg-slate-100 border-slate-200">Archived</span>}
             {isPaused && <span className="inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-bold uppercase text-amber-600 bg-amber-50 border-amber-200">Paused</span>}
+            {isFull && <span className="inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-bold uppercase text-rose-600 bg-rose-50 border-rose-200">Full</span>}
+            {request?.status === 'pending' && <span className="inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-bold uppercase text-amber-700 bg-amber-50 border-amber-200">Pending</span>}
           </div>
           {isOwner && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600 text-white">👑 Owner</span>
@@ -458,6 +462,12 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, request,
             <span className="italic">"{request.response_message}"</span>
           </div>
         )}
+
+        {isFull && !isJoined && (
+          <div className="text-[10.5px] text-amber-700 bg-amber-50 border border-amber-250 p-2.5 rounded-lg mt-1 leading-normal w-full text-left font-sans">
+            ⚠️ <strong>Full</strong> — owner must increase capacity before accepting.
+          </div>
+        )}
       </div>
 
       {/* Actions */}
@@ -484,11 +494,10 @@ const CircleCard: React.FC<CircleCardProps> = ({ circle, currentUserId, request,
             ) : (
               <button
                 onClick={() => onRequestJoin(circle)}
-                disabled={isFull}
-                className="flex-1 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                className="flex-1 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
                 id={`request-join-circle-${circle.id}`}
               >
-                {isFull ? 'Full' : (request?.status === 'rejected' || request?.status === 'cancelled' || request?.status === 'accepted') ? 'Request Again' : 'Request to Join'}
+                {(request?.status === 'rejected' || request?.status === 'cancelled' || request?.status === 'accepted') ? 'Request Again' : 'Request to Join'}
               </button>
             )}
           </>
@@ -565,6 +574,8 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   const [verificationQueue, setVerificationQueue] = useState<LearningCircleResource[]>([]);
   const [mySubmittedResources, setMySubmittedResources] = useState<LearningCircleResource[]>([]);
   const [memberStats, setMemberStats] = useState<Record<string, any>>({});
+  const [rejectedResources, setRejectedResources] = useState<LearningCircleResource[]>([]);
+  const [showRejectedHistory, setShowRejectedHistory] = useState(false);
   const [rejectionResourceId, setRejectionResourceId] = useState<string | null>(null);
   const [rejectionReasonText, setRejectionReasonText] = useState('');
   const [submittingRejection, setSubmittingRejection] = useState(false);
@@ -574,6 +585,22 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   const [removeReason, setRemoveReason] = useState('Inactive member');
   const [removeMessage, setRemoveMessage] = useState('');
   const [submittingRemove, setSubmittingRemove] = useState(false);
+
+  // Reload circle details on mount to fetch the latest meeting credentials securely
+  const loadCircleDetails = useCallback(async () => {
+    try {
+      const latest = await getLearningCircleById(circle.id, currentUserId);
+      if (latest) {
+        onCircleUpdated(latest);
+      }
+    } catch (err) {
+      console.error('Failed to reload circle details:', err);
+    }
+  }, [circle.id, currentUserId, onCircleUpdated]);
+
+  useEffect(() => {
+    loadCircleDetails();
+  }, [loadCircleDetails]);
 
   // Sync settings form with circle whenever circle changes
   useEffect(() => {
@@ -877,6 +904,8 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
       if (isOwner) {
         const queue = await getResourceVerificationQueue(circle.id);
         setVerificationQueue(queue);
+        const rejected = await getCircleRejectedResources(circle.id);
+        setRejectedResources(rejected);
       }
       if (isMember) {
         const myRes = await getMySubmittedResources(circle.id);
@@ -1176,7 +1205,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     { id: 'overview', label: 'Overview', icon: '📋' },
     ...(isOwner ? [{ id: 'requests' as WorkspaceTab, label: `Requests (${pendingRequestsCount})`, icon: '⏳' }] : []),
     { id: 'members', label: `Members (${circle.member_count ?? '…'})`, icon: '👥' },
-    { id: 'resources', label: 'Resources', icon: '📚' },
+    { id: 'resources', label: `Resources (${resources.length})`, icon: '📚' },
     { id: 'posts', label: 'Discussion', icon: '💬' },
   ];
 
@@ -1481,41 +1510,79 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
               <p className="text-slate-700 leading-relaxed font-sans text-sm">{circle.description}</p>
             </div>
 
-            {/* Member-Only Private Meeting Access Coordinates */}
-            {isMember && (circle.meeting_link || circle.meeting_password) && (
-              <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 space-y-3.5 shadow-sm text-left">
-                <div className="flex items-center gap-2 border-b border-indigo-100 pb-2.5">
-                  <span className="text-xl">🔐</span>
-                  <div>
-                    <h4 className="text-sm font-bold text-indigo-900">Confidential Meeting Coordinates</h4>
-                    <p className="text-[10px] text-indigo-500 font-medium">Visible strictly to verified cohort members & owner.</p>
+            {/* Members-Only Private Meeting Details */}
+            {(isOwner || isMember || circle.my_role === 'owner' || circle.my_role === 'member') && (
+              (circle.meeting_link || circle.meeting_password) ? (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 space-y-3.5 shadow-sm text-left">
+                  <div className="flex items-center gap-2 border-b border-indigo-100 pb-2.5">
+                    <span className="text-xl">🔐</span>
+                    <div>
+                      <h4 className="text-sm font-bold text-indigo-900 font-sans">Members-only meeting details</h4>
+                      <p className="text-[10px] text-indigo-500 font-medium font-sans">Visible strictly to verified cohort members & owner.</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-sans">
+                    {circle.meeting_link ? (
+                      <div>
+                        <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-1">Private Meeting Link</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <a
+                            href={circle.meeting_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm transition break-all"
+                            id="private-meeting-link"
+                          >
+                            🌐 Join Online Session
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(circle.meeting_link || '');
+                              toast.success('Link Copied', 'Meeting link copied to clipboard.');
+                            }}
+                            className="px-2.5 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-indigo-700 font-bold text-xs rounded-xl shadow-xs transition"
+                            title="Copy meeting link"
+                          >
+                            📋 Copy
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {circle.meeting_password ? (
+                      <div>
+                        <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-1">Access Password / Access Code</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="px-3 py-2 bg-white rounded-xl border border-indigo-150 text-indigo-950 font-mono font-bold text-xs select-all">
+                            {circle.meeting_password}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(circle.meeting_password || '');
+                              toast.success('Password Copied', 'Meeting password copied to clipboard.');
+                            }}
+                            className="px-2.5 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-indigo-700 font-bold text-xs rounded-xl shadow-xs transition"
+                            title="Copy meeting password"
+                          >
+                            📋 Copy
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {circle.meeting_link && (
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🔐</span>
                     <div>
-                      <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-1">Private Meeting Link</span>
-                      <a
-                        href={circle.meeting_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm transition break-all"
-                        id="private-meeting-link"
-                      >
-                        🌐 Join Online Session
-                      </a>
+                      <h4 className="text-sm font-bold text-slate-800 font-sans">Members-only meeting details</h4>
+                      <p className="text-xs text-slate-500 mt-0.5 font-sans">Meeting details will be shared by the owner.</p>
                     </div>
-                  )}
-                  {circle.meeting_password && (
-                    <div>
-                      <span className="font-bold text-slate-500 block uppercase text-[9px] tracking-wider mb-1">Access Password / Access Code</span>
-                      <div className="px-3 py-2 bg-white rounded-xl border border-indigo-150 text-indigo-950 font-mono font-bold text-xs select-all inline-block">
-                        {circle.meeting_password}
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
-              </div>
+              )
             )}
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2027,6 +2094,9 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                     <span>Format Safety Review:</span>
                                   </p>
                                   <p className="opacity-95">{check.isSafe ? check.warning || 'URL conforms to secure HTTPS standards and contains no dangerous signatures.' : check.reason}</p>
+                                  <p className="text-[9px] text-slate-450 mt-1 italic border-t border-slate-200/50 pt-1">
+                                    Basic automated check only. Please manually verify before trusting.
+                                  </p>
                                 </div>
                               );
                             })()}
@@ -2082,8 +2152,8 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                 )}
 
                 {/* Owner's Resource Verification Queue Section */}
-                {isOwner && verificationQueue.length > 0 && (
-                  <div className="bg-indigo-50/50 border border-indigo-150 rounded-2xl p-5 space-y-4 text-left shadow-sm mt-4">
+                {isOwner && (
+                  <div className="bg-indigo-50/50 border border-indigo-150 rounded-2xl p-5 space-y-4 text-left shadow-sm mt-4 font-sans">
                     <div className="flex items-center justify-between border-b border-indigo-150 pb-2">
                       <h4 className="text-xs font-bold text-indigo-900 flex items-center gap-1.5 uppercase tracking-wide">
                         <span>🛡️</span> Resource Verification Queue ({verificationQueue.length})
@@ -2091,122 +2161,179 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                       <span className="text-[9px] text-indigo-600 font-bold bg-indigo-100/80 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Owner Console</span>
                     </div>
 
-                    {/* Safety Disclaimer */}
-                    <p className="text-[10px] text-slate-500 leading-relaxed bg-white/80 p-2.5 rounded-xl border border-slate-200">
-                      ⚠️ <span className="font-semibold text-slate-700">Disclaimer:</span> Automated link reviews are basic. Please manually inspect each shared file or URL before approving to maintain study group integrity and prevent spam or malicious content.
-                    </p>
+                    {verificationQueue.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic text-center py-6 bg-white/60 rounded-xl border border-slate-100">
+                        No resources waiting for verification.
+                      </p>
+                    ) : (
+                      <>
+                        {/* Safety Disclaimer */}
+                        <p className="text-[10px] text-slate-500 leading-relaxed bg-white/80 p-2.5 rounded-xl border border-slate-200">
+                          ⚠️ <span className="font-semibold text-slate-700">Disclaimer:</span> Automated link reviews are basic. Please manually inspect each shared file or URL before approving to maintain study group integrity and prevent spam or malicious content.
+                        </p>
 
-                    <div className="space-y-3">
-                      {verificationQueue.map((r) => {
-                        const check = r.url ? runResourceLinkSafetyCheck(r.url) : { isSafe: true };
-                        return (
-                          <div key={r.id} className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-xs">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-sm font-bold text-slate-800">{r.title}</span>
-                                  <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded font-semibold text-slate-500 capitalize">{r.resource_type}</span>
-                                  {r.file_path && (
-                                    <span className="text-[9px] px-1.5 py-0.2 bg-indigo-55 text-indigo-600 border border-indigo-100 rounded font-bold">
-                                      💾 File
-                                    </span>
-                                  )}
-                                  {r.verification_status === 'rejected' && (
-                                    <span className="text-[9px] px-1.5 py-0.2 bg-rose-100 border border-rose-200 rounded text-rose-700 font-bold uppercase">
-                                      Rejected
-                                    </span>
-                                  )}
+                        <div className="space-y-3">
+                          {verificationQueue.map((r) => {
+                            const check = r.url ? runResourceLinkSafetyCheck(r.url) : { isSafe: true };
+                            return (
+                              <div key={r.id} className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-xs">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-sm font-bold text-slate-800">{r.title}</span>
+                                      <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded font-semibold text-slate-500 capitalize">{r.resource_type}</span>
+                                      {r.file_path && (
+                                        <span className="text-[9px] px-1.5 py-0.2 bg-indigo-55 text-indigo-600 border border-indigo-100 rounded font-bold">
+                                          💾 File
+                                        </span>
+                                      )}
+                                      {r.verification_status === 'rejected' && (
+                                        <span className="text-[9px] px-1.5 py-0.2 bg-rose-100 border border-rose-200 rounded text-rose-700 font-bold uppercase">
+                                          Rejected
+                                        </span>
+                                      )}
+                                    </div>
+                                    {r.description && <p className="text-xs text-slate-500">{r.description}</p>}
+                                    <p className="text-[10px] text-slate-400">
+                                      Uploaded by <span className="font-semibold text-slate-650">{r.uploader_profile?.full_name ?? 'Unknown'}</span> · {formatRelativeTime(r.created_at)}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex gap-2 flex-shrink-0">
+                                    {r.file_path ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => handlePreviewResource(r)}
+                                          className="text-[10px] font-bold text-indigo-600 hover:text-indigo-850 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg border border-indigo-150 transition-colors"
+                                        >
+                                          👁️ Preview
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDownloadResource(r)}
+                                          className="text-[10px] font-bold text-slate-600 hover:text-slate-850 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200 transition-colors"
+                                        >
+                                          ⬇️ Download
+                                        </button>
+                                      </>
+                                    ) : r.url ? (
+                                      <a
+                                        href={r.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-850 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg border border-indigo-150 transition-colors block"
+                                      >
+                                        🔗 Open URL
+                                      </a>
+                                    ) : null}
+                                  </div>
                                 </div>
-                                {r.description && <p className="text-xs text-slate-500">{r.description}</p>}
-                                <p className="text-[10px] text-slate-400">
-                                  Uploaded by <span className="font-semibold text-slate-650">{r.uploader_profile?.full_name ?? 'Unknown'}</span> · {formatRelativeTime(r.created_at)}
-                                </p>
-                              </div>
 
-                              <div className="flex gap-2 flex-shrink-0">
-                                {r.file_path ? (
-                                  <>
-                                    <button
-                                      onClick={() => handlePreviewResource(r)}
-                                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-850 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg border border-indigo-150 transition-colors"
-                                    >
-                                      👁️ Preview
-                                    </button>
-                                    <button
-                                      onClick={() => handleDownloadResource(r)}
-                                      className="text-[10px] font-bold text-slate-600 hover:text-slate-850 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200 transition-colors"
-                                    >
-                                      ⬇️ Download
-                                    </button>
-                                  </>
-                                ) : r.url ? (
-                                  <a
-                                    href={r.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-850 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg border border-indigo-150 transition-colors block"
+                                {/* Safety Checks for Links */}
+                                {r.url && (
+                                  <div className={`p-2.5 rounded-xl border text-[10px] leading-relaxed space-y-1 ${
+                                    check.isSafe 
+                                      ? check.warning 
+                                        ? 'bg-amber-50 border-amber-200 text-amber-800' 
+                                        : 'bg-emerald-50/50 border-emerald-150 text-emerald-800' 
+                                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                                  }`}>
+                                    <p className="font-bold flex items-center gap-1">
+                                      <span>{check.isSafe ? check.warning ? '⚠️' : '🛡️' : '❌'}</span>
+                                      <span>Safety Check: {check.isSafe ? check.warning ? 'Warning' : 'Verified Secure Format' : 'Blocked'}</span>
+                                    </p>
+                                    <p className="opacity-95">{check.isSafe ? check.warning || 'URL conforms to secure HTTPS standards and contains no executable extension signatures.' : check.reason}</p>
+                                  </div>
+                                )}
+
+                                {/* Rejection Context Display */}
+                                {r.verification_status === 'rejected' && r.rejection_reason && (
+                                  <div className="bg-rose-50/60 text-rose-900 border border-rose-150 text-[10px] p-2.5 rounded-xl">
+                                    <span className="font-bold">Prior Rejection Reason:</span> "{r.rejection_reason}"
+                                  </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="flex gap-3 pt-2 border-t border-slate-100">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenRejectDialog(r.id)}
+                                    className="flex-1 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 rounded-lg transition-colors"
                                   >
-                                    🔗 Open URL
-                                  </a>
-                                ) : null}
+                                    ❌ Decline & Reject
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleVerifyResource(r.id, false)}
+                                    className="flex-1 py-1.5 text-xs font-semibold text-indigo-750 bg-indigo-55 hover:bg-indigo-100 rounded-lg border border-indigo-150 transition-colors"
+                                  >
+                                    ✅ Approve Only
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleVerifyResource(r.id, true)}
+                                    className="flex-1 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                                  >
+                                    ⭐ Approve & Recommend
+                                  </button>
+                                </div>
                               </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Owner's Rejected Resource History Section */}
+                {isOwner && rejectedResources.length > 0 && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 text-left shadow-sm mt-4 font-sans">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowRejectedHistory(!showRejectedHistory)}
+                        className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wide focus:outline-none"
+                      >
+                        <span>📜</span> Rejected Resource History ({rejectedResources.length}) {showRejectedHistory ? '▼' : '▶'}
+                      </button>
+                      <span className="text-[9px] text-rose-600 font-bold bg-rose-50 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Owner History</span>
+                    </div>
+
+                    {showRejectedHistory && (
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                        {rejectedResources.map((r: LearningCircleResource) => (
+                          <div key={r.id} className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-2 text-xs">
+                            <div className="flex justify-between items-start gap-2">
+                              <div>
+                                <span className="font-bold text-slate-800">{r.title}</span>
+                                <span className="ml-2 text-[9px] px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded font-semibold text-slate-500 capitalize">{r.resource_type}</span>
+                              </div>
+                              <span className="text-[10px] text-slate-400">Rejected {formatRelativeTime(r.rejected_at || r.updated_at)}</span>
                             </div>
-
-                            {/* Safety Checks for Links */}
-                            {r.url && (
-                              <div className={`p-2.5 rounded-xl border text-[10px] leading-relaxed space-y-1 ${
-                                check.isSafe 
-                                  ? check.warning 
-                                    ? 'bg-amber-50 border-amber-200 text-amber-800' 
-                                    : 'bg-emerald-50/50 border-emerald-150 text-emerald-800' 
-                                  : 'bg-rose-50 border-rose-200 text-rose-800'
-                              }`}>
-                                <p className="font-bold flex items-center gap-1">
-                                  <span>{check.isSafe ? check.warning ? '⚠️' : '🛡️' : '❌'}</span>
-                                  <span>Safety Check: {check.isSafe ? check.warning ? 'Warning' : 'Verified Secure Format' : 'Blocked'}</span>
-                                </p>
-                                <p className="opacity-95">{check.isSafe ? check.warning || 'URL conforms to secure HTTPS standards and contains no executable extension signatures.' : check.reason}</p>
-                              </div>
-                            )}
-
-                            {/* Rejection Context Display */}
-                            {r.verification_status === 'rejected' && r.rejection_reason && (
-                              <div className="bg-rose-50/60 text-rose-900 border border-rose-150 text-[10px] p-2.5 rounded-xl">
-                                <span className="font-bold">Prior Rejection Reason:</span> "{r.rejection_reason}"
-                              </div>
-                            )}
-
-                            {/* Action Buttons */}
-                            <div className="flex gap-3 pt-2 border-t border-slate-100">
-                              <button
-                                onClick={() => handleOpenRejectDialog(r.id)}
-                                className="flex-1 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 rounded-lg transition-colors"
-                              >
-                                ❌ Decline & Reject
-                              </button>
-                              <button
-                                onClick={() => handleVerifyResource(r.id, false)}
-                                className="flex-1 py-1.5 text-xs font-semibold text-indigo-750 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 rounded-lg transition-colors"
-                              >
-                                ✅ Approve Only
-                              </button>
-                              <button
-                                onClick={() => handleVerifyResource(r.id, true)}
-                                className="flex-1 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                              >
-                                ⭐ Approve & Recommend
-                              </button>
+                            {r.description && <p className="text-slate-500 italic">"{r.description}"</p>}
+                            <div className="p-2.5 bg-rose-50/50 border border-rose-100 rounded-lg text-rose-800 text-[10px]">
+                              <span className="font-bold">Rejection Reason:</span> "{r.rejection_reason || 'N/A'}"
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1">
+                              <span>Uploader: <span className="font-semibold text-slate-600">{r.uploader_profile?.full_name ?? 'Unknown'}</span></span>
+                              {r.url ? (
+                                <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                                  View Link
+                                </a>
+                              ) : null}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Member's Own Submitted Resources Section */}
-                {isMember && mySubmittedResources.length > 0 && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 text-left shadow-sm mt-4">
+                {isMember && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 text-left shadow-sm mt-4 font-sans">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                       <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
                         <span>📤</span> My Submitted Resources ({mySubmittedResources.length})
@@ -2214,67 +2341,74 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                       <p className="text-[10px] text-slate-400">Track verification status of your shared materials.</p>
                     </div>
 
-                    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
-                      {mySubmittedResources.map((r) => {
-                        const check = r.url ? runResourceLinkSafetyCheck(r.url) : { isSafe: true };
-                        return (
-                          <div key={r.id} className="p-3 bg-white border border-slate-150 rounded-xl hover:shadow-xs transition-all flex items-start justify-between gap-3 text-xs">
-                            <div className="min-w-0 flex-1 space-y-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-semibold text-slate-800 truncate block max-w-[200px] sm:max-w-xs">{r.title}</span>
-                                <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded font-semibold text-slate-500 capitalize">{r.resource_type}</span>
-                                {r.file_path && (
-                                  <span className="text-[9px] px-1 bg-indigo-50 border border-indigo-100 rounded text-indigo-500">{formatBytes(r.file_size_bytes)}</span>
+                    {mySubmittedResources.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic text-center py-6 bg-white rounded-xl border border-slate-150">
+                        You have not submitted resources yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                        {mySubmittedResources.map((r) => {
+                          const check = r.url ? runResourceLinkSafetyCheck(r.url) : { isSafe: true };
+                          return (
+                            <div key={r.id} className="p-3 bg-white border border-slate-150 rounded-xl hover:shadow-xs transition-all flex items-start justify-between gap-3 text-xs">
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-slate-800 truncate block max-w-[200px] sm:max-w-xs">{r.title}</span>
+                                  <span className="text-[9px] px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded font-semibold text-slate-500 capitalize">{r.resource_type}</span>
+                                  {r.file_path && (
+                                    <span className="text-[9px] px-1 bg-indigo-50 border border-indigo-100 rounded text-indigo-500">{formatBytes(r.file_size_bytes)}</span>
+                                  )}
+                                </div>
+                                {r.description && <p className="text-[10px] text-slate-500 truncate">{r.description}</p>}
+                                {r.url && <p className="text-[9px] text-indigo-600 truncate">{r.url}</p>}
+
+                                {/* Safety warning if applicable */}
+                                {r.url && check.warning && (
+                                  <p className="text-[9px] text-amber-600 font-medium bg-amber-50/50 p-1.5 rounded-md border border-amber-100/60 leading-normal max-w-md">
+                                    ⚠️ {check.warning}
+                                  </p>
+                                )}
+
+                                {/* Rejection reason details */}
+                                {r.verification_status === 'rejected' && r.rejection_reason && (
+                                  <div className="bg-rose-50 text-rose-800 text-[10px] p-2 rounded-lg border border-rose-100/70 leading-normal mt-1">
+                                    <span className="font-bold">Rejection Reason:</span> "{r.rejection_reason}"
+                                  </div>
                                 )}
                               </div>
-                              {r.description && <p className="text-[10px] text-slate-500 truncate">{r.description}</p>}
-                              {r.url && <p className="text-[9px] text-indigo-600 truncate">{r.url}</p>}
 
-                              {/* Safety warning if applicable */}
-                              {r.url && check.warning && (
-                                <p className="text-[9px] text-amber-600 font-medium bg-amber-50/50 p-1.5 rounded-md border border-amber-100/60 leading-normal max-w-md">
-                                  ⚠️ {check.warning}
-                                </p>
-                              )}
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {r.verification_status === 'verified' && (
+                                  <span className="px-2 py-0.5 bg-emerald-100 border border-emerald-250 text-emerald-800 text-[9px] font-extrabold rounded-full">
+                                    ✅ Verified
+                                  </span>
+                                )}
+                                {r.verification_status === 'pending_verification' && (
+                                  <span className="px-2 py-0.5 bg-amber-100 border border-amber-250 text-amber-800 text-[9px] font-extrabold rounded-full animate-pulse">
+                                    ⏳ Pending Verification
+                                  </span>
+                                )}
+                                {r.verification_status === 'rejected' && (
+                                  <span className="px-2 py-0.5 bg-rose-100 border border-rose-250 text-rose-800 text-[9px] font-extrabold rounded-full">
+                                    ❌ Rejected
+                                  </span>
+                                )}
 
-                              {/* Rejection reason details */}
-                              {r.verification_status === 'rejected' && r.rejection_reason && (
-                                <div className="bg-rose-50 text-rose-800 text-[10px] p-2 rounded-lg border border-rose-100/70 leading-normal mt-1">
-                                  <span className="font-bold">Rejection Reason:</span> "{r.rejection_reason}"
-                                </div>
-                              )}
+                                {/* Delete action */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteResource(r.id)}
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors active:scale-95"
+                                  title="Delete submitted resource"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              </div>
                             </div>
-
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {r.verification_status === 'verified' && (
-                                <span className="px-2 py-0.5 bg-emerald-100 border border-emerald-250 text-emerald-800 text-[9px] font-extrabold rounded-full">
-                                  ✅ Verified
-                                </span>
-                              )}
-                              {r.verification_status === 'pending_verification' && (
-                                <span className="px-2 py-0.5 bg-amber-100 border border-amber-250 text-amber-800 text-[9px] font-extrabold rounded-full animate-pulse">
-                                  ⏳ Pending
-                                </span>
-                              )}
-                              {r.verification_status === 'rejected' && (
-                                <span className="px-2 py-0.5 bg-rose-100 border border-rose-250 text-rose-800 text-[9px] font-extrabold rounded-full">
-                                  ❌ Rejected
-                                </span>
-                              )}
-
-                              {/* Delete action */}
-                              <button
-                                onClick={() => handleDeleteResource(r.id)}
-                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition-colors active:scale-95"
-                                title="Delete submitted resource"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -3001,8 +3135,8 @@ export const LearningCirclesPage: React.FC = () => {
 
   const handleCircleUpdated = (updated: LearningCircleWithStats) => {
     setWorkspaceCircle(updated);
-    setAllCircles((prev) => prev.map((c) => c.id === updated.id ? { ...c, status: updated.status } : c));
-    setMyCircles((prev) => prev.map((c) => c.id === updated.id ? { ...c, status: updated.status } : c));
+    setAllCircles((prev) => prev.map((c) => c.id === updated.id ? { ...c, ...updated } : c));
+    setMyCircles((prev) => prev.map((c) => c.id === updated.id ? { ...c, ...updated } : c));
   };
 
   // Stats

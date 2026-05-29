@@ -128,6 +128,7 @@ export const getLearningCircles = async (userId?: string): Promise<LearningCircl
       if (!myRole && userId && c.created_by === userId) {
         myRole = 'owner';
       }
+      const isAuthorized = myRole === 'owner' || myRole === 'member';
       return {
         id: c.id,
         title: c.title,
@@ -138,6 +139,8 @@ export const getLearningCircles = async (userId?: string): Promise<LearningCircl
         meeting_mode: c.meeting_mode,
         meeting_schedule: c.meeting_schedule,
         location_or_link: c.location_or_link,
+        meeting_link: isAuthorized ? c.meeting_link : null,
+        meeting_password: isAuthorized ? c.meeting_password : null,
         max_members: c.max_members,
         is_public: c.is_public,
         created_by: c.created_by,
@@ -201,6 +204,8 @@ export const getMyLearningCircles = async (userId: string): Promise<LearningCirc
         meeting_mode: c.meeting_mode,
         meeting_schedule: c.meeting_schedule,
         location_or_link: c.location_or_link,
+        meeting_link: c.meeting_link,
+        meeting_password: c.meeting_password,
         max_members: c.max_members,
         is_public: c.is_public,
         created_by: c.created_by,
@@ -253,6 +258,7 @@ export const getLearningCircleById = async (
       }
     }
 
+    const isAuthorized = myRole === 'owner' || myRole === 'member';
     return {
       id: c.id,
       title: c.title,
@@ -263,6 +269,8 @@ export const getLearningCircleById = async (
       meeting_mode: c.meeting_mode,
       meeting_schedule: c.meeting_schedule,
       location_or_link: c.location_or_link,
+      meeting_link: isAuthorized ? c.meeting_link : null,
+      meeting_password: isAuthorized ? c.meeting_password : null,
       max_members: c.max_members,
       is_public: c.is_public,
       created_by: c.created_by,
