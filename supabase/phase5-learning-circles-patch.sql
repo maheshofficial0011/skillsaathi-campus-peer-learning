@@ -439,5 +439,51 @@ CREATE TRIGGER on_learning_circle_post_updated
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
 -- ====================================================================
--- END OF PHASE 5 PATCH (v2)
+-- SECTION 8: REMEDIATION — Re-apply critical INSERT policies
+-- Run this section if circle creation fails with an RLS/permission error.
+-- All statements are idempotent (DROP IF EXISTS before CREATE).
+-- ====================================================================
+
+-- Re-apply learning_circles INSERT policy
+-- This allows any authenticated user to insert a row where they are the creator.
+DROP POLICY IF EXISTS "lc_insert" ON public.learning_circles;
+CREATE POLICY "lc_insert"
+  ON public.learning_circles FOR INSERT
+  TO authenticated
+  WITH CHECK ( auth.uid() = created_by );
+
+-- Re-apply learning_circle_members INSERT policy
+-- Case (a): a user can join a public circle as a 'member'
+-- Case (b): the circle creator can bootstrap themselves as 'owner'
+DROP POLICY IF EXISTS "lcm_insert" ON public.learning_circle_members;
+CREATE POLICY "lcm_insert"
+  ON public.learning_circle_members FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    -- Case (a): regular member join — circle must be active and accessible
+    (
+      auth.uid() = user_id
+      AND role = 'member'
+      AND EXISTS (
+        SELECT 1 FROM public.learning_circles c
+        WHERE c.id = circle_id
+          AND c.status = 'active'
+          AND (c.is_public = true OR c.created_by = auth.uid())
+      )
+    )
+    OR
+    -- Case (b): owner bootstrap — creator adds themselves as 'owner' after circle creation
+    (
+      auth.uid() = user_id
+      AND role = 'owner'
+      AND EXISTS (
+        SELECT 1 FROM public.learning_circles c
+        WHERE c.id = circle_id
+          AND c.created_by = auth.uid()
+      )
+    )
+  );
+
+-- ====================================================================
+-- END OF PHASE 5 PATCH (v3 — added remediation section)
 -- ====================================================================

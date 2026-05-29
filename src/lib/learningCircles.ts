@@ -62,15 +62,23 @@ export const isValidHttpsUrl = (url: string): boolean => {
 
 /**
  * Validates a meeting link / location_or_link field:
- * - If it looks like a URL (starts with http/https/www), must be https://
- * - If it's plain offline text (e.g., "Room 203, Block B"), allow it
+ * - Rejects any value containing unsafe protocols (javascript:, data:, file://)
+ * - If it starts with http/https/www, must be strictly https://
+ * - Plain offline text (e.g., "Room 203, Block B") is always allowed
+ * - Mixed text+link like "Room 203 / https://meet.google.com/abc" is allowed
  */
 export const isValidMeetingLinkOrLocation = (value: string): boolean => {
   const trimmed = value.trim();
   if (!trimmed) return true; // optional field
+
+  // Always reject values containing dangerous embedded protocols
+  if (/\b(javascript:|data:|file:\/\/)/i.test(trimmed)) return false;
+
+  // If the whole value looks like a URL, validate it as https://
   const looksLikeUrl = /^(https?:\/\/|www\.)/i.test(trimmed);
   if (looksLikeUrl) return isValidHttpsUrl(trimmed);
-  return true; // plain text location
+
+  return true; // plain text location or mixed text (e.g. "Room 203 / https://...")
 };
 
 // ──────────────────────────────────────────
@@ -280,49 +288,71 @@ export interface CreateCircleInput {
  * Create a new learning circle and add the creator as owner.
  */
 export const createLearningCircle = async (input: CreateCircleInput): Promise<LearningCircle> => {
-  try {
-    // Validate location_or_link if provided
-    if (input.location_or_link && !isValidMeetingLinkOrLocation(input.location_or_link)) {
-      throw new Error('Meeting location/link must use https:// if it is a URL.');
-    }
-
-    const { data, error } = await supabase
-      .from('learning_circles')
-      .insert({
-        title: input.title.trim(),
-        description: input.description.trim(),
-        category: input.category,
-        department: input.department?.trim() || null,
-        difficulty_level: input.difficulty_level,
-        meeting_mode: input.meeting_mode,
-        meeting_schedule: input.meeting_schedule?.trim() || null,
-        location_or_link: input.location_or_link?.trim() || null,
-        max_members: input.max_members,
-        is_public: input.is_public,
-        created_by: input.created_by,
-        status: 'active',
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    const circle = data as LearningCircle;
-
-    // Add creator as owner member
-    const { error: memberErr } = await supabase
-      .from('learning_circle_members')
-      .insert({
-        circle_id: circle.id,
-        user_id: input.created_by,
-        role: 'owner',
-      });
-
-    if (memberErr) throw memberErr;
-    return circle;
-  } catch (err) {
-    console.error('createLearningCircle error:', err);
-    throw err;
+  // Validate location_or_link if provided
+  if (input.location_or_link && !isValidMeetingLinkOrLocation(input.location_or_link)) {
+    throw new Error('Meeting location/link must use https:// if it is a URL.');
   }
+
+  if (!input.created_by) {
+    throw new Error('User ID is required to create a circle. Please sign in again.');
+  }
+
+  const payload = {
+    title: input.title.trim(),
+    description: input.description.trim(),
+    category: input.category,
+    department: input.department?.trim() || null,
+    difficulty_level: input.difficulty_level,
+    meeting_mode: input.meeting_mode,
+    meeting_schedule: input.meeting_schedule?.trim() || null,
+    location_or_link: input.location_or_link?.trim() || null,
+    max_members: input.max_members,
+    is_public: input.is_public,
+    created_by: input.created_by,
+    status: 'active' as const,
+  };
+
+  // Dev-safe: log the payload so we can diagnose any DB constraint or RLS failure
+  console.log('[createLearningCircle] payload:', payload);
+
+  const { data, error } = await supabase
+    .from('learning_circles')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[createLearningCircle] circle insert failed:', error);
+    // Wrap as a real Error so `instanceof Error` works in catch blocks
+    throw new Error(error.message || 'Could not create circle');
+  }
+
+  const circle = data as LearningCircle;
+
+  // Add creator as owner member
+  const { error: memberError } = await supabase
+    .from('learning_circle_members')
+    .insert({
+      circle_id: circle.id,
+      user_id: input.created_by,
+      role: 'owner',
+    });
+
+  if (memberError) {
+    console.error('[createLearningCircle] owner membership insert failed:', memberError);
+    // Attempt cleanup: delete the orphaned circle
+    const { error: cleanupError } = await supabase
+      .from('learning_circles')
+      .delete()
+      .eq('id', circle.id)
+      .eq('created_by', input.created_by);
+    if (cleanupError) {
+      console.error('[createLearningCircle] cleanup of orphaned circle failed:', cleanupError);
+    }
+    throw new Error(memberError.message || 'Circle created but owner membership failed');
+  }
+
+  return circle;
 };
 
 export interface UpdateCircleInput {

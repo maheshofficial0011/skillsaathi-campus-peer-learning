@@ -130,6 +130,11 @@ const CreateCircleModal: React.FC<CreateCircleModalProps> = ({ onClose, onCreate
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Guard: must have a valid auth user ID before attempting any DB write
+    if (!userId) {
+      toast.error('Not signed in', 'Please sign in again before creating a circle.');
+      return;
+    }
     if (!validate()) return;
     setLoading(true);
     try {
@@ -143,6 +148,7 @@ const CreateCircleModal: React.FC<CreateCircleModalProps> = ({ onClose, onCreate
       toast.success('Circle Created! 🎉', `"${circle.title}" is now live.`);
       onCreated(withStats);
     } catch (err) {
+      // createLearningCircle always throws new Error(...) so err.message is the real Supabase message
       const msg = err instanceof Error ? err.message : 'Could not create circle.';
       toast.error('Creation Failed', msg);
     } finally {
