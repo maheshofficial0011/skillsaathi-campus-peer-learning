@@ -301,8 +301,10 @@ export const createLearningCircle = async (input: CreateCircleInput): Promise<Le
   }
 
   const authUserId = authData.user.id;
+  const circleId = crypto.randomUUID();
 
   const payload = {
+    id: circleId,
     title: input.title.trim(),
     description: input.description.trim(),
     category: input.category,
@@ -321,11 +323,9 @@ export const createLearningCircle = async (input: CreateCircleInput): Promise<Le
   console.log('[createLearningCircle] authUserId:', authUserId);
   console.log('[createLearningCircle] payload:', payload);
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('learning_circles')
-    .insert(payload)
-    .select()
-    .single();
+    .insert(payload);
 
   if (error) {
     console.error('[createLearningCircle] circle insert failed:', error);
@@ -333,13 +333,11 @@ export const createLearningCircle = async (input: CreateCircleInput): Promise<Le
     throw new Error(error.message || 'Could not create circle');
   }
 
-  const circle = data as LearningCircle;
-
   // Add creator as owner member
   const { error: memberError } = await supabase
     .from('learning_circle_members')
     .insert({
-      circle_id: circle.id,
+      circle_id: circleId,
       user_id: authUserId,
       role: 'owner',
     });
@@ -350,13 +348,31 @@ export const createLearningCircle = async (input: CreateCircleInput): Promise<Le
     const { error: cleanupError } = await supabase
       .from('learning_circles')
       .delete()
-      .eq('id', circle.id)
+      .eq('id', circleId)
       .eq('created_by', authUserId);
     if (cleanupError) {
       console.error('[createLearningCircle] cleanup of orphaned circle failed:', cleanupError);
     }
     throw new Error(memberError.message || 'Circle created but owner membership failed.');
   }
+
+  const circle: LearningCircle = {
+    id: circleId,
+    title: payload.title,
+    description: payload.description,
+    category: payload.category,
+    department: payload.department,
+    difficulty_level: payload.difficulty_level,
+    meeting_mode: payload.meeting_mode,
+    meeting_schedule: payload.meeting_schedule,
+    location_or_link: payload.location_or_link,
+    max_members: payload.max_members,
+    is_public: payload.is_public,
+    created_by: payload.created_by,
+    status: payload.status,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
 
   return circle;
 };
