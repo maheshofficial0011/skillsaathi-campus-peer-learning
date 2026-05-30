@@ -129,6 +129,9 @@ DROP POLICY IF EXISTS "pr_insert" ON public.project_resources;
 DROP POLICY IF EXISTS "pr_update" ON public.project_resources;
 DROP POLICY IF EXISTS "pr_delete" ON public.project_resources;
 
+-- storage.objects dependent: pm_storage_delete (project-resources bucket, phase6-project-mate-resource-files-patch.sql)
+DROP POLICY IF EXISTS "pm_storage_delete" ON storage.objects;
+
 -- Now safe to drop and recreate the helper functions
 DROP FUNCTION IF EXISTS public.is_active_project_member_or_owner(uuid, uuid);
 DROP FUNCTION IF EXISTS public.is_project_owner(uuid, uuid);
@@ -274,6 +277,22 @@ CREATE POLICY "pr_delete"
     public.can_access_project_workspace(project_id, auth.uid()) AND (
       uploaded_by = auth.uid() OR
       public.is_project_owner(project_id, auth.uid())
+    )
+  );
+
+-- storage.objects: recreate pm_storage_delete (exact definition from phase6-project-mate-resource-files-patch.sql)
+-- Only the uploader of the storage object OR the project owner can delete the resource file.
+CREATE POLICY "pm_storage_delete"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'project-resources'
+    AND (
+      owner = auth.uid()
+      OR public.is_project_owner(
+        public.extract_project_id_from_path(name),
+        auth.uid()
+      )
     )
   );
 
