@@ -1258,13 +1258,35 @@ export async function toggleProjectDiscussionHelpful(input: {
 }
 
 /**
+ * Increment the helpful count for a resource. Simple toggle without per-user tracking.
+ */
+export async function incrementProjectResourceHelpful(resourceId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  // Fetch current count
+  const { data: resource, error: fetchErr } = await supabase
+    .from('project_resources')
+    .select('helpful_count')
+    .eq('id', resourceId)
+    .single();
+  if (fetchErr) throw fetchErr;
+
+  const newCount = (resource?.helpful_count ?? 0) + 1;
+  const { error: updateErr } = await supabase
+    .from('project_resources')
+    .update({ helpful_count: newCount })
+    .eq('id', resourceId);
+  if (updateErr) throw updateErr;
+}
+/**
  * Add verified resource link.
  */
 export async function addProjectResource(input: {
   project_id: string;
   title: string;
   description?: string;
-  resource_type: 'link' | 'file';
+  resource_type: 'link' | 'pdf' | 'document' | 'presentation' | 'notes' | 'image' | 'dataset' | 'code_repo' | 'folder' | 'other';
   url?: string;
   file_path?: string;
   file_name?: string;
@@ -1276,7 +1298,9 @@ export async function addProjectResource(input: {
   if (!user) throw new Error('Not authenticated.');
 
   if (input.title.length < 3) throw new Error('Title must be at least 3 characters.');
-  if (input.resource_type === 'link' && (!input.url || !input.url.startsWith('https://'))) {
+  
+  const isLinkMode = input.resource_type === 'link' || input.resource_type === 'code_repo' || input.resource_type === 'folder';
+  if (isLinkMode && (!input.url || !input.url.startsWith('https://'))) {
     throw new Error('Verified link resources must strictly use the https:// protocol.');
   }
 
@@ -1424,14 +1448,150 @@ export async function pinProjectResource(resourceId: string): Promise<void> {
 }
 
 /**
- * Delete a resource.
+ * Delete a resource. Uploader or project owner only (RLS enforced).
  */
 export async function deleteProjectResource(resourceId: string): Promise<void> {
-  const { error } = await supabase
-    .from('project_resources')
-    .delete()
-    .eq('id', resourceId);
+  try {
+    // 1. Fetch metadata row to see if there is an associated file
+    const { data: resource, error: fetchErr } = await supabase
+      .from('project_resources')
+      .select('file_path, storage_bucket')
+      .eq('id', resourceId)
+      .maybeSingle();
 
-  if (error) throw error;
+    if (fetchErr) {
+      console.warn('[deleteProjectResource] metadata fetch failed:', fetchErr);
+    }
+
+    // 2. Delete row from database
+    const { error: dbErr } = await supabase
+      .from('project_resources')
+      .delete()
+      .eq('id', resourceId);
+
+    if (dbErr) throw dbErr;
+
+    // 3. If file exists in storage, delete it
+    if (resource?.file_path && resource?.storage_bucket) {
+      const { error: storageErr } = await supabase.storage
+        .from(resource.storage_bucket)
+        .remove([resource.file_path]);
+
+      if (storageErr) {
+        console.error('[deleteProjectResource] storage file remove failed:', storageErr);
+      } else {
+        console.log('[deleteProjectResource] storage file deleted successfully:', resource.file_path);
+      }
+    }
+  } catch (err) {
+    console.error('deleteProjectResource error:', err);
+    throw err;
+  }
 }
+
+export interface UploadProjectResourceFileInput {
+  projectId: string;
+  file: File;
+  resourceId: string;
+}
+
+export interface UploadProjectResourceFileResult {
+  file_path: string;
+  file_name: string;
+  file_mime_type: string;
+  file_size_bytes: number;
+  storage_bucket: string;
+}
+
+/**
+ * Upload a study resource file to Supabase Storage private bucket.
+ */
+export const uploadProjectResourceFile = async (
+  input: UploadProjectResourceFileInput
+): Promise<UploadProjectResourceFileResult> => {
+  const { projectId, file, resourceId } = input;
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user?.id) {
+    throw new Error('Please sign in again before uploading files.');
+  }
+
+  // Allowed file types check (Allowed: PDF, DOC, DOCX, PPT, PPTX, TXT, MD, PNG, JPG, JPEG, WEBP, CSV, JSON)
+  const allowedMimeTypes = [
+    'application/pdf',
+    'text/plain',
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/webp',
+    'text/csv',
+    'application/json',
+    'text/markdown',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ];
+
+  if (!allowedMimeTypes.includes(file.type)) {
+    throw new Error('Unsupported file type. Only PDFs, text files, images, datasets, and standard office documents are allowed.');
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('File size exceeds the 10 MB limit.');
+  }
+
+  // Sanitize filename
+  const extIndex = file.name.lastIndexOf('.');
+  const ext = extIndex !== -1 ? file.name.substring(extIndex) : '';
+  const baseName = extIndex !== -1 ? file.name.substring(0, extIndex) : file.name;
+  const cleanBase = baseName.replace(/[^a-zA-Z0-9-_]/g, '_');
+  const safeFileName = `${cleanBase}${ext}`;
+
+  // Storage path: project-mates/{projectId}/{resourceId}/{safeFileName}
+  const filePath = `project-mates/${projectId}/${resourceId}/${safeFileName}`;
+
+  const { error: uploadErr } = await supabase.storage
+    .from('project-resources')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: true
+    });
+
+  if (uploadErr) {
+    console.error('[uploadProjectResourceFile] upload failed:', uploadErr);
+    throw new Error(uploadErr.message || 'Could not upload file.');
+  }
+
+  return {
+    file_path: filePath,
+    file_name: file.name,
+    file_mime_type: file.type,
+    file_size_bytes: file.size,
+    storage_bucket: 'project-resources'
+  };
+};
+
+/**
+ * Create a short-lived (5 minutes) signed URL for viewing/downloading a file resource.
+ * Only works if user is authorized under Storage RLS policies.
+ */
+export const getSignedProjectResourceUrl = async (
+  bucket: string,
+  path: string
+): Promise<string> => {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, 300); // 300 seconds = 5 minutes
+
+  if (error) {
+    console.error('[getSignedProjectResourceUrl] failed:', error);
+    throw new Error(error.message || 'Could not generate preview link.');
+  }
+
+  return data.signedUrl;
+};
+
 

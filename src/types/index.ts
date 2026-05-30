@@ -662,7 +662,7 @@ export interface ProjectResource {
   uploaded_by: string;
   title: string;
   description: string | null;
-  resource_type: 'link' | 'file';
+  resource_type: 'link' | 'pdf' | 'document' | 'presentation' | 'notes' | 'image' | 'dataset' | 'code_repo' | 'folder' | 'other';
   url: string | null;
   file_path: string | null;
   file_name: string | null;
@@ -683,6 +683,8 @@ export interface ProjectResource {
   uploader_profile?: {
     full_name: string;
   } | null;
+  helpful_count?: number;
+  owner_recommended?: boolean;
 }
 
 

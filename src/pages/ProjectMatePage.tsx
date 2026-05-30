@@ -43,7 +43,10 @@ import {
   rejectProjectResource,
   pinProjectResource,
   deleteProjectResource,
-  syncProjectTeamMetrics
+  syncProjectTeamMetrics,
+  uploadProjectResourceFile,
+  getSignedProjectResourceUrl,
+  incrementProjectResourceHelpful
 } from '../lib/projectMates';
 
 const CATEGORIES = [
@@ -152,7 +155,7 @@ export const ProjectMatePage: React.FC = () => {
 
   // Discussion & Resource Paging States
   const [discussionLimit, setDiscussionLimit] = useState(5);
-  const [resourcesLimit, setResourcesLimit] = useState(6);
+  const [resourcesLimit, setResourcesLimit] = useState(3);
 
   // Discover Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -254,6 +257,16 @@ export const ProjectMatePage: React.FC = () => {
   const [rejectionResourceId, setRejectionResourceId] = useState<string | null>(null);
   const [rejectionReasonText, setRejectionReasonText] = useState('');
   const [isRejectionModalOpen, setIsRejectionModalOpen] = useState(false);
+
+  // Upgraded Resource Upload / Preview States
+  const [resourceMode, setResourceMode] = useState<'link' | 'file' | 'folder' | 'code_repo'>('link');
+  const [resourceType, setResourceType] = useState<string>('link');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [previewResource, setPreviewResource] = useState<any | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // Fetch Data
   const fetchData = useCallback(async () => {
@@ -870,25 +883,169 @@ export const ProjectMatePage: React.FC = () => {
     }
   };
 
+  const ALLOWED_MIME_TYPES = [
+    'application/pdf',
+    'text/plain',
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/webp',
+    'text/csv',
+    'application/json',
+    'text/markdown',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ];
+
   // --- RESOURCE BOARD ACTIONS ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileError(null);
+
+    // Reject dangerous file formats explicitly
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.sh', '.msi', '.scr', '.apk', '.jar'];
+    const lowerName = file.name.toLowerCase();
+    const isDangerous = dangerousExtensions.some(ext => lowerName.endsWith(ext));
+    if (isDangerous) {
+      setFileError('Security Warning: This file format (.exe, .bat, .cmd, etc.) is hazardous and is strictly blocked.');
+      setSelectedFile(null);
+      return;
+    }
+
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      setFileError('Unsupported file type. Only PDFs, text files, images, datasets, and standard office documents are allowed.');
+      setSelectedFile(null);
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setFileError('File size exceeds the 10 MB limit.');
+      setSelectedFile(null);
+      return;
+    }
+
+    setSelectedFile(file);
+
+    // Auto-fill title and suggest resource type
+    const extIndex = file.name.lastIndexOf('.');
+    const autoTitle = extIndex !== -1 ? file.name.substring(0, extIndex) : file.name;
+    let typeSug = 'document';
+    if (file.type === 'application/pdf') {
+      typeSug = 'pdf';
+    } else if (file.type.startsWith('image/')) {
+      typeSug = 'image';
+    } else if (file.type === 'text/csv' || file.type === 'application/json') {
+      typeSug = 'dataset';
+    } else if (file.type === 'text/plain' || file.type === 'text/markdown') {
+      typeSug = 'notes';
+    } else if (file.type.includes('presentation') || file.type.includes('powerpoint')) {
+      typeSug = 'presentation';
+    }
+    
+    setResourceType(typeSug);
+    if (!newResourceTitle.trim()) {
+      setNewResourceTitle(autoTitle);
+    }
+  };
+
   const handleCreateResourceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProjectId) return;
+
+    if (!newResourceTitle.trim()) {
+      toast.error('Resource title is required.');
+      return;
+    }
+
+    const isLinkMode = resourceMode === 'link' || resourceMode === 'folder' || resourceMode === 'code_repo';
+
+    if (isLinkMode) {
+      if (!newResourceUrl.trim()) {
+        toast.error('URL is required.');
+        return;
+      }
+      if (!newResourceUrl.startsWith('https://')) {
+        toast.error('Resource link must strictly use the secure https:// protocol.');
+        return;
+      }
+    }
+
     setActionLoading(true);
     try {
-      await addProjectResource({
-        project_id: selectedProjectId,
-        title: newResourceTitle,
-        description: newResourceDesc || undefined,
-        resource_type: 'link',
-        url: newResourceUrl
-      });
-      toast.success('Resource submitted!');
+      if (resourceMode === 'file') {
+        if (!selectedFile) {
+          toast.error('Please select a file to upload.');
+          return;
+        }
+
+        const resId = (typeof window !== 'undefined' && window.crypto?.randomUUID)
+          ? window.crypto.randomUUID()
+          : Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+        // 1. Upload file to Supabase Storage private bucket
+        const fileData = await uploadProjectResourceFile({
+          projectId: selectedProjectId,
+          file: selectedFile,
+          resourceId: resId,
+        });
+
+        // 2. Insert metadata row into project_resources table
+        await addProjectResource({
+          project_id: selectedProjectId,
+          title: newResourceTitle,
+          description: newResourceDesc || undefined,
+          resource_type: resourceType as any,
+          file_path: fileData.file_path,
+          file_name: fileData.file_name,
+          file_mime_type: fileData.file_mime_type,
+          file_size_bytes: fileData.file_size_bytes,
+          storage_bucket: fileData.storage_bucket
+        });
+
+        toast.success(selectedProject?.is_owner 
+          ? 'File resource uploaded and verified successfully! 🚀' 
+          : 'File uploaded and submitted to owner verification queue. ⏳'
+        );
+
+      } else {
+        // Link, Folder, or Code Repo
+        const typeMapping: Record<string, string> = {
+          link: 'link',
+          folder: 'folder',
+          code_repo: 'code_repo'
+        };
+
+        await addProjectResource({
+          project_id: selectedProjectId,
+          title: newResourceTitle,
+          description: newResourceDesc || undefined,
+          resource_type: typeMapping[resourceMode] as any || 'link',
+          url: newResourceUrl
+        });
+
+        toast.success(selectedProject?.is_owner 
+          ? 'Resource link created successfully! 🚀' 
+          : 'Resource link submitted to owner verification queue. ⏳'
+        );
+      }
+
+      // Reset states
       setNewResourceTitle('');
       setNewResourceDesc('');
       setNewResourceUrl('');
+      setSelectedFile(null);
+      setFileError(null);
+      setResourceMode('link');
+      setResourceType('link');
       setIsCreatingResource(false);
 
+      // Reload resources
       const resList = await getProjectResources(selectedProjectId);
       setResources(resList);
 
@@ -897,7 +1054,7 @@ export const ProjectMatePage: React.FC = () => {
         setVerificationQueue(queue);
       }
     } catch (err: any) {
-      toast.error(err.message || 'Error adding resource.');
+      toast.error(err.message || 'Error saving resource.');
     } finally {
       setActionLoading(false);
     }
@@ -971,6 +1128,50 @@ export const ProjectMatePage: React.FC = () => {
     }
   };
 
+  const handleToggleResourceHelpful = async (resourceId: string) => {
+    if (!selectedProjectId) return;
+    try {
+      await incrementProjectResourceHelpful(resourceId);
+      toast.success('Thank you for upvoting this resource! 👍');
+      const resList = await getProjectResources(selectedProjectId);
+      setResources(resList);
+    } catch (err: any) {
+      toast.error(err.message || 'Error liking resource.');
+    }
+  };
+
+  const handlePreviewResource = async (res: any) => {
+    if (!res.storage_bucket || !res.file_path) return;
+    setPreviewResource(res);
+    setLoadingPreview(true);
+    setPreviewUrl('');
+    try {
+      const url = await getSignedProjectResourceUrl(res.storage_bucket, res.file_path);
+      setPreviewUrl(url);
+    } catch (err: any) {
+      toast.error(err.message || 'Could not load resource preview.');
+      setPreviewResource(null);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const handleDownloadResource = async (res: any) => {
+    if (!res.storage_bucket || !res.file_path) return;
+    try {
+      const url = await getSignedProjectResourceUrl(res.storage_bucket, res.file_path);
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.download = res.file_name || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Download started!');
+    } catch (err: any) {
+      toast.error(err.message || 'Could not download file.');
+    }
+  };
 
   // Discover Projects filter logic
   const filteredProjects = projects.filter(p => {
@@ -2130,46 +2331,90 @@ export const ProjectMatePage: React.FC = () => {
                         )}
                       </div>
                     )}
-
-                    {/* Project Team Guide Section */}
-                    <div className="p-6 bg-gradient-to-br from-indigo-900 to-indigo-950 text-white rounded-3xl shadow-xl space-y-4 border border-indigo-850">
-                      <h4 className="text-lg font-black tracking-tight flex items-center gap-2">
-                        <span className="text-indigo-400 shrink-0">📖</span>
-                        <span>Project Team Guide &amp; Code of Conduct</span>
-                      </h4>
-                      <p className="text-xs text-indigo-205 leading-relaxed">
-                        To maintain a professional, high-impact collaboration workspace, all teammates are expected to adhere to our standard role capability and safety boundaries.
-                      </p>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                        <div className="p-4 bg-indigo-950/40 rounded-2xl border border-indigo-800/40 space-y-2.5">
-                          <h5 className="text-xs font-black uppercase tracking-wider text-indigo-400">👑 Project Owner / Lead</h5>
-                          <ul className="text-[11px] text-indigo-200 space-y-1.5 list-disc pl-4 leading-relaxed">
-                            <li>Controls overall team capacity bounds and project recruiting status settings.</li>
-                            <li>Vets, approves, or declines all submitted study coordinate resource materials.</li>
-                            <li>Maintains security coordinates (Google Meet rooms, Discord keys, repo URLs).</li>
-                            <li>Responsible for keeping secure link fields fully clean and valid.</li>
-                          </ul>
+                                      {/* Collapsible Project Team Guide Section */}
+                    <div className="bg-gradient-to-br from-indigo-900 to-indigo-950 text-white rounded-3xl shadow-xl border border-indigo-850 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setIsGuideOpen(!isGuideOpen)}
+                        className="w-full p-5 text-left flex items-center justify-between hover:bg-indigo-950/30 transition-colors focus:outline-none"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-indigo-400 shrink-0 text-xl">📖</span>
+                          <span className="text-base font-black tracking-tight">Project Team Guide &amp; Code of Conduct</span>
                         </div>
+                        <span className="text-xs text-indigo-300 font-bold bg-indigo-950/60 border border-indigo-800 px-3 py-1 rounded-xl shadow-inner">
+                          {isGuideOpen ? 'Hide Guidelines ▲' : 'Show Guidelines ▼'}
+                        </span>
+                      </button>
 
-                        <div className="p-4 bg-indigo-950/40 rounded-2xl border border-indigo-800/40 space-y-2.5">
-                          <h5 className="text-xs font-black uppercase tracking-wider text-indigo-400">🛡️ Teammates &amp; Specialists</h5>
-                          <ul className="text-[11px] text-indigo-200 space-y-1.5 list-disc pl-4 leading-relaxed">
-                            <li>Engage in team workspace discussions, ask questions, and log updates.</li>
-                            <li>Upload study resources or materials to the leader verification queue.</li>
-                            <li>Voluntarily leave the team at any time with an explicit exit reason.</li>
-                            <li>Never share private project notes, WhatsApp details, or credentials externally.</li>
-                          </ul>
-                        </div>
-                      </div>
+                      {isGuideOpen && (
+                        <div className="p-6 border-t border-indigo-800/50 space-y-5 text-xs animate-fade-in">
+                          <p className="text-indigo-205 leading-relaxed font-medium">
+                            To maintain a professional, high-impact collaboration workspace, all teammates must adhere to our standard role capability bounds and data safety protocols.
+                          </p>
 
-                      <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] text-red-200 leading-relaxed flex items-start gap-2">
-                        <span className="shrink-0 mt-0.5">⚠️</span>
-                        <div>
-                          <strong className="font-extrabold block text-red-300 mb-0.5">Secure Credentials Security Protocol</strong>
-                          Always ensure secure links utilize the strict `https://` protocol signature. Never upload executable binary formats (`.exe`) to resources as they trigger active security warnings. Protect raw UUIDs, emails, and phone coordinates from leakage.
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Lead & Member Roles */}
+                            <div className="p-4 bg-indigo-950/40 rounded-2xl border border-indigo-800/40 space-y-2.5">
+                              <h5 className="text-[11px] font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1">
+                                <span>👑</span> Project Owner / Lead
+                              </h5>
+                              <ul className="text-[10px] text-indigo-200 space-y-1.5 list-disc pl-4 leading-relaxed font-medium">
+                                <li>Controls overall team capacity bounds and project recruiting status settings.</li>
+                                <li>Vets, approves, or declines all submitted shared coordinates or resources.</li>
+                                <li>Maintains team coordinates (Google Meet rooms, private repos, shared docs).</li>
+                                <li>Ensures all external workspace coordinates utilize secure protocol boundaries.</li>
+                              </ul>
+                            </div>
+
+                            <div className="p-4 bg-indigo-950/40 rounded-2xl border border-indigo-800/40 space-y-2.5">
+                              <h5 className="text-[11px] font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1">
+                                <span>🛡️</span> Teammates &amp; Specialists
+                              </h5>
+                              <ul className="text-[10px] text-indigo-200 space-y-1.5 list-disc pl-4 leading-relaxed font-medium">
+                                <li>Engage in team discussions, ask questions, and publish task progress updates.</li>
+                                <li>Upload study resources or materials to the leader verification queue.</li>
+                                <li>Voluntarily depart from the project at any time with an explicit exit reason.</li>
+                                <li>Never distribute credentials, notes, or internal coordinates externally.</li>
+                              </ul>
+                            </div>
+
+                            {/* Boundaries & Rules */}
+                            <div className="p-4 bg-indigo-950/40 rounded-2xl border border-indigo-800/40 space-y-2.5">
+                              <h5 className="text-[11px] font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1">
+                                <span>🔒</span> Applicant &amp; Roster Boundaries
+                              </h5>
+                              <ul className="text-[10px] text-indigo-200 space-y-1.5 list-disc pl-4 leading-relaxed font-medium">
+                                <li>Non-members and pending applicants have strictly zero access to team workspaces.</li>
+                                <li>Departed, kicked, or rejected former members lose workspace permissions instantly.</li>
+                                <li>Active team capacity must strictly adhere to the capacity limit settings.</li>
+                                <li>No private contact parameters (emails, phone numbers, WhatsApp, UUIDs) are exposed in workspaces.</li>
+                              </ul>
+                            </div>
+
+                            <div className="p-4 bg-indigo-950/40 rounded-2xl border border-indigo-800/40 space-y-2.5">
+                              <h5 className="text-[11px] font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1">
+                                <span>📈</span> Resource Sharing &amp; discussion rules
+                              </h5>
+                              <ul className="text-[10px] text-indigo-200 space-y-1.5 list-disc pl-4 leading-relaxed font-medium">
+                                <li>All links must strictly be HTTPS-only. Uploaded files must not exceed 10 MB.</li>
+                                <li>Hazardous executables are blocked. Member uploads go to the Leader queue for approval.</li>
+                                <li>Use appropriate category tags in discussion boards to structure posts.</li>
+                                <li>Announcements are restricted to leads. Upvote posts with Helpful badges to indicate utility.</li>
+                              </ul>
+                            </div>
+                          </div>
+
+                          {/* Red Warning Alert block */}
+                          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-[10px] text-red-200 leading-relaxed flex items-start gap-2.5">
+                            <span className="shrink-0 text-base">⚠️</span>
+                            <div>
+                              <strong className="font-extrabold block text-red-300 mb-0.5">Secure Credentials Security Protocol</strong>
+                              Always inspect and ensure that coordination links, repos, and documents utilize the strict `https://` protocol. Never upload executable binary formats (`.exe, .bat, .sh, .scr, .apk, .jar`) as they trigger active warnings. Protect UUID strings, emails, and phone numbers from public leakage to safeguard campus privacy.
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -2178,7 +2423,7 @@ export const ProjectMatePage: React.FC = () => {
                 {workspaceSubTab === 'discussion' && (
                   <div className="space-y-6">
                     {/* Stats Cards */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
                       <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-650 shrink-0 font-bold text-sm">💬</div>
                         <div>
@@ -2212,67 +2457,115 @@ export const ProjectMatePage: React.FC = () => {
                     </div>
 
                     {/* Header action bar */}
-                    <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
-                      <div className="flex flex-1 gap-2 w-full">
-                        <input
-                          type="text"
-                          placeholder="Search discussions..."
-                          value={discussionSearchQuery}
-                          onChange={e => setDiscussionSearchQuery(e.target.value)}
-                          className="w-full pl-3 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500"
-                        />
-                        <select
-                          value={discussionTypeFilter}
-                          onChange={e => setDiscussionTypeFilter(e.target.value)}
-                          className="px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:border-indigo-500"
+                    <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
+                      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+                        <div className="flex flex-1 gap-2 w-full">
+                          <input
+                            type="text"
+                            placeholder="Search discussions..."
+                            value={discussionSearchQuery}
+                            onChange={e => setDiscussionSearchQuery(e.target.value)}
+                            className="w-full pl-3.5 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500"
+                          />
+                          <select
+                            value={discussionTypeFilter}
+                            onChange={e => setDiscussionTypeFilter(e.target.value)}
+                            className="px-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none focus:border-indigo-500"
+                          >
+                            <option value="">All Types</option>
+                            <option value="update">Updates</option>
+                            <option value="question">Questions</option>
+                            <option value="announcement">Announcements</option>
+                            <option value="task">Tasks</option>
+                          </select>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setIsCreatingPost(!isCreatingPost);
+                            setNewPostTitle('');
+                            setNewPostBody('');
+                            setNewPostType('update');
+                            setNewPostTags('');
+                          }}
+                          className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
                         >
-                          <option value="">All Types</option>
-                          <option value="update">Updates</option>
-                          <option value="question">Questions</option>
-                          <option value="announcement">Announcements</option>
-                          <option value="task">Tasks</option>
-                        </select>
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                          </svg>
+                          <span>{isCreatingPost ? 'Close Composer' : 'New Post'}</span>
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setIsCreatingPost(!isCreatingPost)}
-                        className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span>New Post</span>
-                      </button>
+
+                      {/* Active Filter Chips */}
+                      {(discussionSearchQuery || discussionTypeFilter) && (
+                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100/50">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active filters:</span>
+                          {discussionSearchQuery && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-750 border border-indigo-150 rounded-full text-[10px] font-bold">
+                              Search: "{discussionSearchQuery}"
+                              <button type="button" onClick={() => setDiscussionSearchQuery('')} className="hover:text-red-500 font-extrabold ml-1">✕</button>
+                            </span>
+                          )}
+                          {discussionTypeFilter && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-750 border border-indigo-150 rounded-full text-[10px] font-bold">
+                              Type: {discussionTypeFilter.toUpperCase()}
+                              <button type="button" onClick={() => setDiscussionTypeFilter('')} className="hover:text-red-500 font-extrabold ml-1">✕</button>
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => { setDiscussionSearchQuery(''); setDiscussionTypeFilter(''); }}
+                            className="text-[10px] font-bold text-slate-500 hover:text-red-550 underline cursor-pointer ml-1"
+                          >
+                            Reset filters
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* New Post Form */}
                     {isCreatingPost && (
-                      <form onSubmit={handleCreatePostSubmit} className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+                      <form onSubmit={handleCreatePostSubmit} className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4 animate-fade-in">
                         <h4 className="text-sm font-black text-slate-800">Publish to Discussion Board</h4>
+                        
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                           <div className="md:col-span-2">
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Post Title *</label>
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase">Post Title *</label>
+                              <span className={`text-[10px] font-bold ${newPostTitle.length < 5 ? 'text-slate-400' : 'text-emerald-500'}`}>
+                                {newPostTitle.length}/100 chars (Min 5)
+                              </span>
+                            </div>
                             <input
                               type="text"
                               required
+                              maxLength={100}
                               value={newPostTitle}
                               onChange={e => setNewPostTitle(e.target.value)}
                               placeholder="e.g. Setting up the database scheme"
-                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-500"
+                              className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500"
                             />
                           </div>
+
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Post Type *</label>
                             <select
                               value={newPostType}
                               onChange={e => setNewPostType(e.target.value as any)}
-                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:outline-none"
+                              className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:outline-none"
                             >
                               <option value="update">Update</option>
                               <option value="question">Question</option>
-                              <option value="announcement">Announcement</option>
+                              {selectedProject?.is_owner && (
+                                <option value="announcement">📢 Announcement (Lead-only)</option>
+                              )}
                               <option value="task">Task</option>
                             </select>
+                            {!selectedProject?.is_owner && (
+                              <span className="text-[9px] text-slate-400 block mt-1">📢 Announcements are restricted strictly to Project Leads.</span>
+                            )}
                           </div>
+
                           <div className="md:col-span-3">
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tags (Comma separated)</label>
                             <input
@@ -2280,33 +2573,41 @@ export const ProjectMatePage: React.FC = () => {
                               value={newPostTags}
                               onChange={e => setNewPostTags(e.target.value)}
                               placeholder="e.g. backend, database, setup"
-                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none"
+                              className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none"
                             />
                           </div>
+
                           <div className="md:col-span-3">
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Content *</label>
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase">Content *</label>
+                              <span className={`text-[10px] font-bold ${newPostBody.length < 10 ? 'text-slate-400' : 'text-emerald-500'}`}>
+                                {newPostBody.length}/1000 chars (Min 10)
+                              </span>
+                            </div>
                             <textarea
                               required
                               rows={4}
+                              maxLength={1000}
                               value={newPostBody}
                               onChange={e => setNewPostBody(e.target.value)}
-                              placeholder="Type your discussion or update here..."
-                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-500"
+                              placeholder="Type your discussion post, question, task breakdown or lead announcement coordinates here..."
+                              className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500"
                             />
                           </div>
                         </div>
+
                         <div className="flex gap-2 justify-end">
                           <button
                             type="button"
                             onClick={() => setIsCreatingPost(false)}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+                            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors border"
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
                             disabled={actionLoading}
-                            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow"
+                            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
                           >
                             {actionLoading ? 'Publishing...' : 'Publish Post'}
                           </button>
@@ -2339,7 +2640,7 @@ export const ProjectMatePage: React.FC = () => {
 
                         if (sorted.length === 0) {
                           return (
-                            <p className="text-xs text-slate-400 italic text-center py-10 bg-white border border-slate-200 rounded-2xl">
+                            <p className="text-xs text-slate-400 italic text-center py-10 bg-white border border-slate-200 rounded-2xl shadow-sm">
                               No discussion posts found. Click "New Post" to publish the first one!
                             </p>
                           );
@@ -2349,16 +2650,19 @@ export const ProjectMatePage: React.FC = () => {
                           <>
                             {sliced.map(post => {
                               const isAnnouncement = post.post_type === 'announcement';
+                              const isLeadUpload = post.created_by === selectedProject.created_by;
+                              const isYou = post.created_by === user?.id;
+
                               const typeColors =
-                                post.post_type === 'announcement' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                post.post_type === 'question' ? 'bg-violet-50 text-violet-700 border-violet-200' :
-                                post.post_type === 'task' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                post.post_type === 'announcement' ? 'bg-rose-50 text-rose-700 border-rose-250' :
+                                post.post_type === 'question' ? 'bg-violet-50 text-violet-700 border-violet-250' :
+                                post.post_type === 'task' ? 'bg-amber-50 text-amber-700 border-amber-250' :
                                 'bg-indigo-50 text-indigo-700 border-indigo-250';
 
                               return (
                                 <div
                                   key={post.id}
-                                  className={`p-5 border rounded-2xl shadow-sm space-y-3 relative hover:shadow-md transition-shadow ${
+                                  className={`p-5 border rounded-2xl shadow-sm space-y-3.5 relative hover:shadow-md transition-shadow animate-fade-in ${
                                     isAnnouncement 
                                       ? 'bg-rose-50/20 border-rose-250 border-l-4 border-l-rose-500' 
                                       : 'bg-white border-slate-200'
@@ -2371,7 +2675,7 @@ export const ProjectMatePage: React.FC = () => {
                                   )}
                                   
                                   {post.is_pinned && !isAnnouncement && (
-                                    <div className="absolute right-4 top-4 flex items-center gap-1 text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                    <div className="absolute right-4 top-4 flex items-center gap-1 text-[10px] text-amber-650 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                                       <span>📌 Pinned</span>
                                     </div>
                                   )}
@@ -2381,8 +2685,20 @@ export const ProjectMatePage: React.FC = () => {
                                       {post.author_profile?.full_name ? post.author_profile.full_name[0].toUpperCase() : 'SS'}
                                     </div>
                                     <div>
-                                      <span className="text-xs font-bold text-slate-800">{post.author_profile?.full_name || 'Teammate'}</span>
-                                      <span className="text-[10px] text-slate-400 block">{new Date(post.created_at).toLocaleString()}</span>
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="text-xs font-black text-slate-800">{post.author_profile?.full_name || 'Teammate'}</span>
+                                        {isLeadUpload && (
+                                          <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 rounded text-[8px] font-black border border-emerald-200 uppercase">
+                                            👑 Lead
+                                          </span>
+                                        )}
+                                        {isYou && (
+                                          <span className="px-1.5 py-0.2 bg-slate-100 text-slate-500 rounded text-[8px] font-black border border-slate-200 uppercase">
+                                            👤 You
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[9px] text-slate-405 block mt-0.5">{new Date(post.created_at).toLocaleString()}</span>
                                     </div>
                                     <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded border ml-2 ${typeColors}`}>
                                       {post.post_type}
@@ -2391,7 +2707,7 @@ export const ProjectMatePage: React.FC = () => {
 
                                   <div className="space-y-1.5 pt-1">
                                     <h4 className="text-base font-black text-slate-850">{post.title}</h4>
-                                    <p className="text-xs text-slate-655 leading-relaxed whitespace-pre-wrap">{post.body}</p>
+                                    <p className="text-xs text-slate-655 leading-relaxed whitespace-pre-wrap font-medium">{post.body}</p>
                                   </div>
 
                                   {post.tags && post.tags.length > 0 && (
@@ -2408,9 +2724,9 @@ export const ProjectMatePage: React.FC = () => {
                                     <div className="flex items-center gap-3">
                                       <button
                                         onClick={() => handleTogglePostHelpful(post.id)}
-                                        className={`flex items-center gap-1 py-1 px-2.5 rounded-lg border transition-colors ${
+                                        className={`flex items-center gap-1 py-1.5 px-3 rounded-xl border transition-all font-bold ${
                                           post.reacted_by_me
-                                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm shadow-indigo-50/50'
                                             : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
                                         }`}
                                       >
@@ -2419,7 +2735,7 @@ export const ProjectMatePage: React.FC = () => {
                                       </button>
                                       <button
                                         onClick={() => handleLoadReplies(post)}
-                                        className="flex items-center gap-1 py-1 px-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors"
+                                        className="flex items-center gap-1 py-1.5 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors font-bold"
                                       >
                                         <span>💬</span>
                                         <span>Comments ({post.replies_count})</span>
@@ -2462,7 +2778,7 @@ export const ProjectMatePage: React.FC = () => {
                                   onClick={() => setDiscussionLimit(prev => prev + 5)}
                                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
                                 >
-                                  Show More Posts
+                                  Show More Posts ({sorted.length - sliced.length} more)
                                 </button>
                               )}
                               {discussionLimit > 5 && (
@@ -2485,79 +2801,222 @@ export const ProjectMatePage: React.FC = () => {
                 {workspaceSubTab === 'resources' && (
                   <div className="space-y-6">
                     {/* Header action bar */}
-                    <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                    <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-5 bg-white border border-slate-200 rounded-2xl shadow-sm">
                       <div>
                         <h4 className="text-sm font-black text-slate-800">Team Shared Library</h4>
-                        <p className="text-[10px] text-slate-400 mt-0.5">Explore shared materials, study documents, or links vetted by the leader.</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Explore shared materials, study documents, repositories, or external coordinates shared safely.</p>
                       </div>
                       <button
-                        onClick={() => setIsCreatingResource(!isCreatingResource)}
+                        onClick={() => {
+                          setIsCreatingResource(!isCreatingResource);
+                          setResourceMode('link');
+                          setResourceType('link');
+                          setSelectedFile(null);
+                          setFileError(null);
+                        }}
                         className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                         </svg>
-                        <span>Share a Link</span>
+                        <span>{isCreatingResource ? 'Close Form' : 'Share Material'}</span>
                       </button>
                     </div>
 
                     {/* Share Resource Form */}
                     {isCreatingResource && (
                       <form onSubmit={handleCreateResourceSubmit} className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
-                        <h4 className="text-sm font-black text-slate-800">Share Teammate Resource Link</h4>
+                        <h4 className="text-sm font-black text-slate-800">Share Workspace Material</h4>
                         <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-[10px] text-indigo-700 leading-relaxed">
                           🔒 **Note:** Materials uploaded by normal members are sent to the leader queue for verification. Owner uploads are verified instantly.
                         </div>
-                        <div className="grid grid-cols-1 gap-3 text-xs">
+
+                        {/* Segmented controls for resource mode */}
+                        <div className="flex bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => { setResourceMode('link'); setResourceType('link'); setSelectedFile(null); setFileError(null); }}
+                            className={`flex-1 py-2 text-center rounded-lg transition-all ${resourceMode === 'link' ? 'bg-white text-indigo-600 shadow' : 'text-slate-500 hover:text-slate-800'}`}
+                          >
+                            🔗 Web Link
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setResourceMode('file'); setResourceType('pdf'); setSelectedFile(null); setFileError(null); }}
+                            className={`flex-1 py-2 text-center rounded-lg transition-all ${resourceMode === 'file' ? 'bg-white text-indigo-600 shadow' : 'text-slate-500 hover:text-slate-800'}`}
+                          >
+                            📁 Upload File
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setResourceMode('folder'); setResourceType('folder'); setSelectedFile(null); setFileError(null); }}
+                            className={`flex-1 py-2 text-center rounded-lg transition-all ${resourceMode === 'folder' ? 'bg-white text-indigo-600 shadow' : 'text-slate-500 hover:text-slate-800'}`}
+                          >
+                            📁 Folder Link
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setResourceMode('code_repo'); setResourceType('code_repo'); setSelectedFile(null); setFileError(null); }}
+                            className={`flex-1 py-2 text-center rounded-lg transition-all ${resourceMode === 'code_repo' ? 'bg-white text-indigo-600 shadow' : 'text-slate-500 hover:text-slate-800'}`}
+                          >
+                            💻 Code Repo
+                          </button>
+                        </div>
+
+                        {/* Form Body based on mode */}
+                        <div className="grid grid-cols-1 gap-4 text-xs">
+                          {resourceMode === 'file' ? (
+                            <div className="space-y-4">
+                              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-[10px] text-slate-500 leading-relaxed">
+                                <span className="font-extrabold block text-slate-700">Supported formats:</span>
+                                <div>PDF, TXT, MD, PNG, JPG, JPEG, WEBP, CSV, JSON, Word (DOC/DOCX), PowerPoint (PPT/PPTX), Excel (XLS/XLSX).</div>
+                                <div className="text-red-500 font-bold mt-1">⚠️ Hazardous execution scripts (.exe, .bat, .cmd, .sh, .msi, .scr, .apk) are strictly blocked for team security.</div>
+                              </div>
+
+                              <input
+                                type="file"
+                                id="resource-file-input"
+                                onChange={handleFileChange}
+                                className="hidden"
+                                accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,.csv,.json,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+                              />
+
+                              {!selectedFile ? (
+                                <label
+                                  htmlFor="resource-file-input"
+                                  className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-8 bg-slate-50 hover:bg-slate-50/50 cursor-pointer transition-all"
+                                >
+                                  <span className="text-3xl mb-2">📥</span>
+                                  <span className="font-extrabold text-xs text-slate-700">Click to Select or Drop File</span>
+                                  <span className="text-[10px] text-slate-400 mt-1">Acceptable formats only. Size up to 10MB.</span>
+                                </label>
+                              ) : (
+                                <div className="p-4 bg-indigo-50/30 border border-indigo-150 rounded-2xl flex items-center justify-between gap-3 animate-fade-in">
+                                  <div className="space-y-1">
+                                    <span className="text-xs font-bold text-slate-800 block line-clamp-1">{selectedFile.name}</span>
+                                    <span className="text-[10px] text-slate-450 block">
+                                      Size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB · Type: {selectedFile.type || 'unknown'}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setSelectedFile(null); setFileError(null); }}
+                                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[10px] font-bold border border-red-150 transition-colors"
+                                  >
+                                    Remove File
+                                  </button>
+                                </div>
+                              )}
+
+                              {fileError && (
+                                <div className="p-3 bg-red-50 border border-red-150 rounded-xl text-[10px] text-red-700 font-semibold leading-relaxed">
+                                  ❌ {fileError}
+                                </div>
+                              )}
+
+                              {selectedFile && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Resource Display Title *</label>
+                                    <input
+                                      type="text"
+                                      required
+                                      value={newResourceTitle}
+                                      onChange={e => setNewResourceTitle(e.target.value)}
+                                      placeholder="e.g. Smart-Parking Architecture Diagram"
+                                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Classification Type *</label>
+                                    <select
+                                      value={resourceType}
+                                      onChange={e => setResourceType(e.target.value)}
+                                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none"
+                                    >
+                                      <option value="pdf">🔴 PDF Document</option>
+                                      <option value="notes">📝 Notes / Markdown</option>
+                                      <option value="dataset">📊 Dataset (CSV/JSON)</option>
+                                      <option value="document">📄 Word Document (DOC/DOCX)</option>
+                                      <option value="presentation">🖥️ Presentation Slide (PPT/PPTX)</option>
+                                      <option value="image">🖼️ Image Asset (PNG/JPG/WEBP)</option>
+                                      <option value="other">📦 Other</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Resource Title *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    value={newResourceTitle}
+                                    onChange={e => setNewResourceTitle(e.target.value)}
+                                    placeholder={
+                                      resourceMode === 'folder' ? 'e.g. Shared Google Drive Folder' :
+                                      resourceMode === 'code_repo' ? 'e.g. Smart-Parking GitHub Repository' :
+                                      'e.g. Figma UI Layout Design File'
+                                    }
+                                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+                                  />
+                                  <span className="text-[9px] text-slate-400 mt-0.5 block">Minimum 3 characters.</span>
+                                </div>
+
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Secure HTTPS URL Link *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    value={newResourceUrl}
+                                    onChange={e => setNewResourceUrl(e.target.value)}
+                                    placeholder={
+                                      resourceMode === 'folder' ? 'https://drive.google.com/drive/folders/...' :
+                                      resourceMode === 'code_repo' ? 'https://github.com/username/project-repo' :
+                                      'https://figma.com/file/...'
+                                    }
+                                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+                                  />
+                                  <span className="text-[9px] text-slate-400 mt-0.5 block">Must strictly begin with the secure https:// protocol.</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Resource Title *</label>
-                            <input
-                              type="text"
-                              required
-                              value={newResourceTitle}
-                              onChange={e => setNewResourceTitle(e.target.value)}
-                              placeholder="e.g. Figma Design System File"
-                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
-                            />
-                            <span className="text-[9px] text-slate-400 mt-0.5 block">Minimum 3 characters.</span>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">HTTPS URL Link *</label>
-                            <input
-                              type="text"
-                              required
-                              value={newResourceUrl}
-                              onChange={e => setNewResourceUrl(e.target.value)}
-                              placeholder="https://figma.com/..."
-                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
-                            />
-                            <span className="text-[9px] text-slate-400 mt-0.5 block">Must strictly be an https:// URL.</span>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Description / Usage Details</label>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Description / Coordinates Usage Details</label>
                             <textarea
-                              rows={2}
+                              rows={3}
                               value={newResourceDesc}
                               onChange={e => setNewResourceDesc(e.target.value)}
-                              placeholder="Add credentials, passwords, or milestones related to this link..."
-                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+                              placeholder="Explain what this material contains, passwords or credentials if any, and relevant project milestones..."
+                              className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
                             />
                           </div>
                         </div>
-                        <div className="flex gap-2 justify-end">
+
+                        <div className="flex gap-2 justify-end pt-2">
                           <button
                             type="button"
-                            onClick={() => setIsCreatingResource(false)}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+                            onClick={() => {
+                              setIsCreatingResource(false);
+                              setSelectedFile(null);
+                              setFileError(null);
+                            }}
+                            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors border"
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
                             disabled={actionLoading}
-                            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow"
+                            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
                           >
-                            {actionLoading ? 'Sharing...' : 'Share Link'}
+                            {actionLoading ? 'Saving...' : resourceMode === 'file' ? 'Upload and Submit' : 'Share Resource'}
                           </button>
                         </div>
                       </form>
@@ -2565,38 +3024,65 @@ export const ProjectMatePage: React.FC = () => {
 
                     {/* Verification Queue (Project Owner only) */}
                     {selectedProject.is_owner && (
-                      <div className="p-5 bg-amber-50/50 border border-amber-200 rounded-2xl shadow-sm space-y-4">
-                        <h4 className="text-sm font-black text-amber-800 border-b border-amber-200 pb-2 flex items-center gap-1.5">
+                      <div className="p-5 bg-amber-50/40 border border-amber-250 rounded-2xl shadow-sm space-y-4">
+                        <h4 className="text-sm font-black text-amber-800 border-b border-amber-250 pb-2 flex items-center gap-1.5">
                           <span>Material Verification Queue</span>
-                          <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px] font-bold border border-amber-350">
+                          <span className="px-2 py-0.5 bg-amber-100 text-amber-850 rounded-full text-[10px] font-black border border-amber-300">
                             {verificationQueue.length} pending
                           </span>
                         </h4>
 
                         {verificationQueue.length === 0 ? (
-                          <p className="text-xs text-amber-700 italic text-center py-4">No materials currently pending review.</p>
+                          <p className="text-xs text-amber-700 italic text-center py-4 font-medium">No materials currently pending review.</p>
                         ) : (
                           <div className="space-y-3">
                             {verificationQueue.map(res => {
-                              const isExe = res.url?.toLowerCase().endsWith('.exe') || res.url?.toLowerCase().includes('.exe');
+                              const isExe = res.url?.toLowerCase().endsWith('.exe') || res.file_name?.toLowerCase().endsWith('.exe');
                               return (
                                 <div key={res.id} className="p-4 bg-white border border-amber-200/80 rounded-xl space-y-3 shadow-sm text-xs">
                                   {isExe && (
                                     <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-[10px] text-red-700 font-semibold leading-relaxed flex items-start gap-1.5">
-                                      <span>⚠️ Warning: This URL matches a hazardous file signature (.exe). Proceed with extreme caution.</span>
+                                      <span>⚠️ Warning: This resource matches a hazardous file signature (.exe). Decline immediately.</span>
                                     </div>
                                   )}
                                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-2 gap-2">
                                     <div>
-                                      <h5 className="font-extrabold text-slate-850 text-sm">{res.title}</h5>
-                                      <span className="text-[10px] text-slate-400">Uploaded by {res.uploader_profile?.full_name} on {new Date(res.created_at).toLocaleDateString()}</span>
+                                      <h5 className="font-extrabold text-slate-850 text-sm flex items-center gap-1.5">
+                                        <span>{res.title}</span>
+                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-black uppercase">
+                                          {res.resource_type}
+                                        </span>
+                                      </h5>
+                                      <span className="text-[10px] text-slate-400">
+                                        Uploaded by <span className="font-bold text-slate-600">{res.uploader_profile?.full_name}</span> on {new Date(res.created_at).toLocaleDateString()}
+                                      </span>
                                     </div>
-                                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-indigo-650 hover:underline flex items-center gap-1 font-semibold self-start sm:self-auto">
-                                      <span>Open Link Coordinates</span>
-                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                    </a>
+                                    
+                                    {res.file_path ? (
+                                      <div className="flex gap-2">
+                                        {(res.resource_type === 'pdf' || res.resource_type === 'image') && (
+                                          <button
+                                            onClick={() => handlePreviewResource(res)}
+                                            className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-1"
+                                          >
+                                            👁️ Preview Securely
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={() => handleDownloadResource(res)}
+                                          className="text-xs font-bold text-slate-600 hover:text-slate-700 hover:underline flex items-center gap-1"
+                                        >
+                                          📥 Download File
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-indigo-650 hover:underline flex items-center gap-1 font-bold self-start sm:self-auto">
+                                        <span>Open Link coordinates</span>
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                      </a>
+                                    )}
                                   </div>
-                                  {res.description && <p className="text-slate-500 italic text-[11px]">"{res.description}"</p>}
+                                  {res.description && <p className="text-slate-550 italic text-[11px]">"{res.description}"</p>}
                                   <div className="flex gap-2 justify-end pt-1">
                                     <button
                                       onClick={() => {
@@ -2604,13 +3090,13 @@ export const ProjectMatePage: React.FC = () => {
                                         setRejectionReasonText('');
                                         setIsRejectionModalOpen(true);
                                       }}
-                                      className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 font-bold border border-red-150 rounded-lg transition-colors"
+                                      className="px-3.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 font-bold border border-red-150 rounded-lg transition-colors"
                                     >
                                       Decline Material
                                     </button>
                                     <button
                                       onClick={() => handleVerifyResourceAction(res.id)}
-                                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors shadow-sm"
+                                      className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors shadow-sm"
                                     >
                                       Approve Material
                                     </button>
@@ -2625,15 +3111,30 @@ export const ProjectMatePage: React.FC = () => {
 
                     {/* Library Verified Resources List */}
                     <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
-                      <h4 className="text-sm font-black text-slate-800 border-b border-slate-100 pb-2">Verified Material Library</h4>
-                      
+                      <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                        <h4 className="text-sm font-black text-slate-800">Verified Material Library</h4>
+                        <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-150 px-2 py-0.5 rounded-full font-bold">
+                          {resources.filter(r => r.verification_status === 'verified').length} total verified
+                        </span>
+                      </div>
+
                       {(() => {
                         const verifiedList = resources.filter(r => r.verification_status === 'verified');
-                        
-                        // Sort pinned first, then by date descending
+
+                        // Sort pinned first, then owner verified/recommended, helpful count, newest.
                         const sorted = [...verifiedList].sort((a, b) => {
                           if (a.is_pinned && !b.is_pinned) return -1;
                           if (!a.is_pinned && b.is_pinned) return 1;
+
+                          const isOwnerA = a.uploaded_by === selectedProject.created_by || a.owner_recommended;
+                          const isOwnerB = b.uploaded_by === selectedProject.created_by || b.owner_recommended;
+                          if (isOwnerA && !isOwnerB) return -1;
+                          if (!isOwnerA && isOwnerB) return 1;
+
+                          const helpA = a.helpful_count || 0;
+                          const helpB = b.helpful_count || 0;
+                          if (helpA !== helpB) return helpB - helpA;
+
                           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
                         });
 
@@ -2642,40 +3143,114 @@ export const ProjectMatePage: React.FC = () => {
                         if (verifiedList.length === 0) {
                           return (
                             <p className="text-xs text-slate-400 italic text-center py-8">
-                              No verified materials found in the library yet. Click "Share a Link" to get started.
+                              No verified materials found in the library yet. Click "Share Material" to get started.
                             </p>
                           );
                         }
+
+                        const getTypeIcon = (type: string) => {
+                          switch (type) {
+                            case 'pdf': return '💾 PDF';
+                            case 'notes': return '📝 Notes';
+                            case 'dataset': return '📊 Dataset';
+                            case 'document': return '📄 Doc';
+                            case 'presentation': return '🖥️ Slide';
+                            case 'image': return '🖼️ Image';
+                            case 'code_repo': return '💻 Code Repo';
+                            case 'folder': return '📁 Folder Link';
+                            default: return '🔗 Web Link';
+                          }
+                        };
 
                         return (
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {sliced.map(res => {
-                                const isExe = res.url?.toLowerCase().endsWith('.exe') || res.url?.toLowerCase().includes('.exe');
+                                const isExe = res.url?.toLowerCase().endsWith('.exe') || res.file_name?.toLowerCase().endsWith('.exe');
+                                const isLeadUpload = res.uploaded_by === selectedProject.created_by || res.owner_recommended;
+                                
                                 return (
-                                  <div key={res.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between space-y-3 relative hover:shadow-md transition-shadow text-xs">
-                                    {res.is_pinned && (
-                                      <div className="absolute right-3 top-3 flex items-center gap-0.5 text-[9px] font-black text-indigo-700 bg-indigo-50 border border-indigo-150 px-1.5 py-0.5 rounded-md">
-                                        <span>📌 PINNED</span>
-                                      </div>
-                                    )}
-                                    <div className="space-y-1.5">
-                                      <h5 className="font-extrabold text-slate-850 text-sm pr-12 line-clamp-1">{res.title}</h5>
-                                      <p className="text-[10px] text-slate-400">Uploaded by <span className="font-semibold text-slate-600">{res.uploader_profile?.full_name || 'Teammate'}</span> · {new Date(res.created_at).toLocaleDateString()}</p>
-                                      {res.description && <p className="text-slate-505 italic pr-2 line-clamp-2">"{res.description}"</p>}
-                                      
-                                      {isExe && (
-                                        <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-[9px] text-red-700 font-semibold leading-relaxed flex items-start gap-1 mt-1.5">
-                                          <span>⚠️ Safety warning: hazardous file signature (.exe) detected.</span>
+                                  <div key={res.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-between space-y-3.5 relative hover:shadow-md transition-shadow text-xs">
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div className="space-y-1.5 flex-1">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase border border-indigo-150">
+                                            {getTypeIcon(res.resource_type)}
+                                          </span>
+                                          {res.is_pinned && (
+                                            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-250 text-[9px] font-black uppercase rounded">
+                                              📌 Pinned
+                                            </span>
+                                          )}
+                                          {isLeadUpload && (
+                                            <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-250 text-[9px] font-black uppercase rounded">
+                                              👑 Lead Recommended
+                                            </span>
+                                          )}
                                         </div>
-                                      )}
+
+                                        <h5 className="font-extrabold text-slate-850 text-sm line-clamp-1 mt-1 pr-8">{res.title}</h5>
+                                        
+                                        <p className="text-[10px] text-slate-400 font-medium">
+                                          Shared by <span className="font-bold text-slate-600">{res.uploader_profile?.full_name || 'Teammate'}</span> · {new Date(res.created_at).toLocaleDateString()}
+                                        </p>
+                                        
+                                        {res.description && <p className="text-slate-505 italic pr-2 line-clamp-2 leading-relaxed">"{res.description}"</p>}
+                                        
+                                        {res.file_path && (
+                                          <p className="text-[9px] text-indigo-500 font-bold bg-indigo-50/50 p-1.5 rounded-lg border border-indigo-100/50 inline-block">
+                                            💾 File Resource: {res.file_name} ({(res.file_size_bytes ? (res.file_size_bytes / 1024).toFixed(1) : 0)} KB)
+                                          </p>
+                                        )}
+
+                                        {isExe && (
+                                          <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-[9px] text-red-700 font-semibold leading-relaxed flex items-start gap-1">
+                                            <span>⚠️ Safety warning: hazardous script extension detected.</span>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                    <div className="pt-2.5 border-t border-slate-200 flex items-center justify-between gap-3">
-                                      <a href={res.url} target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm">
-                                        <span>Open Link</span>
-                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                      </a>
-                                      
+
+                                    <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
+                                      <div className="flex gap-2">
+                                        {res.file_path ? (
+                                          <>
+                                            {(res.resource_type === 'pdf' || res.resource_type === 'image') && (
+                                              <button
+                                                onClick={() => handlePreviewResource(res)}
+                                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm transition-all"
+                                              >
+                                                <span>👁️ Preview Securely</span>
+                                              </button>
+                                            )}
+                                            <button
+                                              onClick={() => handleDownloadResource(res)}
+                                              className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg flex items-center gap-1 transition-all"
+                                            >
+                                              <span>📥 Download</span>
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <a
+                                            href={res.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-3 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm transition-all"
+                                          >
+                                            <span>Open Link</span>
+                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                          </a>
+                                        )}
+
+                                        <button
+                                          onClick={() => handleToggleResourceHelpful(res.id)}
+                                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors font-bold text-slate-500"
+                                        >
+                                          <span>👍</span>
+                                          <span>Helpful ({res.helpful_count || 0})</span>
+                                        </button>
+                                      </div>
+
                                       <div className="flex gap-1.5">
                                         {selectedProject.is_owner && (
                                           <button
@@ -2713,12 +3288,12 @@ export const ProjectMatePage: React.FC = () => {
                                   onClick={() => setResourcesLimit(prev => prev + 6)}
                                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
                                 >
-                                  Show More Materials
+                                  Show More Materials ({sorted.length - sliced.length} more)
                                 </button>
                               )}
-                              {resourcesLimit > 6 && (
+                              {resourcesLimit > 3 && (
                                 <button
-                                  onClick={() => setResourcesLimit(6)}
+                                  onClick={() => setResourcesLimit(3)}
                                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all"
                                 >
                                   Show Fewer
@@ -2733,13 +3308,13 @@ export const ProjectMatePage: React.FC = () => {
                     {/* My Submitted Resources Panel */}
                     <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
                       <h4 className="text-sm font-black text-slate-800 border-b border-slate-100 pb-2">My Submitted Materials</h4>
-                      
+
                       {(() => {
                         const mySubmitted = resources.filter(r => r.uploaded_by === user?.id);
-                        
+
                         if (mySubmitted.length === 0) {
                           return (
-                            <p className="text-xs text-slate-400 italic text-center py-6">
+                            <p className="text-xs text-slate-400 italic text-center py-6 font-medium">
                               You have not submitted any resource materials yet.
                             </p>
                           );
@@ -2752,25 +3327,34 @@ export const ProjectMatePage: React.FC = () => {
                                 res.verification_status === 'verified' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                 res.verification_status === 'pending_verification' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                 'bg-red-50 text-red-700 border-red-200';
-                              const isExe = res.url?.toLowerCase().endsWith('.exe') || res.url?.toLowerCase().includes('.exe');
+                              const isExe = res.url?.toLowerCase().endsWith('.exe') || res.file_name?.toLowerCase().endsWith('.exe');
 
                               return (
-                                <div key={res.id} className="p-3.5 bg-slate-50 border border-slate-150 rounded-xl flex flex-col justify-between space-y-2 text-xs font-semibold text-slate-600">
+                                <div key={res.id} className="p-3.5 bg-slate-50 border border-slate-150 rounded-xl flex flex-col justify-between space-y-2 text-xs font-semibold text-slate-600 animate-fade-in">
                                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200/50 pb-1.5">
                                     <div>
-                                      <h5 className="font-extrabold text-slate-850">{res.title}</h5>
-                                      <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-600 hover:underline line-clamp-1">{res.url}</a>
+                                      <h5 className="font-extrabold text-slate-850 flex items-center gap-1.5">
+                                        <span>{res.title}</span>
+                                        <span className="px-1.5 py-0.2 bg-slate-250 text-slate-505 rounded text-[8px] font-black uppercase">
+                                          {res.resource_type}
+                                        </span>
+                                      </h5>
+                                      {res.file_path ? (
+                                        <span className="text-[9px] text-slate-400 font-medium">💾 File Resource: {res.file_name}</span>
+                                      ) : (
+                                        <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-650 hover:underline line-clamp-1">{res.url}</a>
+                                      )}
                                     </div>
                                     <span className={`px-2.5 py-0.5 rounded border text-[9px] font-black uppercase self-start sm:self-auto ${statusBadge}`}>
                                       {res.verification_status === 'pending_verification' ? 'Pending Review' : res.verification_status}
                                     </span>
                                   </div>
-                                  
+
                                   {res.description && <p className="text-slate-500 italic font-normal">"{res.description}"</p>}
-                                  
+
                                   {isExe && (
                                     <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-[9px] text-red-700 font-semibold leading-relaxed flex items-start gap-1">
-                                      <span>⚠️ Warning: hazardous executable file link (.exe) registered. Proceed with caution.</span>
+                                      <span>⚠️ Warning: hazardous script signature detected.</span>
                                     </div>
                                   )}
 
@@ -2789,6 +3373,7 @@ export const ProjectMatePage: React.FC = () => {
                     </div>
                   </div>
                 )}
+              </div>
               {/* Roster & Left Bar settings */}
               <div className="space-y-6">
                  {/* Active Roster List */}
@@ -2926,7 +3511,6 @@ export const ProjectMatePage: React.FC = () => {
                 )}
               </div>
             </div>
-          </div>
         )}
 
           {activeTab === 'workspace' && selectedProject && !(selectedProject.is_owner || selectedProject.is_member) && (
@@ -3943,7 +4527,116 @@ export const ProjectMatePage: React.FC = () => {
         <PublicProfileModal
           userId={selectedUserIdForProfile}
           onClose={() => setSelectedUserIdForProfile(null)}
+          layer="top"
         />
+      )}
+
+      {/* ========================================================================= */}
+      {/* DYNAMIC SECURE RESOURCE PREVIEW LIGHTBOX */}
+      {/* ========================================================================= */}
+      {previewResource && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 w-full max-w-4xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Lightbox Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50">
+              <div>
+                <span className="text-[9px] font-black uppercase bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-150">
+                  🔐 Secure Signed Preview (Expiring Link)
+                </span>
+                <h3 className="text-base font-black text-slate-800 mt-1 line-clamp-1">{previewResource.title}</h3>
+              </div>
+              <button
+                onClick={() => { setPreviewResource(null); setPreviewUrl(''); }}
+                className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-350 text-slate-655 flex items-center justify-center transition-colors font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Lightbox Body */}
+            <div className="p-6 overflow-y-auto flex-1 flex flex-col justify-center items-center text-xs">
+              {loadingPreview ? (
+                <div className="py-20 flex flex-col items-center gap-3">
+                  <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="font-extrabold text-slate-500">Generating secure temporary preview link...</span>
+                </div>
+              ) : previewUrl ? (
+                (() => {
+                  const type = previewResource.resource_type;
+                  if (type === 'pdf') {
+                    return (
+                      <iframe
+                        src={previewUrl}
+                        className="w-full h-[60vh] rounded-2xl border border-slate-200 shadow-sm"
+                        title="Secure PDF Preview"
+                      />
+                    );
+                  } else if (type === 'image') {
+                    return (
+                      <div className="max-h-[60vh] overflow-auto flex items-center justify-center">
+                        <img
+                          src={previewUrl}
+                          className="max-w-full max-h-[55vh] object-contain rounded-2xl shadow border bg-slate-50"
+                          alt="Secure Preview"
+                        />
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="p-6 bg-amber-50 border border-amber-200 rounded-3xl max-w-xl text-center space-y-4 shadow-sm">
+                        <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-3xl mx-auto border border-amber-250">
+                          ⚠️
+                        </div>
+                        <h4 className="text-base font-black text-amber-800 font-black">Office Document / Download Caution</h4>
+                        <p className="text-xs text-amber-700 leading-relaxed font-semibold">
+                          You are attempting to access a rich metadata resource ({previewResource.file_name || 'Document'}). 
+                          To protect the sandbox environment, direct in-browser rendering for Office files (Word, PowerPoint, Excel) is gated. 
+                          Running or downloading files to local machines can carry mild security risks. Please ensure your device uses scanner software.
+                        </p>
+                        <div className="flex gap-2 justify-center pt-2">
+                          <button
+                            type="button"
+                            onClick={() => { setPreviewResource(null); setPreviewUrl(''); }}
+                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleDownloadResource(previewResource);
+                              setPreviewResource(null);
+                              setPreviewUrl('');
+                            }}
+                            className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                          >
+                            📥 Download File Securely
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                })()
+              ) : (
+                <div className="py-12 text-center text-red-500 font-bold">
+                  Could not load secure resource preview coordinates.
+                </div>
+              )}
+            </div>
+
+            {/* Lightbox Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0 flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
+              <span>Expiry: 5 Minutes (Signed URL protocol)</span>
+              <button
+                onClick={() => { setPreviewResource(null); setPreviewUrl(''); }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow"
+              >
+                Done
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
 
     </div>
