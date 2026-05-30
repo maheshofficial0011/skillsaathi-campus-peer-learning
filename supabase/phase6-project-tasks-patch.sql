@@ -108,10 +108,34 @@ ALTER TABLE public.project_task_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_task_submission_files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_task_extension_requests ENABLE ROW LEVEL SECURITY;
 
+-- ==========================================
+-- Drop policies that depend on is_project_owner BEFORE dropping the function.
+-- These policies belong to Phase 6.2 discussion/resource tables.
+-- They will be faithfully recreated below after the function is refreshed.
+-- DO NOT use CASCADE.
+-- ==========================================
+
+-- project_discussion_posts dependents
+DROP POLICY IF EXISTS "pdp_update" ON public.project_discussion_posts;
+DROP POLICY IF EXISTS "pdp_delete" ON public.project_discussion_posts;
+
+-- project_discussion_replies dependents
+DROP POLICY IF EXISTS "pdr_update" ON public.project_discussion_replies;
+DROP POLICY IF EXISTS "pdr_delete" ON public.project_discussion_replies;
+
+-- project_resources dependents
+DROP POLICY IF EXISTS "pr_select" ON public.project_resources;
+DROP POLICY IF EXISTS "pr_insert" ON public.project_resources;
+DROP POLICY IF EXISTS "pr_update" ON public.project_resources;
+DROP POLICY IF EXISTS "pr_delete" ON public.project_resources;
+
+-- Now safe to drop and recreate the helper functions
 DROP FUNCTION IF EXISTS public.is_active_project_member_or_owner(uuid, uuid);
 DROP FUNCTION IF EXISTS public.is_project_owner(uuid, uuid);
 
--- Helper function to check if user is active member or owner
+-- ==========================================
+-- Helper function: is_active_project_member_or_owner
+-- ==========================================
 CREATE OR REPLACE FUNCTION public.is_active_project_member_or_owner(proj_id uuid, check_user_id uuid)
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -138,18 +162,120 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION public.is_project_owner(proj_id uuid, check_user_id uuid)
-RETURNS BOOLEAN AS $$
-DECLARE
-    is_owner BOOLEAN;
-BEGIN
-    SELECT EXISTS (
-        SELECT 1 FROM public.project_posts
-        WHERE id = proj_id AND created_by = check_user_id
-    ) INTO is_owner;
-    RETURN is_owner;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- ==========================================
+-- Helper function: is_project_owner
+-- Matches the canonical SQL-language version from phase6-project-mate-workspace-polish-patch.sql
+-- ==========================================
+CREATE OR REPLACE FUNCTION public.is_project_owner(proj_uuid uuid, user_uuid uuid)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.project_posts
+    WHERE id         = proj_uuid
+      AND created_by = user_uuid
+  );
+$$;
+
+-- ==========================================
+-- Recreate Phase 6.2 dependent policies (exact definitions from workspace-polish patch)
+-- ==========================================
+
+-- project_discussion_posts
+CREATE POLICY "pdp_update"
+  ON public.project_discussion_posts FOR UPDATE
+  TO authenticated
+  USING (
+    created_by = auth.uid() OR
+    public.is_project_owner(project_id, auth.uid())
+  )
+  WITH CHECK (
+    created_by = auth.uid() OR
+    public.is_project_owner(project_id, auth.uid())
+  );
+
+CREATE POLICY "pdp_delete"
+  ON public.project_discussion_posts FOR DELETE
+  TO authenticated
+  USING (
+    created_by = auth.uid() OR
+    public.is_project_owner(project_id, auth.uid())
+  );
+
+-- project_discussion_replies
+CREATE POLICY "pdr_update"
+  ON public.project_discussion_replies FOR UPDATE
+  TO authenticated
+  USING (
+    created_by = auth.uid() OR
+    public.is_project_owner(project_id, auth.uid())
+  )
+  WITH CHECK (
+    created_by = auth.uid() OR
+    public.is_project_owner(project_id, auth.uid())
+  );
+
+CREATE POLICY "pdr_delete"
+  ON public.project_discussion_replies FOR DELETE
+  TO authenticated
+  USING (
+    created_by = auth.uid() OR
+    public.is_project_owner(project_id, auth.uid())
+  );
+
+-- project_resources
+CREATE POLICY "pr_select"
+  ON public.project_resources FOR SELECT
+  TO authenticated
+  USING (
+    public.can_access_project_workspace(project_id, auth.uid()) AND (
+      verification_status = 'verified' OR
+      uploaded_by = auth.uid() OR
+      public.is_project_owner(project_id, auth.uid())
+    )
+  );
+
+CREATE POLICY "pr_insert"
+  ON public.project_resources FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    uploaded_by = auth.uid() AND
+    public.can_access_project_workspace(project_id, auth.uid()) AND
+    (
+      (public.is_project_owner(project_id, auth.uid()) AND verification_status = 'verified') OR
+      (NOT public.is_project_owner(project_id, auth.uid()) AND verification_status = 'pending_verification')
+    )
+  );
+
+CREATE POLICY "pr_update"
+  ON public.project_resources FOR UPDATE
+  TO authenticated
+  USING (
+    public.can_access_project_workspace(project_id, auth.uid()) AND (
+      uploaded_by = auth.uid() OR
+      public.is_project_owner(project_id, auth.uid())
+    )
+  )
+  WITH CHECK (
+    public.can_access_project_workspace(project_id, auth.uid()) AND (
+      uploaded_by = auth.uid() OR
+      public.is_project_owner(project_id, auth.uid())
+    )
+  );
+
+CREATE POLICY "pr_delete"
+  ON public.project_resources FOR DELETE
+  TO authenticated
+  USING (
+    public.can_access_project_workspace(project_id, auth.uid()) AND (
+      uploaded_by = auth.uid() OR
+      public.is_project_owner(project_id, auth.uid())
+    )
+  );
 
 -- ==========================================
 -- Policies for project_tasks
