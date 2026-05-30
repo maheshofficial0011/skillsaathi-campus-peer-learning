@@ -3025,17 +3025,16 @@ export const ProjectMatePage: React.FC = () => {
                           </span>
                         </h4>
 
-                                                {pendingApplicants.length === 0 ? (
+                        {pendingApplicants.length === 0 ? (
                           <p className="text-xs text-slate-400 italic text-center py-6">
                             No pending team applications yet.
                           </p>
                         ) : (
-                          <div className={`space-y-4 ${pendingApplicants.length > 3 ? 'max-h-64 overflow-y-auto pr-1' : ''}`}>
+                          <div className={`space-y-4 pr-1 ${pendingApplicants.length > 3 ? 'max-h-[280px] overflow-y-auto thin-scrollbar' : ''}`}>
                             {[...pendingApplicants]
                               .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime())
-                              .slice(0, applicantsLimit)
                               .map(app => (
-                              <div key={app.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-150 space-y-3">
+                              <div key={app.id} className="p-4 bg-slate-50 border border-slate-150 rounded-2xl space-y-3 shadow-xs">
                                 <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200/60 pb-2.5 gap-2">
                                   <div>
                                     <button
@@ -3055,34 +3054,51 @@ export const ProjectMatePage: React.FC = () => {
                                   </span>
                                 </div>
 
-                                <div className="text-xs space-y-2 leading-relaxed text-slate-600">
+                                <div className="text-xs space-y-2 leading-relaxed text-slate-650">
                                   <p>
-                                    <span className="font-bold text-slate-700 block">Intro Message:</span>
-                                    <span className="italic">"{app.message}"</span>
+                                    <strong className="text-slate-700 font-bold block mb-1">Intro Message:</strong>
+                                    <span className="bg-white/80 p-3 rounded-xl border border-slate-100 block italic whitespace-pre-wrap leading-relaxed shadow-inner">
+                                      "{app.message}"
+                                    </span>
                                   </p>
 
-                                  {app.skills_snapshot && app.skills_snapshot.length > 0 && (
-                                    <p>
-                                      <span className="font-bold text-slate-700 block mb-1">Skills Snapshot:</span>
-                                      <span className="flex flex-wrap gap-1">
-                                        {app.skills_snapshot.map(s => (
-                                          <span key={s} className="px-1.5 py-0.5 bg-slate-200/70 text-slate-700 font-semibold rounded text-[10px]">
-                                            {s}
-                                          </span>
-                                        ))}
-                                      </span>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                                    {app.skills_snapshot && app.skills_snapshot.length > 0 && (
+                                      <div className="p-2.5 bg-indigo-50/30 border border-indigo-100 rounded-xl">
+                                        <strong className="text-[10px] uppercase text-indigo-750 tracking-wider block mb-1">Key Skills Snapshot</strong>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {app.skills_snapshot.map((skill: string) => (
+                                            <span key={skill} className="px-1.5 py-0.5 bg-white border border-indigo-200 text-indigo-700 text-[9px] font-bold rounded">
+                                              {skill.trim()}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {app.experience_summary && (
+                                      <div className="p-2.5 bg-emerald-50/30 border border-emerald-100 rounded-xl">
+                                        <strong className="text-[10px] uppercase text-emerald-700 tracking-wider block mb-0.5">Experience Summary</strong>
+                                        <p className="italic text-slate-650 leading-relaxed text-[11px]">{app.experience_summary}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {app.expected_contribution && (
+                                    <p className="text-[11px] pt-1">
+                                      <strong className="text-slate-700 block">Expected Contribution:</strong>
+                                      <span>{app.expected_contribution}</span>
                                     </p>
                                   )}
-
-                                  {app.experience_summary && (
-                                    <p>
-                                      <span className="font-bold text-slate-700 block">Experience Summary:</span>
-                                      <span>{app.experience_summary}</span>
+                                  
+                                  {app.availability && (
+                                    <p className="text-[11px]">
+                                      <strong className="text-slate-700 block">Weekly Availability:</strong>
+                                      <span>{app.availability}</span>
                                     </p>
                                   )}
-
+                                  
                                   {app.portfolio_url && (
-                                    <p>
+                                    <p className="text-[11px]">
                                       <span className="font-bold text-slate-700 block">Portfolio Coordinates:</span>
                                       <a href={app.portfolio_url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline font-semibold flex items-center gap-1">
                                         <span>{app.portfolio_url}</span>
@@ -3090,60 +3106,26 @@ export const ProjectMatePage: React.FC = () => {
                                       </a>
                                     </p>
                                   )}
-
-                                  {app.availability && (
-                                    <p>
-                                      <span className="font-bold text-slate-700 block">Weekly Availability:</span>
-                                      <span>{app.availability}</span>
-                                    </p>
-                                  )}
-
-                                  {app.expected_contribution && (
-                                    <p>
-                                      <span className="font-bold text-slate-700 block">Expected Contribution:</span>
-                                      <span>{app.expected_contribution}</span>
-                                    </p>
-                                  )}
                                 </div>
 
                                 <div className="flex gap-2 justify-end pt-3 border-t border-slate-200/50">
                                   <button
                                     onClick={() => openResponseDialog(app.id, 'rejected')}
-                                    className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-150 font-bold text-xs rounded-xl transition-colors shadow-sm"
+                                    className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-655 border border-red-150 font-bold text-xs rounded-xl transition-colors shadow-sm"
+                                    type="button"
                                   >
                                     Reject
                                   </button>
                                   <button
                                     onClick={() => openResponseDialog(app.id, 'accepted')}
                                     className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors shadow"
+                                    type="button"
                                   >
                                     Accept
                                   </button>
                                 </div>
                               </div>
                             ))}
-                            
-                            {pendingApplicants.length > 3 && (
-                              <div className="flex justify-center gap-2 pt-2 border-t border-slate-200/50 mt-2">
-                                {pendingApplicants.length > applicantsLimit ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setApplicantsLimit(prev => prev + 3)}
-                                    className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-lg border border-indigo-200 transition-colors"
-                                  >
-                                    Show More ({pendingApplicants.length - applicantsLimit} more)
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => setApplicantsLimit(3)}
-                                    className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-slate-650 text-[10px] font-bold rounded-lg border border-slate-200 transition-colors"
-                                  >
-                                    Show Less
-                                  </button>
-                                )}
-                              </div>
-                            )}
                           </div>
                         )}
                       </div>
