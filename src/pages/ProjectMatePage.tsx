@@ -189,22 +189,33 @@ export const ProjectMatePage: React.FC = () => {
     if (!user) return;
     try {
       setIsLoading(true);
+      console.log('[ProjectMate] entering workspace for project:', projectId);
       const proj = await getProjectById(projectId, user.id, userProfile);
       setSelectedProject(proj);
       setSelectedProjectId(projectId);
       
-      const roster = await getProjectTeamMembers(projectId);
-      setTeamMembers(roster);
+      let roster: ProjectTeamMember[] = [];
+      try {
+        roster = await getProjectTeamMembers(projectId);
+      } catch (rosterErr) {
+        console.error('[ProjectMate] Failed to load team members:', rosterErr);
+      }
+      setTeamMembers(roster || []);
 
       if (proj.is_owner) {
-        const apps = await getProjectApplications(projectId);
-        setPendingApplicants(apps.filter(a => a.status === 'pending'));
+        let apps: ProjectApplicationWithProfile[] = [];
+        try {
+          apps = await getProjectApplications(projectId);
+        } catch (appsErr) {
+          console.error('[ProjectMate] Failed to load applications:', appsErr);
+        }
+        setPendingApplicants((apps || []).filter(a => a.status === 'pending'));
       }
       
       setActiveTab('workspace');
     } catch (err: any) {
-      console.error(err);
-      toast.error('Error entering project workspace.');
+      console.error('[ProjectMate] workspace load failed:', err);
+      toast.error(`Could not open workspace: ${err.message || err}`);
     } finally {
       setIsLoading(false);
     }

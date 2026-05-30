@@ -455,3 +455,16 @@ Partial indexes are configured to enforce business logic:
 - `unique_pending_project_applicant`: Enforces a maximum of one **pending** application per project and applicant, while allowing re-applications if previously rejected/withdrawn or left.
 - `unique_active_project_member`: Enforces that a user can have at most one **active** membership role in a specific project team (i.e. `left_at` is null).
 
+---
+
+## 🛠️ Step 17: Phase 6.1 — Project Mate Finder Workspace Entry RLS Fix
+
+If you experience an `"Error entering project workspace"` toast when trying to enter a newly created project's workspace, this is caused by a recursive infinite loop within the default PostgreSQL `SELECT` policy of `public.project_team_members` checking itself.
+
+To resolve this and restore clean workspace loading instantly:
+1. Open the [Supabase Dashboard](https://supabase.com/dashboard) SQL Editor.
+2. Create a new query.
+3. Paste the contents of `supabase/phase6-project-team-members-rls-fix.sql` and click **Run**.
+4. This drops the recursive SELECT policy and replaces it with a clean, high-performance, non-recursive policy checking direct owner status via `project_posts` and active team status via `project_applications` table.
+
+

@@ -1014,3 +1014,33 @@ Use this checklist to perform regression testing and ensure full readiness of al
     * Student B loses access and can re-apply in the future.
   - Verify that the project owner **cannot** kick themselves.
 
+
+### 7. Supabase RLS Verification & Debugging Queries
+
+Run these diagnostics in the Supabase SQL Editor to audit active team status, RLS policies, and bootstrapped owner records:
+
+```sql
+-- 1. Audit active project listings
+select id, title, created_by, current_team_size, max_team_size, status
+from public.project_posts
+order by created_at desc
+limit 5;
+
+-- 2. Audit team members active slots and bootstrapped owners
+select project_id, user_id, role_name, left_at
+from public.project_team_members
+order by created_at desc
+limit 10;
+
+-- 3. Audit open positions and slots filled counts
+select role_name, slots_needed, slots_filled
+from public.project_roles
+order by created_at desc
+limit 10;
+
+-- 4. Verify no infinite recursion in project_team_members SELECT policy
+-- (Should execute cleanly without stack depth limit exceeded exceptions)
+select * from public.project_team_members limit 5;
+```
+
+
