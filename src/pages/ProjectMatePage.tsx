@@ -46,8 +46,19 @@ import {
   syncProjectTeamMetrics,
   uploadProjectResourceFile,
   getSignedProjectResourceUrl,
-  toggleProjectResourceHelpful
+  toggleProjectResourceHelpful,
+  // Phase 6.3C: Role management
+  addProjectRole,
+  updateProjectRole,
+  deleteProjectRole,
+  // Phase 6.3C: Lifecycle controls
+  archiveProject,
+  completeProject,
+  restoreProject,
+  pauseProject,
+  markProjectRunning
 } from '../lib/projectMates';
+
 
 const CATEGORIES = [
   'AI & Machine Learning',
@@ -285,6 +296,30 @@ export const ProjectMatePage: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+
+  // Phase 6.3C: Role Management States
+  const [isAddingRole, setIsAddingRole] = useState(false);
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+  const [newRoleName, setNewRoleName] = useState('');
+  const [newRoleDescription, setNewRoleDescription] = useState('');
+  const [newRoleSkills, setNewRoleSkills] = useState('');
+  const [newRoleSlots, setNewRoleSlots] = useState(1);
+  const [newRolePriority, setNewRolePriority] = useState<'low' | 'medium' | 'high'>('medium');
+
+  // Phase 6.3C: Archive/Complete Project States
+  const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
+  const [projectToArchive, setProjectToArchive] = useState<string | null>(null);
+  const [isCompleteConfirmOpen, setIsCompleteConfirmOpen] = useState(false);
+  const [projectToComplete, setProjectToComplete] = useState<string | null>(null);
+  const [completionSummaryText, setCompletionSummaryText] = useState('');
+
+  // Phase 6.3C: Section collapse states (default collapsed for archived section)
+  const [isArchivedSectionCollapsed, setIsArchivedSectionCollapsed] = useState(true);
+
+  // Phase 6.3C: Show More / Show Fewer states
+  const [showMoreCompletedProjects, setShowMoreCompletedProjects] = useState(false);
+
+
 
   // Fetch Data
   const fetchData = useCallback(async () => {
@@ -1230,6 +1265,174 @@ export const ProjectMatePage: React.FC = () => {
     }
   };
 
+  // ============================================================
+  // PHASE 6.3C: Role Management Handlers
+  // ============================================================
+  
+  const handleAddRoleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProjectId) return;
+    setActionLoading(true);
+    try {
+      await addProjectRole({
+        project_id: selectedProjectId,
+        role_name: newRoleName,
+        description: newRoleDescription || undefined,
+        required_skills: newRoleSkills ? newRoleSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
+        slots_needed: newRoleSlots,
+        priority: newRolePriority
+      });
+      toast.success(`Role "${newRoleName}" added successfully!`);
+      setIsAddingRole(false);
+      setNewRoleName('');
+      setNewRoleDescription('');
+      setNewRoleSkills('');
+      setNewRoleSlots(1);
+      setNewRolePriority('medium');
+      loadWorkspace(selectedProjectId);
+    } catch (err: any) {
+      toast.error(err.message || 'Error adding role.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const startEditRole = (role: any) => {
+    setEditingRoleId(role.id);
+    setNewRoleName(role.role_name);
+    setNewRoleDescription(role.description || '');
+    setNewRoleSkills(role.required_skills ? role.required_skills.join(', ') : '');
+    setNewRoleSlots(role.slots_needed);
+    setNewRolePriority(role.priority || 'medium');
+    setIsAddingRole(false);
+  };
+
+  const handleUpdateRoleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRoleId || !selectedProjectId) return;
+    setActionLoading(true);
+    try {
+      await updateProjectRole(editingRoleId, {
+        role_name: newRoleName,
+        description: newRoleDescription || undefined,
+        required_skills: newRoleSkills ? newRoleSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
+        slots_needed: newRoleSlots,
+        priority: newRolePriority
+      });
+      toast.success(`Role updated successfully!`);
+      setEditingRoleId(null);
+      setNewRoleName('');
+      setNewRoleDescription('');
+      setNewRoleSkills('');
+      setNewRoleSlots(1);
+      setNewRolePriority('medium');
+      loadWorkspace(selectedProjectId);
+    } catch (err: any) {
+      toast.error(err.message || 'Error updating role.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteRole = async (roleId: string, roleName: string) => {
+    if (!window.confirm(`Delete the role "${roleName}"? This action cannot be undone.`)) return;
+    if (!selectedProjectId) return;
+    try {
+      await deleteProjectRole(roleId);
+      toast.info(`Role "${roleName}" removed.`);
+      loadWorkspace(selectedProjectId);
+    } catch (err: any) {
+      toast.error(err.message || 'Error deleting role.');
+    }
+  };
+
+  // ============================================================
+  // PHASE 6.3C: Lifecycle Control Handlers
+  // ============================================================
+
+  const handleMarkRunning = async (projId: string) => {
+    try {
+      await markProjectRunning(projId);
+      toast.success('Project marked as Running! 🚀');
+      fetchData();
+      if (selectedProjectId === projId) loadWorkspace(projId);
+    } catch (err: any) {
+      toast.error(err.message || 'Error updating project status.');
+    }
+  };
+
+  const handleMarkCompleted = (projId: string) => {
+    setProjectToComplete(projId);
+    setCompletionSummaryText('');
+    setIsCompleteConfirmOpen(true);
+  };
+
+  const handleConfirmComplete = async () => {
+    if (!projectToComplete) return;
+    setActionLoading(true);
+    try {
+      await completeProject(projectToComplete, completionSummaryText || undefined);
+      toast.success('Project marked as Completed! 🎉');
+      setIsCompleteConfirmOpen(false);
+      setProjectToComplete(null);
+      setCompletionSummaryText('');
+      fetchData();
+      if (selectedProjectId === projectToComplete) loadWorkspace(projectToComplete);
+    } catch (err: any) {
+      toast.error(err.message || 'Error marking project completed.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleArchiveProjectConfirm = (projId: string) => {
+    setProjectToArchive(projId);
+    setIsArchiveConfirmOpen(true);
+  };
+
+  const handleConfirmArchive = async () => {
+    if (!projectToArchive) return;
+    setActionLoading(true);
+    try {
+      await archiveProject(projectToArchive);
+      toast.success('Project archived. Team history safely preserved. 📦');
+      setIsArchiveConfirmOpen(false);
+      setProjectToArchive(null);
+      fetchData();
+      if (selectedProjectId === projectToArchive) {
+        setSelectedProject(null);
+        setSelectedProjectId(null);
+        setActiveTab('my_projects');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error archiving project.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handlePauseProject = async (projId: string) => {
+    try {
+      await pauseProject(projId);
+      toast.info('Project paused.');
+      fetchData();
+      if (selectedProjectId === projId) loadWorkspace(projId);
+    } catch (err: any) {
+      toast.error(err.message || 'Error pausing project.');
+    }
+  };
+
+  const handleRestoreProject = async (projId: string, toStatus: 'recruiting' | 'in_progress') => {
+    try {
+      await restoreProject(projId, toStatus);
+      toast.success(`Project restored to ${toStatus === 'recruiting' ? 'Recruiting' : 'Running'}! ✅`);
+      fetchData();
+      if (selectedProjectId === projId) loadWorkspace(projId);
+    } catch (err: any) {
+      toast.error(err.message || 'Error restoring project.');
+    }
+  };
+
   // Discover Projects filter logic
   const filteredProjects = projects.filter(p => {
     // 1. Search Query
@@ -1733,10 +1936,19 @@ export const ProjectMatePage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 2: MY PROJECTS */}
-          {activeTab === 'my_projects' && (
-            <div className="space-y-6">
-              {ownedProjects.length === 0 ? (
+          {/* TAB 2: MY PROJECTS — Lifecycle Sections */}
+          {activeTab === 'my_projects' && (() => {
+            const recruitingProjects = ownedProjects.filter(p => p.status === 'recruiting');
+            const runningProjects = ownedProjects.filter(p => p.status === 'in_progress' || p.status === 'team_full');
+            const completedProjects = ownedProjects.filter(p => p.status === 'completed').sort((a, b) =>
+              new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+            );
+            const archivedProjects = ownedProjects.filter(p => p.status === 'archived' || p.status === 'paused').sort((a, b) =>
+              new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+            );
+
+            if (ownedProjects.length === 0) {
+              return (
                 <div className="p-16 border border-slate-200 border-dashed rounded-2xl text-center bg-white">
                   <svg className="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                   <p className="text-slate-500 font-bold">You haven't posted any team formation searches yet.</p>
@@ -1747,36 +1959,182 @@ export const ProjectMatePage: React.FC = () => {
                     Post First Project
                   </button>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {ownedProjects.map(proj => (
-                    <div key={proj.id} className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-black text-slate-800">{proj.title}</h3>
-                          <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-150 capitalize">
-                            {proj.status}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 mt-1">
-                          Category: <span className="font-semibold text-slate-600">{proj.category}</span> · Members: <span className="font-bold text-slate-700">{proj.current_team_size}/{proj.max_team_size}</span>
-                        </p>
-                      </div>
+              );
+            }
 
-                      <div className="flex gap-2">
+            const renderLifecycleSection = (
+              title: string,
+              description: string,
+              sectionProjects: typeof ownedProjects,
+              emptyMsg: string,
+              accentClass: string,
+              actions: (proj: typeof ownedProjects[0]) => React.ReactNode,
+              isCollapsible?: boolean,
+              isCollapsed?: boolean,
+              onToggleCollapse?: () => void,
+              showMore?: boolean,
+              onShowMore?: () => void
+            ) => {
+              const VISIBLE_COUNT = 3;
+              const displayProjects = showMore ? sectionProjects : sectionProjects.slice(0, VISIBLE_COUNT);
+              const hasMore = sectionProjects.length > VISIBLE_COUNT;
+
+              return (
+                <div className="space-y-3">
+                  <div className={`flex items-center justify-between p-3 rounded-xl border ${accentClass}`}>
+                    <div className="flex items-center gap-3">
+                      {isCollapsible && (
                         <button
-                          onClick={() => loadWorkspace(proj.id)}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors"
+                          onClick={onToggleCollapse}
+                          className="text-slate-500 hover:text-slate-700 transition-colors"
+                          title={isCollapsed ? 'Expand section' : 'Collapse section'}
+                          aria-label={isCollapsed ? 'Expand section' : 'Collapse section'}
                         >
-                          Manage Workspace
+                          <svg className={`w-4 h-4 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                          </svg>
                         </button>
+                      )}
+                      <div>
+                        <h4 className="font-black text-sm text-slate-800 flex items-center gap-2">
+                          {title}
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-white/80 border border-slate-200 text-slate-600">
+                            {sectionProjects.length}
+                          </span>
+                        </h4>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{description}</p>
                       </div>
                     </div>
-                  ))}
+                  </div>
+                  
+                  {(!isCollapsible || !isCollapsed) && (
+                    <>
+                      {sectionProjects.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
+                          {emptyMsg}
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {displayProjects.map(proj => (
+                            <div key={proj.id} className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:shadow-md transition-shadow">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="text-sm font-black text-slate-800 truncate">{proj.title}</h3>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full border border-slate-200 capitalize shrink-0">
+                                    {proj.status.replace('_', ' ')}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                  {proj.category} · <span className="font-bold text-slate-600">{proj.current_team_size}/{proj.max_team_size} members</span>
+                                  {proj.roles && proj.roles.filter(r => r.slots_filled < r.slots_needed).length > 0 && (
+                                    <span className="ml-1 text-emerald-600 font-semibold">· {proj.roles.filter(r => r.slots_filled < r.slots_needed).length} open slots</span>
+                                  )}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 shrink-0">
+                                {actions(proj)}
+                              </div>
+                            </div>
+                          ))}
+                          {hasMore && (
+                            <button
+                              onClick={onShowMore}
+                              className="w-full text-center text-xs font-bold text-indigo-600 hover:text-indigo-700 py-2 border border-dashed border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors"
+                            >
+                              {showMore ? `Show Fewer ▲` : `Show ${sectionProjects.length - VISIBLE_COUNT} More ▼`}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+              );
+            };
+
+            const actionBtn = (label: string, onClick: () => void, cls: string) => (
+              <button onClick={onClick} className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all whitespace-nowrap ${cls}`}>
+                {label}
+              </button>
+            );
+
+            return (
+              <div className="space-y-6">
+                {/* SECTION 1: RECRUITING */}
+                {renderLifecycleSection(
+                  '🔍 Recruiting Projects',
+                  'Looking for teammates. Applications open.',
+                  recruitingProjects,
+                  'No recruiting projects yet. Post a project to start recruiting.',
+                  'bg-emerald-50 border-emerald-200',
+                  (proj) => (
+                    <>
+                      {actionBtn('Manage Workspace', () => loadWorkspace(proj.id), 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600')}
+                      {actionBtn('Mark Running', () => handleMarkRunning(proj.id), 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200')}
+                      {actionBtn('Archive', () => handleArchiveProjectConfirm(proj.id), 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200')}
+                    </>
+                  )
+                )}
+
+                {/* SECTION 2: RUNNING */}
+                {renderLifecycleSection(
+                  '🚀 Running Projects',
+                  'Team formed. Work is in progress.',
+                  runningProjects,
+                  'No running projects yet.',
+                  'bg-blue-50 border-blue-200',
+                  (proj) => (
+                    <>
+                      {actionBtn('Manage Workspace', () => loadWorkspace(proj.id), 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600')}
+                      {actionBtn('Mark Completed', () => handleMarkCompleted(proj.id), 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200')}
+                      {actionBtn('Pause', () => handlePauseProject(proj.id), 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200')}
+                    </>
+                  )
+                )}
+
+                {/* SECTION 3: COMPLETED */}
+                {renderLifecycleSection(
+                  '✅ Completed Projects',
+                  'Projects successfully wrapped up.',
+                  completedProjects,
+                  'No completed projects yet.',
+                  'bg-indigo-50 border-indigo-200',
+                  (proj) => (
+                    <>
+                      {actionBtn('View Summary', () => loadWorkspace(proj.id), 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200')}
+                      {actionBtn('Restore to Running', () => handleRestoreProject(proj.id, 'in_progress'), 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200')}
+                      {actionBtn('Archive', () => handleArchiveProjectConfirm(proj.id), 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200')}
+                    </>
+                  ),
+                  undefined,
+                  undefined,
+                  undefined,
+                  showMoreCompletedProjects,
+                  () => setShowMoreCompletedProjects(v => !v)
+                )}
+
+                {/* SECTION 4: ARCHIVED / PAUSED */}
+                {renderLifecycleSection(
+                  '📦 Archived & Paused Projects',
+                  'Hidden from active sections. Can be restored.',
+                  archivedProjects,
+                  'No archived projects.',
+                  'bg-slate-50 border-slate-200',
+                  (proj) => (
+                    <>
+                      {actionBtn('View Summary', () => loadWorkspace(proj.id), 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200')}
+                      {actionBtn('Restore to Recruiting', () => handleRestoreProject(proj.id, 'recruiting'), 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200')}
+                    </>
+                  ),
+                  true,
+                  isArchivedSectionCollapsed,
+                  () => setIsArchivedSectionCollapsed(v => !v)
+                )}
+              </div>
+            );
+          })()}
+
+
 
           {/* TAB 3: MY APPLICATIONS */}
           {activeTab === 'my_applications' && (() => {
@@ -2070,8 +2428,82 @@ export const ProjectMatePage: React.FC = () => {
                 {/* Subtab Content */}
                 {workspaceSubTab === 'coordination' && (
                   <>
+                    {/* PHASE 6.3C: Completed Project Summary Banner */}
+                    {(selectedProject.status === 'completed' || selectedProject.status === 'archived') && (
+                      <div className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl shadow-sm space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`text-xs font-black px-3 py-1 rounded-full border uppercase tracking-wider ${
+                            selectedProject.status === 'completed' 
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : 'bg-slate-100 text-slate-700 border-slate-300'
+                          }`}>
+                            {selectedProject.status === 'completed' ? '✅ Project Completed' : '📦 Archived Project'}
+                          </span>
+                          {selectedProject.completed_at && (
+                            <span className="text-xs text-slate-500 font-semibold">
+                              Completed on {new Date(selectedProject.completed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                            </span>
+                          )}
+                          {selectedProject.archived_at && (
+                            <span className="text-xs text-slate-500 font-semibold">
+                              Archived on {new Date(selectedProject.archived_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                            </span>
+                          )}
+                        </div>
+                        {selectedProject.completion_summary && (
+                          <div className="p-3 bg-white/80 rounded-xl border border-emerald-100">
+                            <p className="text-xs font-black text-slate-600 mb-1">Team Lead Note:</p>
+                            <p className="text-sm text-slate-700 italic leading-relaxed">"{selectedProject.completion_summary}"</p>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="text-center p-2 bg-white/70 rounded-xl border border-emerald-100">
+                            <p className="text-lg font-black text-slate-800">{teamMembers.length}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Members</p>
+                          </div>
+                          <div className="text-center p-2 bg-white/70 rounded-xl border border-emerald-100">
+                            <p className="text-lg font-black text-slate-800">{resources.length}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Resources</p>
+                          </div>
+                          <div className="text-center p-2 bg-white/70 rounded-xl border border-emerald-100">
+                            <p className="text-lg font-black text-slate-800">{discussionPosts.length}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Posts</p>
+                          </div>
+                        </div>
+                        {selectedProject.is_owner && (
+                          <div className="flex gap-2 pt-1">
+                            {selectedProject.status === 'completed' && (
+                              <>
+                                <button
+                                  onClick={() => handleRestoreProject(selectedProject.id, 'in_progress')}
+                                  className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-lg border border-blue-200 transition-colors"
+                                >
+                                  Restore to Running
+                                </button>
+                                <button
+                                  onClick={() => handleArchiveProjectConfirm(selectedProject.id)}
+                                  className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-xs rounded-lg border border-slate-200 transition-colors"
+                                >
+                                  Archive
+                                </button>
+                              </>
+                            )}
+                            {selectedProject.status === 'archived' && (
+                              <button
+                                onClick={() => handleRestoreProject(selectedProject.id, 'recruiting')}
+                                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-lg border border-emerald-200 transition-colors"
+                              >
+                                Restore to Recruiting
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Secure Coordination Details (Owner and Active Members only) */}
                     <div className="p-6 bg-slate-900 text-slate-100 rounded-3xl shadow-xl space-y-4 relative overflow-hidden border border-slate-800">
+
                       <div className="flex items-center justify-between">
                         <h4 className="text-lg font-black tracking-tight flex items-center gap-2">
                           <span className="text-indigo-400 shrink-0">
@@ -3671,6 +4103,129 @@ export const ProjectMatePage: React.FC = () => {
               </div>
               {/* Roster & Left Bar settings */}
               <div className="space-y-6">
+
+                {/* === PHASE 6.3C: ROLE MANAGEMENT PANEL === */}
+                {selectedProject.is_owner && (
+                  <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                        Role Slots ({selectedProject.roles?.length || 0})
+                      </h4>
+                      {!isAddingRole && !editingRoleId && (
+                        <button
+                          onClick={() => { setIsAddingRole(true); setEditingRoleId(null); setNewRoleName(''); setNewRoleDescription(''); setNewRoleSkills(''); setNewRoleSlots(1); setNewRolePriority('medium'); }}
+                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 transition-colors"
+                        >
+                          + Add Role
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Roles List */}
+                    <div className="space-y-2">
+                      {(!selectedProject.roles || selectedProject.roles.length === 0) && !isAddingRole && (
+                        <p className="text-xs text-slate-400 italic text-center py-3">No roles defined yet. Add roles to structure your team.</p>
+                      )}
+                      {selectedProject.roles && selectedProject.roles.map((role: any) => {
+                        const isFilled = role.slots_filled >= role.slots_needed;
+                        const isEditing = editingRoleId === role.id;
+                        if (isEditing) {
+                          return (
+                            <form key={role.id} onSubmit={handleUpdateRoleSubmit} className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-xs">
+                              <p className="font-black text-indigo-800 text-xs uppercase tracking-wider">Edit Role</p>
+                              <input required value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="Role name (e.g. Backend Dev)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                              <input value={newRoleDescription} onChange={e => setNewRoleDescription(e.target.value)} placeholder="Short description (optional)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                              <input value={newRoleSkills} onChange={e => setNewRoleSkills(e.target.value)} placeholder="Required skills (comma-separated)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                              <div className="flex gap-2">
+                                <div className="flex-1">
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase">Slots Needed</label>
+                                  <input type="number" min={role.slots_filled || 1} max={10} value={newRoleSlots} onChange={e => setNewRoleSlots(Number(e.target.value))} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                                  {role.slots_filled > 0 && <p className="text-[9px] text-slate-400 mt-0.5">Cannot go below {role.slots_filled} (filled)</p>}
+                                </div>
+                                <div className="flex-1">
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase">Priority</label>
+                                  <select value={newRolePriority} onChange={e => setNewRolePriority(e.target.value as any)} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400">
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="flex gap-2 pt-1">
+                                <button type="submit" disabled={actionLoading} className="flex-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50">Save Changes</button>
+                                <button type="button" onClick={() => setEditingRoleId(null)} className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg text-xs transition-colors">Cancel</button>
+                              </div>
+                            </form>
+                          );
+                        }
+                        return (
+                          <div key={role.id} className={`flex items-start justify-between p-2.5 rounded-xl border text-xs gap-2 ${isFilled ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-slate-200'}`}>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1">
+                                <span className="font-black text-slate-800 truncate">{role.role_name}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
+                                  role.priority === 'high' ? 'bg-red-50 text-red-600 border border-red-100' :
+                                  role.priority === 'medium' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                  'bg-slate-100 text-slate-500 border border-slate-200'
+                                }`}>{role.priority}</span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                {role.slots_filled}/{role.slots_needed} filled {isFilled ? '✓' : '· open'}
+                              </p>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              <button
+                                onClick={() => startEditRole(role)}
+                                className="px-1.5 py-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded border border-slate-200 transition-colors"
+                                title="Edit role"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRole(role.id, role.role_name)}
+                                disabled={(role.slots_filled || 0) > 0}
+                                className="px-1.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded border border-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={(role.slots_filled || 0) > 0 ? 'Cannot delete — role has active members' : 'Delete role'}
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Add Role Form */}
+                    {isAddingRole && (
+                      <form onSubmit={handleAddRoleSubmit} className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-xs">
+                        <p className="font-black text-indigo-800 text-xs uppercase tracking-wider">Add New Role</p>
+                        <input required value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="Role name (e.g. UI Designer)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                        <input value={newRoleDescription} onChange={e => setNewRoleDescription(e.target.value)} placeholder="Short description (optional)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                        <input value={newRoleSkills} onChange={e => setNewRoleSkills(e.target.value)} placeholder="Required skills (comma-separated)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Slots Needed</label>
+                            <input type="number" min={1} max={10} value={newRoleSlots} onChange={e => setNewRoleSlots(Number(e.target.value))} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Priority</label>
+                            <select value={newRolePriority} onChange={e => setNewRolePriority(e.target.value as any)} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400">
+                              <option value="low">Low</option>
+                              <option value="medium">Medium</option>
+                              <option value="high">High</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button type="submit" disabled={actionLoading} className="flex-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50">Add Role</button>
+                          <button type="button" onClick={() => setIsAddingRole(false)} className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg text-xs transition-colors">Cancel</button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                )}
+
                  {/* Active Roster List */}
                 <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
                   <h4 className="text-md font-black text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-1.5">
@@ -5026,6 +5581,87 @@ export const ProjectMatePage: React.FC = () => {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* PHASE 6.3C: ARCHIVE CONFIRM MODAL */}
+      {/* ========================================================================= */}
+      {isArchiveConfirmOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-md shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12M10 12v6M14 12v6" /></svg>
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-800">Archive Project?</h3>
+                <p className="text-xs text-slate-500 mt-0.5">All team history, resources, and discussions will be preserved.</p>
+              </div>
+            </div>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-semibold">
+              📦 Archiving hides the project from active sections. You can restore it at any time from My Projects → Archived & Paused.
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleConfirmArchive}
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-50"
+              >
+                {actionLoading ? 'Archiving...' : '📦 Archive Project'}
+              </button>
+              <button
+                onClick={() => { setIsArchiveConfirmOpen(false); setProjectToArchive(null); }}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* PHASE 6.3C: COMPLETE PROJECT CONFIRM MODAL */}
+      {/* ========================================================================= */}
+      {isCompleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-md shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-800">Mark Project Completed?</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Team will move to completed state. Applications will close.</p>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-black text-slate-600 block mb-2">Completion Note <span className="font-normal text-slate-400">(optional — visible to all team members)</span></label>
+              <textarea
+                value={completionSummaryText}
+                onChange={e => setCompletionSummaryText(e.target.value)}
+                rows={3}
+                placeholder="What did the team achieve? What was shipped? Leave a note for the record..."
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500 resize-none"
+              />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleConfirmComplete}
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-50"
+              >
+                {actionLoading ? 'Completing...' : '✅ Mark as Completed'}
+              </button>
+              <button
+                onClick={() => { setIsCompleteConfirmOpen(false); setProjectToComplete(null); setCompletionSummaryText(''); }}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1686,3 +1686,296 @@ export const getSignedProjectResourceUrl = async (
 };
 
 
+
+// ============================================================
+// PHASE 6.3C: Role Management After Project Creation
+// ============================================================
+
+
+// ============================================================
+// PHASE 6.3C: Role Management After Project Creation
+// ============================================================
+
+/**
+ * Add a new role to an existing project (Team Lead only).
+ */
+export async function addProjectRole(input: {
+  project_id: string;
+  role_name: string;
+  description?: string;
+  required_skills: string[];
+  slots_needed: number;
+  priority: 'low' | 'medium' | 'high';
+}): Promise<any> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  if (input.role_name.trim().length < 2) throw new Error('Role name must be at least 2 characters.');
+  if (input.slots_needed < 1 || input.slots_needed > 10) throw new Error('Slots needed must be between 1 and 10.');
+
+  const { data: project, error: projErr } = await supabase
+    .from('project_posts')
+    .select('created_by')
+    .eq('id', input.project_id)
+    .single();
+
+  if (projErr || !project) throw new Error('Project not found.');
+  if (project.created_by !== user.id) throw new Error('Only the project Team Lead can add roles.');
+
+  const { data, error } = await supabase
+    .from('project_roles')
+    .insert({
+      project_id: input.project_id,
+      role_name: input.role_name.trim(),
+      description: input.description?.trim() || null,
+      required_skills: input.required_skills,
+      slots_needed: input.slots_needed,
+      slots_filled: 0,
+      priority: input.priority
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Update an existing project role (Team Lead only).
+ * Cannot reduce slots_needed below currently filled count.
+ */
+export async function updateProjectRole(
+  roleId: string,
+  input: {
+    role_name: string;
+    description?: string;
+    required_skills: string[];
+    slots_needed: number;
+    priority: 'low' | 'medium' | 'high';
+  }
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  if (input.role_name.trim().length < 2) throw new Error('Role name must be at least 2 characters.');
+  if (input.slots_needed < 1 || input.slots_needed > 10) throw new Error('Slots needed must be between 1 and 10.');
+
+  const { data: role, error: roleErr } = await supabase
+    .from('project_roles')
+    .select('slots_filled, project_id')
+    .eq('id', roleId)
+    .single();
+
+  if (roleErr || !role) throw new Error('Role not found.');
+
+  const { data: project, error: pErr } = await supabase
+    .from('project_posts')
+    .select('created_by')
+    .eq('id', role.project_id)
+    .single();
+
+  if (pErr || !project) throw new Error('Project not found.');
+  if (project.created_by !== user.id) throw new Error('Only the project Team Lead can edit roles.');
+
+  const currentFilled = role.slots_filled || 0;
+  if (input.slots_needed < currentFilled) {
+    throw new Error(`Cannot reduce slots below the currently filled count (${currentFilled} member(s) in this role).`);
+  }
+
+  const { error } = await supabase
+    .from('project_roles')
+    .update({
+      role_name: input.role_name.trim(),
+      description: input.description?.trim() || null,
+      required_skills: input.required_skills,
+      slots_needed: input.slots_needed,
+      priority: input.priority
+    })
+    .eq('id', roleId);
+
+  if (error) throw error;
+}
+
+/**
+ * Delete a project role (Team Lead only). Blocked if role has active members.
+ */
+export async function deleteProjectRole(roleId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  const { data: role, error: roleErr } = await supabase
+    .from('project_roles')
+    .select('slots_filled, project_id')
+    .eq('id', roleId)
+    .single();
+
+  if (roleErr || !role) throw new Error('Role not found.');
+
+  const { data: project, error: pErr } = await supabase
+    .from('project_posts')
+    .select('created_by')
+    .eq('id', role.project_id)
+    .single();
+
+  if (pErr || !project) throw new Error('Project not found.');
+  if (project.created_by !== user.id) throw new Error('Only the project Team Lead can delete roles.');
+
+  const { count: activeMemberCount, error: countErr } = await supabase
+    .from('project_team_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('role_id', roleId)
+    .is('left_at', null);
+
+  if (countErr) throw countErr;
+  if ((activeMemberCount || 0) > 0) {
+    throw new Error('This role has active members. Reassign or remove members before deleting this role.');
+  }
+
+  const { error } = await supabase
+    .from('project_roles')
+    .delete()
+    .eq('id', roleId);
+
+  if (error) throw error;
+}
+
+// ============================================================
+// PHASE 6.3C: Project Lifecycle Controls
+// ============================================================
+
+/**
+ * Archive a project (Team Lead only). Sets status to archived. Preserves all history.
+ */
+export async function archiveProject(projectId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  const { data: project, error: projErr } = await supabase
+    .from('project_posts')
+    .select('created_by')
+    .eq('id', projectId)
+    .single();
+
+  if (projErr || !project) throw new Error('Project not found.');
+  if (project.created_by !== user.id) throw new Error('Only the project Team Lead can archive this project.');
+
+  const { error } = await supabase
+    .from('project_posts')
+    .update({
+      status: 'archived',
+      archived_at: new Date().toISOString()
+    })
+    .eq('id', projectId);
+
+  if (error) throw error;
+}
+
+/**
+ * Mark a project as completed (Team Lead only).
+ */
+export async function completeProject(projectId: string, summaryText?: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  const { data: project, error: projErr } = await supabase
+    .from('project_posts')
+    .select('created_by')
+    .eq('id', projectId)
+    .single();
+
+  if (projErr || !project) throw new Error('Project not found.');
+  if (project.created_by !== user.id) throw new Error('Only the project Team Lead can mark a project completed.');
+
+  const { error } = await supabase
+    .from('project_posts')
+    .update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      completion_summary: summaryText?.trim() || null
+    })
+    .eq('id', projectId);
+
+  if (error) throw error;
+}
+
+/**
+ * Restore an archived, completed, or paused project (Team Lead only).
+ */
+export async function restoreProject(
+  projectId: string,
+  toStatus: 'recruiting' | 'in_progress'
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  const { data: project, error: projErr } = await supabase
+    .from('project_posts')
+    .select('created_by, status')
+    .eq('id', projectId)
+    .single();
+
+  if (projErr || !project) throw new Error('Project not found.');
+  if (project.created_by !== user.id) throw new Error('Only the project Team Lead can restore this project.');
+
+  if (!['archived', 'completed', 'paused'].includes(project.status)) {
+    throw new Error('Only archived, completed, or paused projects can be restored.');
+  }
+
+  const { error } = await supabase
+    .from('project_posts')
+    .update({
+      status: toStatus,
+      archived_at: null
+    })
+    .eq('id', projectId);
+
+  if (error) throw error;
+}
+
+/**
+ * Pause a project (Team Lead only).
+ */
+export async function pauseProject(projectId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  const { data: project, error: projErr } = await supabase
+    .from('project_posts')
+    .select('created_by')
+    .eq('id', projectId)
+    .single();
+
+  if (projErr || !project) throw new Error('Project not found.');
+  if (project.created_by !== user.id) throw new Error('Only the project Team Lead can pause this project.');
+
+  const { error } = await supabase
+    .from('project_posts')
+    .update({ status: 'paused' })
+    .eq('id', projectId);
+
+  if (error) throw error;
+}
+
+/**
+ * Mark a project as in_progress / running (Team Lead only).
+ */
+export async function markProjectRunning(projectId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  const { data: project, error: projErr } = await supabase
+    .from('project_posts')
+    .select('created_by')
+    .eq('id', projectId)
+    .single();
+
+  if (projErr || !project) throw new Error('Project not found.');
+  if (project.created_by !== user.id) throw new Error('Only the project Team Lead can update this project.');
+
+  const { error } = await supabase
+    .from('project_posts')
+    .update({ status: 'in_progress' })
+    .eq('id', projectId);
+
+  if (error) throw error;
+}

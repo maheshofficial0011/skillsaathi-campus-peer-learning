@@ -518,6 +518,10 @@ export interface ProjectPost {
   github_repo_url: string | null;
   shared_doc_url: string | null;
   private_notes: string | null;
+  // Phase 6.3C: Lifecycle tracking columns (optional until patch is applied)
+  completed_at?: string | null;
+  completion_summary?: string | null;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }

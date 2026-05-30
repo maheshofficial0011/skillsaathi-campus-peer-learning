@@ -1226,3 +1226,46 @@ select * from public.project_team_members limit 5;
 
 
 
+
+---
+
+## Phase 6.3C: Project Lifecycle, Role Management & Completion Controls
+
+### 1. My Projects — Lifecycle Sections
+- [ ] Navigate to My Projects tab. Verify 4 lifecycle sections: Recruiting, Running, Completed, Archived & Paused.
+- [ ] Create a project. It appears in Recruiting section with correct quick action buttons.
+- [ ] Click 'Mark Running'. Project moves from Recruiting to Running section immediately.
+- [ ] Click 'Mark Completed'. Completion Note modal appears. Add a note and confirm.
+- [ ] Project moves to Completed section with View Summary / Restore to Running / Archive buttons.
+- [ ] Click 'Archive' from Completed. Archive confirm modal appears. Confirm.
+- [ ] Project moves to Archived & Paused section (collapsed by default).
+- [ ] Expand Archived section. Verify Restore to Recruiting button works.
+- [ ] Verify Completed section shows 'Show More' / 'Show Fewer' for > 3 projects.
+
+### 2. Role Management Panel (Team Lead Console)
+- [ ] Open workspace for an owned project. Right sidebar shows 'Role Slots' panel.
+- [ ] Click '+ Add Role'. Inline form appears.
+- [ ] Fill in role name, description, skills, slots, priority. Click Add Role.
+- [ ] New role appears in the list with edit and delete buttons.
+- [ ] Click edit (pencil icon). Edit form opens pre-filled. Change name and save.
+- [ ] Verify updated role name shows in the list.
+- [ ] Try to delete a role with active members. Verify error: 'This role has active members.'
+- [ ] Delete a role with no members. Verify it is removed successfully.
+- [ ] Verify new role appears in the Apply modal for external applicants.
+
+### 3. Completed Project Summary Panel
+- [ ] Open workspace for a completed project. Coordination tab shows a green summary banner.
+- [ ] Verify: Completed At date, Team Lead Note, Members count, Resources count, Posts count.
+- [ ] Verify: Restore to Running and Archive buttons visible for owner.
+- [ ] For non-owner, verify: Restore and Archive buttons are NOT visible.
+- [ ] For archived project, verify archived banner with Restore to Recruiting button.
+
+### 4. Archive Confirm Modal
+- [ ] Click Archive on any project. Confirm modal appears with Archive Project / Cancel.
+- [ ] Click Cancel. Modal closes. Project status unchanged.
+- [ ] Click Archive Project. Project status changes to archived. Active workspace closes.
+- [ ] Archived project removed from Recruiting/Running/Completed sections.
+
+### 5. Application Rule by Phase
+- [ ] View a completed project in Discover. Verify 'Apply' CTA is not shown (project completed).
+- [ ] View an archived project. Verify no apply button.
