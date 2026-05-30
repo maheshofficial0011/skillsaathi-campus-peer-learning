@@ -1338,3 +1338,32 @@ select * from public.project_team_members limit 5;
 - [ ] Expand Past Members. Verify it has a scroll body for > 3 members, sorted by recent exit date.
 - [ ] Open Applications Queue (Owner view). Verify applicants are sorted by newest-first and scroll body applies for > 3 applications.
 
+
+---
+
+## ??? 27. Phase 6.4: Project Task Assignment & Verification
+*Verify that project owners can assign tasks and members can submit work.*
+
+- [ ] **Task Creation (Owner)**
+  - Open project workspace and click the Project Tasks subtab.
+  - In the console, select ? Assign New Task.
+  - Fill in task details and assign it to an active member.
+  - Verify that the task appears in the Task Board under 'To Do / In Progress'.
+- [ ] **Task Progression (Assignee)**
+  - Sign in as the assigned member.
+  - Go to the Project Tasks tab.
+  - Open the task details and click Mark In Progress. Verify status update.
+- [ ] **Task Submission (Assignee)**
+  - With the task in progress, click View Details.
+  - Fill in the submission form (Link/URL + Notes) and submit.
+  - Verify that the task moves to the Submitted column.
+- [ ] **Task Verification (Owner)**
+  - Sign back in as the owner.
+  - Open Review Queue under Project Tasks.
+  - Open the submitted task and click Verify & Approve.
+  - Verify that the task moves to the Verified column and status turns green.
+- [ ] **Task Rejection (Owner)**
+  - Assign a new task, submit it as the member.
+  - As owner, reject the submission with feedback.
+  - Verify the status updates to Rejected and the feedback is visible to the member.
+

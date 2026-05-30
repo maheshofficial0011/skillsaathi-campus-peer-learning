@@ -695,3 +695,124 @@ export interface ProjectResource {
 
 
 
+
+// ==========================================
+// Phase 6.4: Project Tasks Types
+// ==========================================
+
+export type ProjectTaskStatus = 'assigned' | 'in_progress' | 'submitted' | 'verified' | 'rejected' | 'overdue' | 'extension_requested' | 'extended' | 'cancelled';
+export type ProjectTaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type ProjectTaskAttachmentType = 'link' | 'pdf' | 'document' | 'presentation' | 'image' | 'video' | 'folder' | 'code_repo' | 'other';
+export type ProjectTaskSubmissionStatus = 'pending_review' | 'verified' | 'rejected' | 'withdrawn';
+export type ProjectTaskExtensionStatus = 'pending' | 'approved' | 'rejected' | 'withdrawn';
+
+export interface ProjectTask {
+  id: string;
+  project_id: string;
+  assigned_by: string;
+  assigned_to: string;
+  role_id?: string | null;
+  title: string;
+  objective: string;
+  instructions?: string;
+  priority: ProjectTaskPriority;
+  status: ProjectTaskStatus;
+  due_at: string;
+  completed_at?: string | null;
+  verified_at?: string | null;
+  verified_by?: string | null;
+  rejected_at?: string | null;
+  rejection_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Joined fields
+  assignee_profile?: {
+    full_name: string;
+    department?: string;
+    year_of_study?: string;
+  };
+  assigned_by_profile?: {
+    full_name: string;
+  };
+  reviewer_profile?: {
+    full_name: string;
+  };
+}
+
+export interface ProjectTaskAttachment {
+  id: string;
+  task_id: string;
+  project_id: string;
+  uploaded_by: string;
+  attachment_type: ProjectTaskAttachmentType;
+  title?: string;
+  url?: string;
+  file_path?: string;
+  file_name?: string;
+  file_mime_type?: string;
+  file_size_bytes?: number;
+  storage_bucket?: string;
+  created_at: string;
+}
+
+export interface ProjectTaskSubmission {
+  id: string;
+  task_id: string;
+  project_id: string;
+  submitted_by: string;
+  submission_note?: string;
+  status: ProjectTaskSubmissionStatus;
+  submitted_at: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  review_feedback?: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Joined fields
+  submitter_profile?: {
+    full_name: string;
+  };
+  reviewer_profile?: {
+    full_name: string;
+  };
+}
+
+export interface ProjectTaskSubmissionFile {
+  id: string;
+  submission_id: string;
+  task_id: string;
+  project_id: string;
+  uploaded_by: string;
+  file_type: ProjectTaskAttachmentType;
+  title?: string;
+  url?: string;
+  file_path?: string;
+  file_name?: string;
+  file_mime_type?: string;
+  file_size_bytes?: number;
+  storage_bucket?: string;
+  created_at: string;
+}
+
+export interface ProjectTaskExtensionRequest {
+  id: string;
+  task_id: string;
+  project_id: string;
+  requested_by: string;
+  old_due_at: string;
+  requested_due_at: string;
+  reason: string;
+  status: ProjectTaskExtensionStatus;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_note?: string | null;
+  created_at: string;
+
+  // Joined fields
+  requester_profile?: {
+    full_name: string;
+  };
+}
+

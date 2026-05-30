@@ -12,7 +12,8 @@ import type {
   ProjectWithStats,
   ProjectDifficulty,
   ProjectWorkMode,
-  ProjectRolePriority
+  ProjectRolePriority,
+  ProjectTask
 } from '../types';
 import {
   getProjectPosts,
@@ -56,9 +57,13 @@ import {
   completeProject,
   restoreProject,
   pauseProject,
-  markProjectRunning
+  markProjectRunning,
+  // Phase 6.4: Tasks
+  getProjectTasks
 } from '../lib/projectMates';
 
+
+import { ProjectTasksTab } from '../components/project-tasks/ProjectTasksTab';
 
 const CATEGORIES = [
   'AI & Machine Learning',
@@ -266,7 +271,7 @@ export const ProjectMatePage: React.FC = () => {
   const [editPrivateNotes, setEditPrivateNotes] = useState('');
 
   // Workspace tabs & memberships
-  const [workspaceSubTab, setWorkspaceSubTab] = useState<'coordination' | 'discussion' | 'resources'>('coordination');
+  const [workspaceSubTab, setWorkspaceSubTab] = useState<'coordination' | 'discussion' | 'resources' | 'tasks'>('coordination');
   const [userMemberships, setUserMemberships] = useState<any[]>([]);
 
   // Discussion state
@@ -282,9 +287,14 @@ export const ProjectMatePage: React.FC = () => {
   const [newPostType, setNewPostType] = useState<'update' | 'question' | 'announcement' | 'task'>('update');
   const [newPostTags, setNewPostTags] = useState('');
 
-  // Resources state
+  // Resource state
   const [resources, setResources] = useState<any[]>([]);
   const [verificationQueue, setVerificationQueue] = useState<any[]>([]);
+
+  // Task state
+  const [projectTasks, setProjectTasks] = useState<ProjectTask[]>([]);
+  // Removed unused extension state
+  const [, setTasksLoading] = useState(false);
   const [isCreatingResource, setIsCreatingResource] = useState(false);
   const [newResourceTitle, setNewResourceTitle] = useState('');
   const [newResourceDesc, setNewResourceDesc] = useState('');
@@ -436,6 +446,17 @@ export const ProjectMatePage: React.FC = () => {
         }
       }
       
+      // Load tasks
+      setTasksLoading(true);
+      try {
+        const tasks = await getProjectTasks(projectId);
+        setProjectTasks(tasks);
+      } catch (tasksErr) {
+        console.error('Failed to load tasks:', tasksErr);
+      } finally {
+        setTasksLoading(false);
+      }
+
       setActiveTab('workspace');
     } catch (err: any) {
       console.error('[ProjectMate] workspace load failed:', err);
@@ -1435,6 +1456,11 @@ export const ProjectMatePage: React.FC = () => {
 
   const handleRestoreProject = async (projId: string, toStatus: 'recruiting' | 'in_progress') => {
     try {
+      const proj = projects.find(p => p.id === projId);
+      if (proj && !['archived', 'completed', 'paused'].includes(proj.status)) {
+        toast.error("This project is already active.");
+        return;
+      }
       await restoreProject(projId, toStatus);
       toast.success(`Project restored to ${toStatus === 'recruiting' ? 'Recruiting' : 'Running'}! ✅`);
       fetchData();
@@ -2162,8 +2188,8 @@ export const ProjectMatePage: React.FC = () => {
                   'bg-slate-50 border-slate-200',
                   (proj) => (
                     <>
-                      {actionBtn('View Summary', () => loadWorkspace(proj.id), 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200')}
                       {actionBtn('Restore to Recruiting', () => handleRestoreProject(proj.id, 'recruiting'), 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200')}
+                      {actionBtn('View Summary', () => loadWorkspace(proj.id), 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200')}
                     </>
                   ),
                   true,
@@ -2508,6 +2534,19 @@ export const ProjectMatePage: React.FC = () => {
                     </svg>
                     <span>Shared Resources</span>
                   </button>
+                  <button
+                    onClick={() => setWorkspaceSubTab('tasks')}
+                    className={`px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
+                      workspaceSubTab === 'tasks'
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    <span>Project Tasks</span>
+                  </button>
                 </div>
 
                 {/* Subtab Content */}
@@ -2516,7 +2555,7 @@ export const ProjectMatePage: React.FC = () => {
                     <div className="lg:col-span-2 space-y-6">
 
                     {/* PHASE 6.3C: Completed Project Summary Banner */}
-                    {(selectedProject.status === 'completed' || selectedProject.status === 'archived') && (
+                    {(selectedProject.status === 'completed' || selectedProject.status === 'archived' || selectedProject.status === 'paused') && (
                       <div className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl shadow-sm space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`text-xs font-black px-3 py-1 rounded-full border uppercase tracking-wider ${
@@ -2524,7 +2563,7 @@ export const ProjectMatePage: React.FC = () => {
                               ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                               : 'bg-slate-100 text-slate-700 border-slate-300'
                           }`}>
-                            {selectedProject.status === 'completed' ? '✅ Project Completed' : '📦 Archived Project'}
+                            {selectedProject.status === 'completed' ? '✅ Project Completed' : selectedProject.status === 'paused' ? '⏸️ Paused Project' : '📦 Archived Project'}
                           </span>
                           {selectedProject.completed_at && (
                             <span className="text-xs text-slate-500 font-semibold">
@@ -2575,7 +2614,7 @@ export const ProjectMatePage: React.FC = () => {
                                 </button>
                               </>
                             )}
-                            {selectedProject.status === 'archived' && (
+                            {(selectedProject.status === 'archived' || selectedProject.status === 'paused') && (
                               <button
                                 onClick={() => handleRestoreProject(selectedProject.id, 'recruiting')}
                                 className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-lg border border-emerald-200 transition-colors"
@@ -4368,7 +4407,7 @@ export const ProjectMatePage: React.FC = () => {
                         {verificationQueue.length === 0 ? (
                           <p className="text-xs text-amber-700 italic text-center py-4 font-medium">No materials currently pending review.</p>
                         ) : (
-                          <div className="space-y-3">
+                          <div className="space-y-3 max-h-[400px] overflow-y-auto thin-scrollbar pr-1">
                             {verificationQueue.map(res => {
                               const isExe = res.url?.toLowerCase().endsWith('.exe') || res.file_name?.toLowerCase().endsWith('.exe');
                               return (
@@ -4497,7 +4536,7 @@ export const ProjectMatePage: React.FC = () => {
 
                         return (
                           <>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto thin-scrollbar pr-1">
                               {sliced.map(res => {
                                 const isExe = res.url?.toLowerCase().endsWith('.exe') || res.file_name?.toLowerCase().endsWith('.exe');
                                 const isLeadUpload = res.uploaded_by === selectedProject.created_by || res.owner_recommended;
@@ -4658,7 +4697,7 @@ export const ProjectMatePage: React.FC = () => {
                         }
 
                         return (
-                          <div className="space-y-3">
+                          <div className="space-y-3 max-h-[400px] overflow-y-auto thin-scrollbar pr-1">
                             {mySubmitted.map(res => {
                               const statusBadge =
                                 res.verification_status === 'verified' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -4721,6 +4760,18 @@ export const ProjectMatePage: React.FC = () => {
                       })()}
                     </div>
                   </div>
+                )}
+                {workspaceSubTab === 'tasks' && (
+                  <ProjectTasksTab
+                    tasks={projectTasks}
+                    project={selectedProject}
+                    currentUser={user}
+                    teamMembers={teamMembers}
+                    refreshTasks={() => {
+                      // Reload tasks helper
+                      getProjectTasks(selectedProject.id).then(setProjectTasks);
+                    }}
+                  />
                 )}
               </div>
               {/* Roster & Left Bar settings */}
@@ -5849,6 +5900,18 @@ export const ProjectMatePage: React.FC = () => {
                           className="max-w-full max-h-[55vh] object-contain rounded-2xl shadow border bg-slate-50"
                           alt="Secure Preview"
                         />
+                      </div>
+                    );
+                  } else if (type === 'video') {
+                    return (
+                      <div className="max-h-[60vh] overflow-auto flex items-center justify-center bg-black/5 rounded-2xl p-4">
+                        <video
+                          controls
+                          src={previewUrl}
+                          className="max-w-full max-h-[55vh] rounded-xl shadow-md border border-slate-700 bg-black"
+                        >
+                          Your browser does not support the video tag.
+                        </video>
                       </div>
                     );
                   } else {

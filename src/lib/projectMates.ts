@@ -1299,9 +1299,30 @@ export async function toggleProjectResourceHelpful(
     .eq('reaction_type', 'helpful')
     .maybeSingle();
 
+  let reactedByMe = false;
+  
+  if (findErr && findErr.code === '42P01') {
+    // Table doesn't exist, fallback to direct increment of helpful_count
+    const { data: currentRes } = await supabase
+      .from('project_resources')
+      .select('helpful_count')
+      .eq('id', resourceId)
+      .single();
+      
+    const currentCount = currentRes?.helpful_count || 0;
+    const { data: updatedRes, error: updateErr } = await supabase
+      .from('project_resources')
+      .update({ helpful_count: currentCount + 1 })
+      .eq('id', resourceId)
+      .select('helpful_count')
+      .single();
+      
+    if (updateErr) throw updateErr;
+    return { reacted_by_me: true, helpful_count: updatedRes.helpful_count };
+  }
+  
   if (findErr) throw findErr;
 
-  let reactedByMe = false;
   if (existing) {
     // Delete reaction (trigger will decrement helpful_count)
     const { error: delErr } = await supabase
@@ -1979,3 +2000,383 @@ export async function markProjectRunning(projectId: string): Promise<void> {
 
   if (error) throw error;
 }
+
+// ==========================================
+// PHASE 6.4: PROJECT TASKS & VERIFICATION API
+// ==========================================
+
+import type { ProjectTask, ProjectTaskSubmission, ProjectTaskExtensionRequest, ProjectTaskAttachment } from '../types';
+
+/**
+ * Fetch all tasks for a project (Owner / Active Members).
+ */
+export async function getProjectTasks(projectId: string): Promise<ProjectTask[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+  
+  const { data, error } = await supabase
+    .from('project_tasks')
+    .select(`
+      *,
+      assignee_profile:profiles!project_tasks_assigned_to_fkey(full_name, department, year_of_study),
+      assigned_by_profile:profiles!project_tasks_assigned_by_fkey(full_name),
+      reviewer_profile:profiles!project_tasks_verified_by_fkey(full_name)
+    `)
+    .eq('project_id', projectId)
+    .order('due_at', { ascending: true });
+    
+  if (error) throw error;
+  return data as any;
+}
+
+/**
+ * Create a new task (Owner only)
+ */
+export async function createProjectTask(taskInput: any): Promise<ProjectTask> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+  
+  const { data, error } = await supabase
+    .from('project_tasks')
+    .insert({
+      ...taskInput,
+      assigned_by: user.id
+    })
+    .select()
+    .single();
+    
+  if (error) throw error;
+  return data as any;
+}
+
+/**
+ * Update an existing task (Owner only)
+ */
+export async function updateProjectTask(taskId: string, updates: any): Promise<ProjectTask> {
+  const { data, error } = await supabase
+    .from('project_tasks')
+    .update(updates)
+    .eq('id', taskId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as any;
+}
+
+/**
+ * Cancel a project task (Owner only)
+ */
+export async function cancelProjectTask(taskId: string): Promise<void> {
+  const { error } = await supabase
+    .from('project_tasks')
+    .update({ status: 'cancelled' })
+    .eq('id', taskId);
+  if (error) throw error;
+}
+
+/**
+ * Mark a task in progress (Assigned Member)
+ */
+export async function markTaskInProgress(taskId: string): Promise<void> {
+  const { error } = await supabase
+    .from('project_tasks')
+    .update({ status: 'in_progress' })
+    .eq('id', taskId);
+  if (error) throw error;
+}
+
+/**
+ * Submit work for a task (Assigned Member)
+ */
+export async function submitProjectTask(input: any): Promise<ProjectTaskSubmission> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+  
+  // Create submission
+  const { data, error } = await supabase
+    .from('project_task_submissions')
+    .insert({
+      task_id: input.task_id,
+      project_id: input.project_id,
+      submitted_by: user.id,
+      submission_note: input.submission_note,
+      status: 'pending_review'
+    })
+    .select()
+    .single();
+    
+  if (error) throw error;
+
+  // Insert submission files/links if any
+  if (input.files && input.files.length > 0) {
+    const filesToInsert = input.files.map((f: any) => ({
+      ...f,
+      submission_id: data.id,
+      task_id: input.task_id,
+      project_id: input.project_id,
+      uploaded_by: user.id
+    }));
+    const { error: fileErr } = await supabase.from('project_task_submission_files').insert(filesToInsert);
+    if (fileErr) throw fileErr;
+  }
+
+  // Update task status
+  const { error: taskErr } = await supabase
+    .from('project_tasks')
+    .update({ status: 'submitted' })
+    .eq('id', input.task_id);
+  if (taskErr) throw taskErr;
+  
+  return data as any;
+}
+
+/**
+ * Fetch submissions for a task
+ */
+export async function getTaskSubmissions(taskId: string): Promise<ProjectTaskSubmission[]> {
+  const { data, error } = await supabase
+    .from('project_task_submissions')
+    .select(`
+      *,
+      submitter_profile:profiles!project_task_submissions_submitted_by_fkey(full_name),
+      reviewer_profile:profiles!project_task_submissions_reviewed_by_fkey(full_name)
+    `)
+    .eq('task_id', taskId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as any;
+}
+
+export async function getTaskSubmissionFiles(submissionId: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('project_task_submission_files')
+    .select('*')
+    .eq('submission_id', submissionId);
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Verify task submission (Owner only)
+ */
+export async function verifyTaskSubmission(submissionId: string, taskId: string, feedback?: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+  
+  const { error } = await supabase
+    .from('project_task_submissions')
+    .update({
+      status: 'verified',
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: user.id,
+      review_feedback: feedback
+    })
+    .eq('id', submissionId);
+  if (error) throw error;
+  
+  const { error: taskErr } = await supabase
+    .from('project_tasks')
+    .update({
+      status: 'verified',
+      verified_at: new Date().toISOString(),
+      verified_by: user.id,
+      completed_at: new Date().toISOString()
+    })
+    .eq('id', taskId);
+  if (taskErr) throw taskErr;
+}
+
+/**
+ * Reject task submission (Owner only)
+ */
+export async function rejectTaskSubmission(submissionId: string, taskId: string, reason: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+  
+  const { error } = await supabase
+    .from('project_task_submissions')
+    .update({
+      status: 'rejected',
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: user.id,
+      review_feedback: reason
+    })
+    .eq('id', submissionId);
+  if (error) throw error;
+  
+  const { error: taskErr } = await supabase
+    .from('project_tasks')
+    .update({
+      status: 'rejected',
+      rejected_at: new Date().toISOString(),
+      rejection_reason: reason
+    })
+    .eq('id', taskId);
+  if (taskErr) throw taskErr;
+}
+
+/**
+ * Withdraw pending submission (Assigned Member)
+ */
+export async function withdrawTaskSubmission(submissionId: string, taskId: string): Promise<void> {
+  const { error } = await supabase
+    .from('project_task_submissions')
+    .update({ status: 'withdrawn' })
+    .eq('id', submissionId);
+  if (error) throw error;
+  
+  const { error: taskErr } = await supabase
+    .from('project_tasks')
+    .update({ status: 'in_progress' })
+    .eq('id', taskId);
+  if (taskErr) throw taskErr;
+}
+
+/**
+ * Upload a project task file to secure bucket
+ */
+export async function uploadProjectTaskFile(projectId: string, file: File): Promise<{ filePath: string, sizeBytes: number }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  const allowed = ['pdf', 'png', 'jpg', 'jpeg', 'mp4', 'docx', 'xlsx', 'pptx', 'txt', 'zip'];
+  if (ext && !allowed.includes(ext)) {
+    throw new Error('File type not allowed for task uploads.');
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error('File size exceeds 20MB limit.');
+  }
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+  const filePath = `${projectId}/${user.id}/${Date.now()}_${safeName}`;
+
+  const { error } = await supabase.storage
+    .from('project-task-files')
+    .upload(filePath, file, { upsert: false });
+
+  if (error) throw error;
+  return { filePath, sizeBytes: file.size };
+}
+
+/**
+ * Get safe signed URL for task file
+ */
+export async function getSafeTaskFileUrl(filePath: string): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from('project-task-files')
+    .createSignedUrl(filePath, 3600); // 1 hour
+  if (error || !data) throw error || new Error('Could not generate signed URL.');
+  return data.signedUrl;
+}
+
+/**
+ * Request Task Extension
+ */
+export async function requestTaskExtension(taskId: string, projectId: string, oldDueAt: string, requestedDueAt: string, reason: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+  
+  const { error } = await supabase
+    .from('project_task_extension_requests')
+    .insert({
+      task_id: taskId,
+      project_id: projectId,
+      requested_by: user.id,
+      old_due_at: oldDueAt,
+      requested_due_at: requestedDueAt,
+      reason
+    });
+  if (error) throw error;
+  
+  const { error: taskErr } = await supabase
+    .from('project_tasks')
+    .update({ status: 'extension_requested' })
+    .eq('id', taskId);
+  if (taskErr) throw taskErr;
+}
+
+/**
+ * Get Task Extension Requests
+ */
+export async function getProjectTaskExtensionRequests(projectId: string): Promise<ProjectTaskExtensionRequest[]> {
+  const { data, error } = await supabase
+    .from('project_task_extension_requests')
+    .select(`
+      *,
+      task:project_tasks(title, status),
+      requester_profile:profiles!project_task_extension_requests_requested_by_fkey(full_name)
+    `)
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Approve Task Extension
+ */
+export async function approveTaskExtension(requestId: string, taskId: string, requestedDueAt: string, reviewNote?: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+  
+  const { error } = await supabase
+    .from('project_task_extension_requests')
+    .update({
+      status: 'approved',
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: user.id,
+      review_note: reviewNote
+    })
+    .eq('id', requestId);
+  if (error) throw error;
+  
+  const { error: taskErr } = await supabase
+    .from('project_tasks')
+    .update({
+      due_at: requestedDueAt,
+      status: 'extended'
+    })
+    .eq('id', taskId);
+  if (taskErr) throw taskErr;
+}
+
+/**
+ * Reject Task Extension
+ */
+export async function rejectTaskExtension(requestId: string, taskId: string, reviewNote?: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+  
+  const { error } = await supabase
+    .from('project_task_extension_requests')
+    .update({
+      status: 'rejected',
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: user.id,
+      review_note: reviewNote
+    })
+    .eq('id', requestId);
+  if (error) throw error;
+  
+  const { error: taskErr } = await supabase
+    .from('project_tasks')
+    .update({
+      status: 'assigned' // or back to whatever it was before, maybe just let it be overdue if passed.
+    })
+    .eq('id', taskId);
+  if (taskErr) throw taskErr;
+}
+
+/**
+ * Get Task Attachments
+ */
+export async function getTaskAttachments(taskId: string): Promise<ProjectTaskAttachment[]> {
+  const { data, error } = await supabase
+    .from('project_task_attachments')
+    .select('*')
+    .eq('task_id', taskId);
+  if (error) throw error;
+  return data as any;
+}
+

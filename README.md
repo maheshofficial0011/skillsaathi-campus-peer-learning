@@ -442,3 +442,29 @@ Phase 6.3B delivers critical repairs and rich UX details to the Project Mate Fin
   - Verified comprehensive compilation with zero TypeScript errors or warnings.
   - Successfully verified production bundle using `npm run build`.
 
+
+---
+
+## ?? Completed Phase 6.4: Project Task Assignment, Work Submission & Extension Systems
+
+Phase 6.4 transforms the Project Mate workspace into a highly capable work-management system, enabling strict task lifecycle flows, verifiable submissions, and secure file sharing directly integrated into the project dashboard.
+
+### Key Enhancements
+- **Project Tasks Board**:
+  - Full Kanban-style board tracking tasks across \ssigned\, \in_progress\, \submitted\, \erified\, \ejected\, and \overdue\ statuses.
+  - Granular dynamic stats row summarizing total team tasks, my active tasks, pending reviews, and overdue warnings.
+- **Strict Submission & Verification Workflow**:
+  - Assignees can formally submit work for tasks containing URLs, notes, and attached files.
+  - Task submissions immediately lock into a \pending_review\ state, entering the Project Lead's Review Queue.
+  - Project Leads review submissions and can either strictly Verify & Approve (marking the task complete) or Request Changes (pushing it back to in progress).
+- **Secure File Support for Task Delivery**:
+  - Tasks support direct file attachments (PDF, Docs, code zips).
+  - All task files are uploaded into a completely private \project-task-files\ storage bucket.
+  - Secure signed URLs are dynamically generated upon viewing, ensuring files cannot be publicly browsed or accessed by non-members.
+- **Deadline Extension Management**:
+  - Assignees can formally request deadline extensions via a structured request form, providing a reason and a proposed new date.
+  - Extension requests hit the Project Lead's console where they can be strictly approved or rejected with feedback notes.
+- **My Project Work Dashboard**:
+  - Aggregated view of personal task history, completion rates, and submission records inside the Project Workspace.
+  - Strictly sandboxes tasks, making them completely inaccessible to unauthorized members or the public.
+
