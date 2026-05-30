@@ -346,3 +346,23 @@ Learning Circles connect peer study groups, allowing collaborative resource shar
    - **Main Verified Resources Empty States**: Displays `"No verified resources yet."` when the library is empty, and `"You have not submitted resources yet."` when member submitted resources are blank.
    - **TypeScript & Build Stability**: Verified comprehensive project compilation with zero TypeScript errors or warnings.
    - **Current Status**: Completed through Phase 5.5 Learning Circles polish.
+
+10. **Phase 5.6: Professional Discussion Board, Moderation, Presence System & UX Polish**:
+   - **Threaded Discussion Board**: Upgraded the discussion tab into a high-fidelity professional board supporting four post types: `discussion`, `question`, `announcement`, and `study_plan` with threaded comment replies.
+   - **Interactive Stats Dashboard**: Added summary stat cards at the top of the Discussion tab — Total Posts, Open Questions, Announcements, and Active Replies — updated in real-time on every reply add or delete.
+   - **Post Composer & Edit Modal**: New post modal with character-counted title and body fields, post type selector, and tag input. Edit modal allows authors to update their own posts inline.
+   - **"Edited" Markers**: Modified posts and replies display a subtle `(edited)` timestamp label next to their timestamps.
+   - **Soft-Delete Placeholders**: Deleted posts render a clear dashed placeholder card: `"🚫 This post was removed by the owner."` rather than disappearing abruptly.
+   - **Question Resolution System**: Questions can be marked `✅ Resolved` by owners or authors. Resolved state is visible on the post card with a color-coded resolution badge. Filter controls allow browsing only open or resolved questions.
+   - **Post Pinning & Helpful Reactions**: Owners can pin posts to the top. All members can react to posts with a 👍 Helpful upvote.
+   - **Announcement Glow Line**: Pinned announcements display a prominent red glow bar at the top of their card for maximum visibility.
+   - **Author Online Dot**: An animated green dot 🟢 overlaid on the author avatar indicates that the post author is currently active in the workspace.
+   - **Search & Filter Memory**: Persistent search input, post type dropdown, question resolution filter, and "My Posts" toggle with instant feedback and memory across tab changes.
+   - **Paused/Archived Read-Only Banner**: A clear amber banner appears in the Discussion tab when the circle is paused or archived, preventing new post creation.
+   - **Collapsible Replies Drawer**: Clicking on a post expands a threaded reply drawer inline. Reply counts update instantly on the post list upon submission or deletion without a full reload.
+   - **Lightweight Presence Bar**: A compact presence summary bar is shown between the workspace tabs and content area. Displays 🟢 online, 🟡 recently active, and ⚫ offline member counts using a simple database-timestamp heartbeat (no WebSockets required).
+   - **Member Presence Indicators**: The Members tab now shows color-coded presence dots and a relative "Last seen" timestamp for each roster member.
+   - **Presence Heartbeat**: Automatically upserts the current user's `last_seen_at` in the `learning_circle_presence` table every 60 seconds and on every tab change.
+   - **New SQL Patch** (`supabase/phase5-learning-circle-discussion-board-patch.sql`): Extends `learning_circle_posts` with title, body, tags, pinning, resolution, soft-delete and edited_at fields; creates `learning_circle_post_replies`, `learning_circle_post_reactions`, and `learning_circle_presence` tables with full RLS policies and performance indexes.
+   - **TypeScript & Build Stability**: Zero TypeScript errors. Clean `npm run build` compilation. All new types (`LearningCirclePostReply`, `LearningCirclePostReaction`, `LearningCirclePresence`) added to `src/types/index.ts`.
+   - **Current Status**: Phase 5.6 fully implemented and verified.

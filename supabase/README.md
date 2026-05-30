@@ -282,6 +282,7 @@ A fresh database setup requires executing the SQL files in the following order:
 17. `supabase/phase5-learning-circle-join-requests-rls-fix.sql` (Phase 5.2 RLS INSERT fix patch: drops and recreates `lcm_insert` policy to allow circle owners to insert accepted applicants into memberships)
 18. `supabase/phase5-learning-circle-workflow-polish-patch.sql` (Phase 5.3 Learning Circle Workflow Rules, Owner Settings, and Resource Pinned & Likes patch: adds meeting credentials, resource pinning fields, membership logs on requests, creates `learning_circle_resource_likes` table, and sets up RLS policies)
 19. `supabase/phase5-learning-circle-exit-resource-verification-patch.sql` (Phase 5.4 Learning Circle Exit Workflow & Resource Verification System patch: adds leave log tracking columns to join requests and verification & recommendation columns to study resources, establishes verification status check constraints, and backfills metadata)
+20. `supabase/phase5-learning-circle-discussion-board-patch.sql` (Phase 5.6 Professional Discussion Board & Presence Tracking patch: extends `learning_circle_posts` with title, body, tags, pinning, resolution, soft-delete and edited_at; creates `learning_circle_post_replies` threaded comments table, `learning_circle_post_reactions` helpful reactions table, and `learning_circle_presence` real-time activity tracking table; full RLS policies and performance indexes for all new tables)
 
 ---
 
@@ -303,6 +304,9 @@ A fresh database setup requires executing the SQL files in the following order:
 | **`learning_circle_posts`** | Circle members/owners | Circle members/owners | Creator (`auth.uid() = created_by`) | Creator (`auth.uid() = created_by`) OR Circle owner |
 | **`learning_circle_join_requests`** | Requester OR Circle Owner | Requester (`auth.uid() = requester_id`, circle is active, and not member) | Requester (`status` to `'cancelled'`) OR Owner (`status` to `'accepted'` or `'rejected'`) | None |
 | **`learning_circle_resource_likes`** | Circle members/owners | Circle members/owners | None | Owner (`auth.uid() = user_id`) |
+| **`learning_circle_post_replies`** | Circle members/owners (non-deleted) | Circle members/owners (active circle only) | Author (`auth.uid() = created_by` non-deleted) OR Circle owner | Author (`auth.uid() = created_by`) OR Circle owner |
+| **`learning_circle_post_reactions`** | Via post's circle access | Circle members/owners | None | Self (`auth.uid() = user_id`) |
+| **`learning_circle_presence`** | Circle members/owners | Self (`auth.uid() = user_id`) with circle access | Self (`auth.uid() = user_id`) with circle access | None |
 
 ### 🔒 Storage RLS Policies (Private Bucket: `learning-circle-resources`)
 * **SELECT**: Authorized only for circle members and owners (checked securely via `public.can_access_learning_circle(extract_circle_id_from_path(name), auth.uid())`).

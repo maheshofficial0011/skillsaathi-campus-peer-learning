@@ -300,7 +300,7 @@ export type CircleDifficulty = 'Beginner' | 'Intermediate' | 'Advanced' | 'Mixed
 export type CircleMeetingMode = 'Online' | 'In-Person' | 'Hybrid';
 export type CircleStatus = 'active' | 'paused' | 'archived';
 export type CircleResourceType = 'Link' | 'PDF' | 'Video' | 'Notes' | 'Book' | 'Other';
-export type CirclePostType = 'Update' | 'Question' | 'Plan' | 'Announcement';
+export type CirclePostType = 'Update' | 'Question' | 'Plan' | 'Announcement' | 'discussion' | 'question' | 'announcement' | 'study_plan';
 
 export interface LearningCircle {
   id: string;
@@ -382,13 +382,68 @@ export interface LearningCirclePost {
   circle_id: string;
   created_by: string;
   content: string;
+  title: string | null;
+  body: string | null;
   post_type: CirclePostType;
+  tags: string[];
+  is_pinned: boolean;
+  pinned_by: string | null;
+  pinned_at: string | null;
+  is_resolved: boolean;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  edited_at: string | null;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  created_at: string;
+  updated_at: string;
+  author_profile?: {
+    full_name: string;
+  } | null;
+  replies_count?: number;
+  helpful_count?: number;
+  reacted_by_me?: boolean;
+}
+
+export interface LearningCirclePostReply {
+  id: string;
+  post_id: string;
+  circle_id: string;
+  created_by: string;
+  body: string;
+  edited_at: string | null;
+  deleted_at: string | null;
+  deleted_by: string | null;
   created_at: string;
   updated_at: string;
   author_profile?: {
     full_name: string;
   } | null;
 }
+
+export interface LearningCirclePostReaction {
+  id: string;
+  post_id: string;
+  user_id: string;
+  reaction_type: 'helpful';
+  created_at: string;
+}
+
+export interface LearningCirclePresence {
+  id: string;
+  circle_id: string;
+  user_id: string;
+  last_seen_at: string;
+  current_tab: string | null;
+  created_at: string;
+  updated_at: string;
+  profile?: {
+    full_name: string;
+    department: string;
+    year_of_study: string;
+  } | null;
+}
+
 
 export type LearningCircleJoinRequestStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
 export type LearningCircleRoleInterest = 'learner' | 'contributor' | 'peer_mentor';

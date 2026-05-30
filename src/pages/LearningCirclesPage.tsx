@@ -6,6 +6,7 @@ import type {
   LearningCircleMember,
   LearningCircleResource,
   LearningCirclePost,
+  LearningCirclePostReply,
   CircleDifficulty,
   CircleMeetingMode,
   CircleResourceType,
@@ -14,6 +15,7 @@ import type {
   LearningCircleJoinRequest,
   LearningCircleJoinRequestWithProfile,
   LearningCircleRoleInterest,
+  LearningCirclePresence,
 } from '../types';
 import {
   getLearningCircles,
@@ -29,13 +31,24 @@ import {
   uploadCircleResourceFile,
   getSignedResourceUrl,
   getCirclePosts,
-  addCirclePost,
-  deleteCirclePost,
+  createCirclePost,
+  updateCirclePost,
+  softDeleteCirclePost,
+  togglePostPin,
+  togglePostResolved,
+  addPostReply,
+  getPostReplies,
+  updatePostReply,
+  deletePostReply,
+  togglePostHelpful,
+  getDiscussionStats,
+  updateCirclePresence,
+  getCirclePresence,
+  derivePresenceStatus,
   CIRCLE_CATEGORIES,
   CIRCLE_DIFFICULTIES,
   CIRCLE_MEETING_MODES,
   CIRCLE_RESOURCE_TYPES,
-  CIRCLE_POST_TYPES,
   isValidHttpsUrl,
   isValidMeetingLinkOrLocation,
   requestToJoinCircle,
@@ -102,6 +115,10 @@ const POST_TYPE_COLOR: Record<CirclePostType, string> = {
   Question: 'bg-amber-50 text-amber-700 border-amber-200',
   Plan: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   Announcement: 'bg-rose-50 text-rose-700 border-rose-200',
+  discussion: 'bg-sky-50 text-sky-700 border-sky-200',
+  question: 'bg-amber-50 text-amber-700 border-amber-200',
+  study_plan: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  announcement: 'bg-rose-50 text-rose-700 border-rose-200',
 };
 
 const POST_TYPE_ICON: Record<CirclePostType, string> = {
@@ -109,6 +126,10 @@ const POST_TYPE_ICON: Record<CirclePostType, string> = {
   Question: '❓',
   Plan: '📅',
   Announcement: '📣',
+  discussion: '📢',
+  question: '❓',
+  study_plan: '📅',
+  announcement: '📣',
 };
 
 const RESOURCE_TYPE_ICON: Record<CircleResourceType, string> = {
@@ -851,10 +872,59 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   const [resourceErrors, setResourceErrors] = useState<Record<string, string>>({});
   const [submittingResource, setSubmittingResource] = useState(false);
 
-  // Post form
-  const [postContent, setPostContent] = useState('');
-  const [postType, setPostType] = useState<CirclePostType>('Update');
+  // ─── UPGRADED DISCUSSION BOARD & PRESENCE STATES ───
   const [submittingPost, setSubmittingPost] = useState(false);
+
+  // Active filter memory (Requirement 6)
+  const [discFilters, setDiscFilters] = useState<{
+    post_type: CirclePostType | 'All';
+    search: string;
+    mine: boolean;
+    resolved: boolean | null;
+  }>({
+    post_type: 'All',
+    search: '',
+    mine: false,
+    resolved: null,
+  });
+
+  const [discStats, setDiscStats] = useState({
+    totalPosts: 0,
+    openQuestions: 0,
+    resolvedQuestions: 0,
+    announcementsCount: 0,
+    totalReplies: 0,
+  });
+
+  // Modal / Editing states for Posts
+  const [showNewPostModal, setShowNewPostModal] = useState(false);
+  const [newPostForm, setNewPostForm] = useState({
+    title: '',
+    body: '',
+    post_type: 'discussion' as CirclePostType,
+    tagsString: '',
+  });
+
+  const [editingPost, setEditingPost] = useState<LearningCirclePost | null>(null);
+  const [editingPostForm, setEditingPostForm] = useState({
+    title: '',
+    body: '',
+    tagsString: '',
+  });
+
+  // Thread/Replies states (Requirement 5 live updates)
+  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+  const [repliesByPost, setRepliesByPost] = useState<Record<string, LearningCirclePostReply[]>>({});
+  const [loadingRepliesPostId, setLoadingRepliesPostId] = useState<string | null>(null);
+  const [replyInputTexts, setReplyInputTexts] = useState<Record<string, string>>({});
+  const [submittingReplyPostId, setSubmittingReplyPostId] = useState<string | null>(null);
+
+  // Modal / Inline Editing for Replies
+  const [editingReply, setEditingReply] = useState<LearningCirclePostReply | null>(null);
+  const [editingReplyBody, setEditingReplyBody] = useState('');
+
+  // Presence States (Phase 5.6 ADD-ON)
+  const [presences, setPresences] = useState<LearningCirclePresence[]>([]);
 
   // Resource file mode
   const [resourceMode, setResourceMode] = useState<'link' | 'file'>('link');
@@ -888,6 +958,8 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
       if (isMember) {
         const stats = await getCircleMemberResourceStats(circle.id);
         setMemberStats(stats);
+        const pres = await getCirclePresence(circle.id);
+        setPresences(pres);
       }
     } catch (err) {
       console.error('loadMembers stats error:', err);
@@ -921,12 +993,22 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   const loadPosts = useCallback(async () => {
     setLoadingPosts(true);
     try {
-      const data = await getCirclePosts(circle.id);
+      const apiFilters = {
+        post_type: discFilters.post_type,
+        search: discFilters.search,
+        mine: discFilters.mine,
+        resolved: discFilters.resolved === null ? undefined : discFilters.resolved,
+      };
+      const data = await getCirclePosts(circle.id, apiFilters);
       setPosts(data);
+      const stats = await getDiscussionStats(circle.id);
+      setDiscStats(stats);
+    } catch (err) {
+      console.error('loadPosts error:', err);
     } finally {
       setLoadingPosts(false);
     }
-  }, [circle.id]);
+  }, [circle.id, discFilters]);
 
   useEffect(() => {
     if (tab === 'members') loadMembers();
@@ -934,6 +1016,29 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     else if (tab === 'posts') loadPosts();
     else if (tab === 'requests') loadRequests();
   }, [tab, loadMembers, loadResources, loadPosts, loadRequests]);
+
+  // Synchronize user presence automatically (heartbeat and tab changes)
+  useEffect(() => {
+    if (!isMember) return;
+
+    const syncPresence = async () => {
+      await updateCirclePresence(circle.id, tab);
+      const data = await getCirclePresence(circle.id);
+      setPresences(data);
+    };
+
+    syncPresence();
+
+    const interval = setInterval(async () => {
+      await updateCirclePresence(circle.id, tab);
+      const data = await getCirclePresence(circle.id);
+      setPresences(data);
+    }, 60000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [circle.id, tab, isMember]);
 
   // ── File Change Handler ────────────────────────────────────────────────────
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1129,34 +1234,296 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     }
   };
 
-  // ── Post Submit ────────────────────────────────────────────────────────────
-  const handleAddPost = async (ev: React.FormEvent) => {
+  // ── Post Handlers (Phase 5.6 UPGRADED DISCUSSION BOARD) ────────────────────
+
+  const handleCreatePost = async (ev: React.FormEvent) => {
     ev.preventDefault();
-    if (!postContent.trim()) {
-      toast.error('Empty Post', 'Please write something before posting.');
+    const titleTrimmed = newPostForm.title.trim();
+    const bodyTrimmed = newPostForm.body.trim();
+
+    if (titleTrimmed.length < 3) {
+      toast.error('Short Title', 'Title must be at least 3 characters.');
       return;
     }
+    if (bodyTrimmed.length < 5) {
+      toast.error('Short Body', 'Body must be at least 5 characters.');
+      return;
+    }
+
+    // Split tags by comma
+    const tagsArr = newPostForm.tagsString
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+
+    if (tagsArr.length > 5) {
+      toast.error('Too Many Tags', 'You can specify a maximum of 5 tags.');
+      return;
+    }
+
     setSubmittingPost(true);
     try {
-      const post = await addCirclePost({ circle_id: circle.id, created_by: currentUserId, content: postContent, post_type: postType });
+      const post = await createCirclePost({
+        circle_id: circle.id,
+        title: titleTrimmed,
+        body: bodyTrimmed,
+        post_type: newPostForm.post_type,
+        tags: tagsArr,
+      });
+
       setPosts((prev) => [post, ...prev]);
-      setPostContent('');
-      toast.success('Posted! 🎉', 'Your post is now visible to circle members.');
+      setNewPostForm({
+        title: '',
+        body: '',
+        post_type: 'discussion',
+        tagsString: '',
+      });
+      setShowNewPostModal(false);
+      toast.success('Post Published! 🎉', 'Your post is now active in the discussion board.');
+      
+      // Refresh Stats
+      const stats = await getDiscussionStats(circle.id);
+      setDiscStats(stats);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not post.';
+      const msg = err instanceof Error ? err.message : 'Could not create post.';
       toast.error('Post Failed', msg);
     } finally {
       setSubmittingPost(false);
     }
   };
 
-  const handleDeletePost = async (id: string) => {
+  const handleUpdatePost = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (!editingPost) return;
+
+    const titleTrimmed = editingPostForm.title.trim();
+    const bodyTrimmed = editingPostForm.body.trim();
+
+    if (titleTrimmed.length < 3) {
+      toast.error('Short Title', 'Title must be at least 3 characters.');
+      return;
+    }
+    if (bodyTrimmed.length < 5) {
+      toast.error('Short Body', 'Body must be at least 5 characters.');
+      return;
+    }
+
+    const tagsArr = editingPostForm.tagsString
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+
+    if (tagsArr.length > 5) {
+      toast.error('Too Many Tags', 'You can specify a maximum of 5 tags.');
+      return;
+    }
+
     try {
-      await deleteCirclePost(id);
-      setPosts((prev) => prev.filter((p) => p.id !== id));
-      toast.success('Post Deleted', 'The post has been removed.');
-    } catch {
-      toast.error('Delete Failed', 'Could not delete post. You may not have permission.');
+      const updated = await updateCirclePost(editingPost.id, {
+        title: titleTrimmed,
+        body: bodyTrimmed,
+        tags: tagsArr,
+      });
+
+      setPosts((prev) => prev.map((p) => (p.id === editingPost.id ? { ...p, ...updated } : p)));
+      setEditingPost(null);
+      toast.success('Post Updated! ✏️', 'Your changes have been saved.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not update post.';
+      toast.error('Update Failed', msg);
+    }
+  };
+
+  const handleSoftDeletePost = async (id: string) => {
+    if (!window.confirm('Are you sure you want to remove this post? It will be archived and replaced by a moderator notice.')) {
+      return;
+    }
+    try {
+      await softDeleteCirclePost(id);
+      
+      // Update local state to reflect soft delete: set deleted_at and deleted_by
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? { ...p, deleted_at: new Date().toISOString(), deleted_by: currentUserId }
+            : p
+        )
+      );
+
+      toast.success('Post Removed', 'The post content has been moderated.');
+
+      // Refresh Stats
+      const stats = await getDiscussionStats(circle.id);
+      setDiscStats(stats);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not remove post.';
+      toast.error('Delete Failed', msg);
+    }
+  };
+
+  const handleTogglePostPin = async (id: string) => {
+    try {
+      await togglePostPin(id);
+      setPosts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, is_pinned: !p.is_pinned } : p))
+      );
+      toast.success('Pin Status Toggled 📌');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Action failed.';
+      toast.error('Action Failed', msg);
+    }
+  };
+
+  const handleToggleResolved = async (id: string) => {
+    try {
+      await togglePostResolved(id);
+      setPosts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, is_resolved: !p.is_resolved } : p))
+      );
+      toast.success('Resolution Status Updated ✅');
+
+      // Refresh Stats
+      const stats = await getDiscussionStats(circle.id);
+      setDiscStats(stats);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Action failed.';
+      toast.error('Action Failed', msg);
+    }
+  };
+
+  const handleToggleHelpful = async (id: string) => {
+    try {
+      await togglePostHelpful(id);
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.id !== id) return p;
+          const prevReacted = !!p.reacted_by_me;
+          const prevCount = p.helpful_count ?? 0;
+          return {
+            ...p,
+            reacted_by_me: !prevReacted,
+            helpful_count: prevReacted ? Math.max(0, prevCount - 1) : prevCount + 1,
+          };
+        })
+      );
+    } catch (err) {
+      console.error('toggle helpful failed:', err);
+    }
+  };
+
+  // ── Comment/Reply Handlers ──────────────────────────────────────────────────
+
+  const handleLoadReplies = async (postId: string) => {
+    setLoadingRepliesPostId(postId);
+    try {
+      const replies = await getPostReplies(postId);
+      setRepliesByPost((prev) => ({ ...prev, [postId]: replies }));
+    } catch (err) {
+      console.error('load replies failed:', err);
+    } finally {
+      setLoadingRepliesPostId(null);
+    }
+  };
+
+  const handleAddReplySubmit = async (postId: string) => {
+    const text = replyInputTexts[postId] || '';
+    const trimmed = text.trim();
+    if (trimmed.length < 2) {
+      toast.error('Short Comment', 'Comment must be at least 2 characters.');
+      return;
+    }
+
+    setSubmittingReplyPostId(postId);
+    try {
+      const reply = await addPostReply(postId, trimmed);
+      
+      // Update replies list for this post
+      setRepliesByPost((prev) => {
+        const existing = prev[postId] || [];
+        return { ...prev, [postId]: [...existing, reply] };
+      });
+
+      // Clear input
+      setReplyInputTexts((prev) => ({ ...prev, [postId]: '' }));
+
+      // Update reply count locally in posts list IMMEDIATELY (Requirement 5)
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId ? { ...p, replies_count: (p.replies_count ?? 0) + 1 } : p
+        )
+      );
+
+      toast.success('Comment Added 💬');
+
+      // Refresh Stats
+      const stats = await getDiscussionStats(circle.id);
+      setDiscStats(stats);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not add reply.';
+      toast.error('Comment Failed', msg);
+    } finally {
+      setSubmittingReplyPostId(null);
+    }
+  };
+
+  const handleUpdateReplySubmit = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (!editingReply) return;
+
+    const trimmed = editingReplyBody.trim();
+    if (trimmed.length < 2) {
+      toast.error('Short Comment', 'Comment must be at least 2 characters.');
+      return;
+    }
+
+    try {
+      const updated = await updatePostReply(editingReply.id, trimmed);
+      
+      // Update in local state
+      setRepliesByPost((prev) => {
+        const list = prev[editingReply.post_id] || [];
+        return {
+          ...prev,
+          [editingReply.post_id]: list.map((r) => (r.id === editingReply.id ? updated : r)),
+        };
+      });
+
+      setEditingReply(null);
+      toast.success('Comment Updated');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not edit comment.';
+      toast.error('Edit Failed', msg);
+    }
+  };
+
+  const handleDeleteReply = async (replyId: string, postId: string) => {
+    if (!window.confirm('Are you sure you want to remove this comment?')) {
+      return;
+    }
+    try {
+      await deletePostReply(replyId);
+
+      // Remove from local list
+      setRepliesByPost((prev) => {
+        const list = prev[postId] || [];
+        return { ...prev, [postId]: list.filter((r) => r.id !== replyId) };
+      });
+
+      // Update reply count locally in posts list IMMEDIATELY
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId ? { ...p, replies_count: Math.max(0, (p.replies_count ?? 1) - 1) } : p
+        )
+      );
+
+      toast.success('Comment Removed');
+
+      // Refresh Stats
+      const stats = await getDiscussionStats(circle.id);
+      setDiscStats(stats);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Action failed.';
+      toast.error('Action Failed', msg);
     }
   };
 
@@ -1254,6 +1621,78 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
           </button>
         ))}
       </div>
+
+      {/* Lightweight Presence Bar (Requirement A) */}
+      {isMember && (
+        <div className="bg-slate-50 border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 text-xs font-medium text-slate-600 animate-fade-in">
+          {(() => {
+            // Count presence
+            let onlineCount = 0;
+            let recentCount = 0;
+            let offlineCount = 0;
+
+            // To avoid duplicate counting, let's build statuses for loaded circle members
+            const memberPresenceStatuses = members.map((m) => {
+              const pres = presences.find((p) => p.user_id === m.user_id);
+              const status = pres ? derivePresenceStatus(pres.last_seen_at) : 'offline';
+              return { userId: m.user_id, status };
+            });
+
+            // Also check if any presences aren't in members list (e.g. before members loaded or owner)
+            presences.forEach((p) => {
+              const alreadyCounted = memberPresenceStatuses.some((m) => m.userId === p.user_id);
+              if (!alreadyCounted) {
+                memberPresenceStatuses.push({
+                  userId: p.user_id,
+                  status: derivePresenceStatus(p.last_seen_at),
+                });
+              }
+            });
+
+            // Count them
+            memberPresenceStatuses.forEach((mps) => {
+              if (mps.status === 'online') onlineCount++;
+              else if (mps.status === 'recently_active') recentCount++;
+              else offlineCount++;
+            });
+
+            if (memberPresenceStatuses.length === 0) {
+              return (
+                <div className="flex items-center gap-1.5 text-slate-400 italic">
+                  <span>💬 Activity will appear as members open the workspace.</span>
+                </div>
+              );
+            }
+
+            return (
+              <>
+                <div className="flex items-center gap-3 flex-wrap animate-fade-in">
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm transition-all">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <strong>{onlineCount}</strong> online
+                  </span>
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shadow-sm transition-all">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <strong>{recentCount}</strong> recently active
+                  </span>
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 shadow-sm transition-all">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                    <strong>{offlineCount}</strong> offline
+                  </span>
+                </div>
+                {/* Active users microcopy */}
+                <div className="text-[11px] text-slate-400 hidden sm:block font-normal">
+                  🟢 Online: {presences
+                    .filter((p) => derivePresenceStatus(p.last_seen_at) === 'online')
+                    .map((p) => p.profile?.full_name?.split(' ')[0])
+                    .filter(Boolean)
+                    .join(', ') || 'Only you'}
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Tab Content */}
       <div className="p-6">
@@ -1901,8 +2340,41 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                         {m.profile?.full_name?.[0]?.toUpperCase() ?? '?'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{m.profile?.full_name ?? 'Unknown'}</p>
-                        <p className="text-xs text-slate-500">{m.profile?.department} · {m.profile?.year_of_study}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-slate-900 truncate">{m.profile?.full_name ?? 'Unknown'}</p>
+                          {isMember && (() => {
+                            const pres = presences.find((p) => p.user_id === m.user_id);
+                            const status = pres ? derivePresenceStatus(pres.last_seen_at) : 'offline';
+                            
+                            const colorClass = 
+                              status === 'online' ? 'bg-emerald-500' :
+                              status === 'recently_active' ? 'bg-amber-500' : 'bg-slate-300';
+                            
+                            const label = 
+                              status === 'online' ? 'Online' :
+                              status === 'recently_active' ? 'Recently active' : 'Offline';
+
+                            return (
+                              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-500 shrink-0 select-none">
+                                <span className={`w-1.5 h-1.5 rounded-full ${colorClass} ${status === 'online' ? 'animate-pulse' : ''}`} />
+                                <span className="text-[10px] text-slate-400 font-normal">{label}</span>
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {m.profile?.department} · {m.profile?.year_of_study}
+                          {isMember && (() => {
+                            const pres = presences.find((p) => p.user_id === m.user_id);
+                            if (!pres) return null;
+                            const status = derivePresenceStatus(pres.last_seen_at);
+                            return (
+                              <span className="text-[10px] text-slate-400 font-normal block sm:inline sm:ml-2">
+                                • Last seen: {status === 'online' ? 'just now' : formatRelativeTime(pres.last_seen_at)}
+                              </span>
+                            );
+                          })()}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
                         {/* Member Resource Statistics */}
@@ -2596,7 +3068,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
 
         {/* ── POSTS / DISCUSSION ── */}
         {tab === 'posts' && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {!isMember ? (
               <div className="flex flex-col items-center justify-center py-16 px-4 border border-slate-200 rounded-2xl bg-slate-50 text-center gap-3 shadow-sm">
                 <span className="text-5xl">🔒</span>
@@ -2607,77 +3079,483 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
               </div>
             ) : (
               <>
-                {isMember && !isArchived && (
-                  <form onSubmit={handleAddPost} className="p-4 bg-gradient-to-br from-indigo-50 to-violet-50 rounded-xl border border-indigo-200 space-y-3 shadow-sm">
-                    <div className="flex gap-2 flex-wrap">
-                      {CIRCLE_POST_TYPES.map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setPostType(t)}
-                          className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all ${postType === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:border-indigo-400'}`}
-                          id={`post-type-${t}`}
-                        >
-                          {POST_TYPE_ICON[t]} {t}
-                        </button>
-                      ))}
+                {/* 1. Discussion Stats Panels */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl shadow-xs text-left">
+                    <p className="text-[10px] uppercase font-bold text-indigo-500 tracking-wider">Total Posts</p>
+                    <p className="text-xl font-black text-indigo-900 mt-0.5">{discStats.totalPosts}</p>
+                  </div>
+                  <div className="p-3 bg-amber-50/50 border border-amber-100 rounded-xl shadow-xs text-left">
+                    <p className="text-[10px] uppercase font-bold text-amber-600 tracking-wider">Open Questions</p>
+                    <p className="text-xl font-black text-amber-900 mt-0.5">{discStats.openQuestions}</p>
+                  </div>
+                  <div className="p-3 bg-rose-50/50 border border-rose-100 rounded-xl shadow-xs text-left">
+                    <p className="text-[10px] uppercase font-bold text-rose-500 tracking-wider">Announcements</p>
+                    <p className="text-xl font-black text-rose-900 mt-0.5">{discStats.announcementsCount}</p>
+                  </div>
+                  <div className="p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl shadow-xs text-left">
+                    <p className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider font-extrabold">Active Replies</p>
+                    <p className="text-xl font-black text-emerald-900 mt-0.5">{discStats.totalReplies}</p>
+                  </div>
+                </div>
+
+                {/* 2. Controls, Search, Filter Memory (Requirement 6, 8) */}
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl shadow-xs">
+                  <div className="flex-1 flex flex-wrap items-center gap-2">
+                    {/* Search Input */}
+                    <div className="relative w-full sm:w-64">
+                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">🔍</span>
+                      <input
+                        type="text"
+                        placeholder="Search posts..."
+                        value={discFilters.search}
+                        onChange={(e) => setDiscFilters((prev) => ({ ...prev, search: e.target.value }))}
+                        className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-250 bg-white text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        id="search-posts-input"
+                      />
                     </div>
-                    <textarea
-                      id="new-post-content"
-                      rows={3}
-                      value={postContent}
-                      onChange={(e) => setPostContent(e.target.value)}
-                      placeholder={`Share an ${postType.toLowerCase()} with your circle…`}
-                      className="w-full px-3 py-2 rounded-lg border border-indigo-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                    />
-                    <div className="flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={submittingPost || !postContent.trim()}
-                        className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                        id="submit-post"
+
+                    {/* Post Type Selector */}
+                    <select
+                      value={discFilters.post_type}
+                      onChange={(e) => setDiscFilters((prev) => ({ ...prev, post_type: e.target.value as CirclePostType | 'All' }))}
+                      className="px-2 py-1.5 rounded-lg border border-slate-250 bg-white text-xs text-slate-750 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      id="filter-post-type"
+                    >
+                      <option value="All">All Types</option>
+                      <option value="discussion">📢 Discussions</option>
+                      <option value="question">❓ Questions</option>
+                      <option value="announcement">📣 Announcements</option>
+                      <option value="study_plan">📅 Study Plans</option>
+                    </select>
+
+                    {/* Resolved question filter toggle */}
+                    {discFilters.post_type === 'question' && (
+                      <select
+                        value={discFilters.resolved === null ? 'all' : discFilters.resolved ? 'resolved' : 'unresolved'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDiscFilters((prev) => ({
+                            ...prev,
+                            resolved: val === 'all' ? null : val === 'resolved',
+                          }));
+                        }}
+                        className="px-2 py-1.5 rounded-lg border border-slate-250 bg-white text-xs text-slate-750 font-medium focus:outline-none"
+                        id="filter-question-resolved"
                       >
-                        {submittingPost ? 'Posting…' : `Post ${POST_TYPE_ICON[postType]}`}
-                      </button>
-                    </div>
-                  </form>
+                        <option value="all">All Questions</option>
+                        <option value="unresolved">❓ Open / Unresolved</option>
+                        <option value="resolved">✅ Resolved Only</option>
+                      </select>
+                    )}
+
+                    {/* Mine checkbox button */}
+                    <button
+                      type="button"
+                      onClick={() => setDiscFilters((prev) => ({ ...prev, mine: !prev.mine }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                        discFilters.mine
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-white text-slate-600 border-slate-250 hover:bg-slate-50'
+                      }`}
+                      id="toggle-my-posts-filter"
+                    >
+                      👤 My Posts
+                    </button>
+                  </div>
+
+                  {/* Create Trigger */}
+                  {!isArchived && !isPaused && (
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPostModal(true)}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition shrink-0 select-none active:scale-95"
+                      id="trigger-new-post-modal"
+                    >
+                      ➕ New Post
+                    </button>
+                  )}
+                </div>
+
+                {/* Status Notice for Paused/Archived Circles (Requirement 10) */}
+                {(isArchived || isPaused) && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium rounded-xl text-left flex items-center gap-2">
+                    <span>🔒 Discussions are read-only because this circle is currently {circle.status}.</span>
+                  </div>
                 )}
 
+                {/* 3. Render Post Cards */}
                 {loadingPosts ? (
-                  <LoadingSpinner label="Loading discussion…" />
+                  <LoadingSpinner label="Loading discussions…" />
                 ) : posts.length === 0 ? (
-                  <EmptyState icon="💬" message="No discussion posts yet." />
+                  <div className="py-12 border border-slate-150 rounded-2xl bg-slate-50/50 flex flex-col items-center justify-center text-center p-6 gap-3">
+                    <span className="text-4xl">💬</span>
+                    <div>
+                      <h4 className="font-bold text-slate-700 text-sm">No discussions found</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {discFilters.search
+                          ? 'Try adjusting your search keywords.'
+                          : discFilters.post_type !== 'All'
+                          ? `No ${discFilters.post_type === 'study_plan' ? 'study plan' : discFilters.post_type} posts exist yet.`
+                          : 'Be the first to publish a post in this circle!'}
+                      </p>
+                    </div>
+                  </div>
                 ) : (
                   <div className="space-y-3">
-                    {posts.map((p) => (
-                      <div key={p.id} className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs flex-shrink-0">
-                              {p.author_profile?.full_name?.[0]?.toUpperCase() ?? '?'}
+                    {posts.map((p) => {
+                      const isPostOwner = p.created_by === currentUserId;
+                      const isPostAnnouncement = p.post_type.toLowerCase() === 'announcement' || p.post_type === 'Announcement';
+                      const isPostQuestion = p.post_type.toLowerCase() === 'question' || p.post_type === 'Question';
+                      
+                      // Derive if author is currently online (Phase 5.6 ADD-ON D)
+                      const authorPres = presences.find((pr) => pr.user_id === p.created_by);
+                      const isAuthorOnline = authorPres ? derivePresenceStatus(authorPres.last_seen_at) === 'online' : false;
+
+                      // Check soft deleted state
+                      if (p.deleted_at) {
+                        return (
+                          <div key={p.id} className="p-3 bg-slate-50 border border-slate-200 border-dashed rounded-xl flex items-center justify-between text-left">
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+                              <span>🚫</span>
+                              <span>This post was removed by the owner.</span>
                             </div>
-                            <p className="text-sm font-semibold text-slate-900">{p.author_profile?.full_name ?? 'Unknown'}</p>
-                            <span className={`px-2 py-0.5 text-[10px] rounded border font-semibold ${POST_TYPE_COLOR[p.post_type]}`}>
-                              {POST_TYPE_ICON[p.post_type]} {p.post_type}
-                            </span>
+                            <span className="text-[10px] text-slate-400 font-normal">{formatRelativeTime(p.deleted_at)}</span>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <span className="text-[11px] text-slate-400">{formatRelativeTime(p.created_at)}</span>
-                            {(p.created_by === currentUserId || isOwner) && (
-                              <button
-                                onClick={() => handleDeletePost(p.id)}
-                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                                title="Delete post"
-                                id={`delete-post-${p.id}`}
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={p.id}
+                          className={`p-5 rounded-xl border text-left bg-white transition-all shadow-xs relative overflow-hidden ${
+                            isPostAnnouncement
+                              ? 'border-rose-300 bg-gradient-to-br from-rose-50/20 to-white hover:border-rose-400 shadow-sm'
+                              : p.is_pinned
+                              ? 'border-indigo-300 hover:border-indigo-400 bg-gradient-to-br from-indigo-50/10 to-white'
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          {/* Announcement Golden Top Glow Line */}
+                          {isPostAnnouncement && p.is_pinned && (
+                            <div className="absolute top-0 inset-x-0 h-1 bg-rose-500" />
+                          )}
+
+                          {/* Post Header Card */}
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs shrink-0 shadow-inner relative">
+                                {p.author_profile?.full_name?.[0]?.toUpperCase() ?? '?'}
+                                
+                                {/* 🟢 Small online status dot (Presence Add-on) */}
+                                {isAuthorOnline && (
+                                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border border-white animate-pulse" title="Author is currently online" />
+                                )}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs font-bold text-slate-800">{p.author_profile?.full_name ?? 'Unknown'}</span>
+                                  {p.is_pinned && (
+                                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 flex items-center gap-0.5 shrink-0 select-none">
+                                      📌 Pinned
+                                    </span>
+                                  )}
+                                  {isPostQuestion && (
+                                    <span
+                                      className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 select-none border ${
+                                        p.is_resolved
+                                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                                      }`}
+                                    >
+                                      {p.is_resolved ? '✅ Resolved' : '❓ Open Question'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                                  <span>{formatRelativeTime(p.created_at)}</span>
+                                  {p.edited_at && (
+                                    <span className="text-slate-350 bg-slate-100 px-1 rounded" title={`Edited ${formatRelativeTime(p.edited_at)}`}>
+                                      (edited)
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Badges / Microcopy */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className={`px-2 py-0.5 text-[9px] rounded-full border font-bold uppercase ${POST_TYPE_COLOR[p.post_type]}`}>
+                                {POST_TYPE_ICON[p.post_type]} {p.post_type === 'study_plan' ? 'Study Plan' : p.post_type}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Post Content Body */}
+                          <div className="space-y-2 mb-4 pr-1">
+                            <h3 className="font-bold text-sm text-slate-800 leading-snug">{p.title || 'Untitled Post'}</h3>
+                            <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{p.body || p.content}</p>
+                            
+                            {/* Rendering tags */}
+                            {p.tags && p.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 pt-2">
+                                {p.tags.map((t, idx) => (
+                                  <span
+                                    key={idx}
+                                    onClick={() => setDiscFilters((prev) => ({ ...prev, search: t }))}
+                                    className="px-2 py-0.5 text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 hover:text-slate-700 rounded-lg cursor-pointer transition"
+                                  >
+                                    #{t}
+                                  </span>
+                                ))}
+                              </div>
                             )}
                           </div>
+
+                          {/* Post Controls Footer */}
+                          <div className="flex items-center justify-between border-t border-slate-100 pt-3 flex-wrap gap-3">
+                            <div className="flex items-center gap-3">
+                              {/* Helpful Reaction Button */}
+                              <button
+                                onClick={() => handleToggleHelpful(p.id)}
+                                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition ${
+                                  p.reacted_by_me
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200 shadow-xs animate-pulse'
+                                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                }`}
+                                title="Mark as helpful"
+                                id={`helpful-post-${p.id}`}
+                              >
+                                <span>{p.reacted_by_me ? '❤️' : '👍'}</span>
+                                <span className="font-extrabold">{p.helpful_count ?? 0}</span>
+                                <span className="text-[10px] font-normal hidden sm:inline">Helpful</span>
+                              </button>
+
+                              {/* Comments Collapsible Toggle */}
+                              <button
+                                onClick={async () => {
+                                  if (expandedPostId === p.id) {
+                                    setExpandedPostId(null);
+                                  } else {
+                                    setExpandedPostId(p.id);
+                                    await handleLoadReplies(p.id);
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition ${
+                                  expandedPostId === p.id
+                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-xs'
+                                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                }`}
+                                id={`toggle-replies-${p.id}`}
+                              >
+                                <span>💬</span>
+                                <span className="font-extrabold">{p.replies_count ?? 0}</span>
+                                <span className="text-[10px] font-normal hidden sm:inline">
+                                  {expandedPostId === p.id ? 'Hide Comments' : 'Comments'}
+                                </span>
+                              </button>
+                            </div>
+
+                            {/* Owner / Author moderation controls */}
+                            <div className="flex items-center gap-1.5">
+                              {/* Resolve/Reopen Questions controls */}
+                              {isPostQuestion && (isPostOwner || isOwner) && !isArchived && !isPaused && (
+                                <button
+                                  onClick={() => handleToggleResolved(p.id)}
+                                  className={`px-2 py-1 border text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 focus:outline-none ${
+                                    p.is_resolved
+                                      ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700'
+                                      : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700'
+                                  }`}
+                                  title={p.is_resolved ? 'Reopen question' : 'Mark question as solved'}
+                                  id={`resolve-btn-${p.id}`}
+                                >
+                                  {p.is_resolved ? '❓ Reopen' : '✅ Solve'}
+                                </button>
+                              )}
+
+                              {/* Owner pin control */}
+                              {isOwner && !isArchived && !isPaused && (
+                                <button
+                                  onClick={() => handleTogglePostPin(p.id)}
+                                  className={`p-1 border rounded-lg transition ${
+                                    p.is_pinned
+                                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm'
+                                      : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-indigo-600 hover:bg-indigo-50'
+                                  }`}
+                                  title={p.is_pinned ? 'Unpin post' : 'Pin post to circle top'}
+                                  id={`pin-post-btn-${p.id}`}
+                                >
+                                  📌
+                                </button>
+                              )}
+
+                              {/* Author edit control */}
+                              {isPostOwner && !isArchived && !isPaused && (
+                                <button
+                                  onClick={() => {
+                                    setEditingPost(p);
+                                    setEditingPostForm({
+                                      title: p.title || '',
+                                      body: p.body || p.content || '',
+                                      tagsString: p.tags?.join(', ') || '',
+                                    });
+                                  }}
+                                  className="p-1 border border-slate-200 hover:border-indigo-300 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                  title="Edit post"
+                                  id={`edit-post-${p.id}`}
+                                >
+                                  ✏️
+                                </button>
+                              )}
+
+                              {/* Author or owner delete control */}
+                              {(isPostOwner || isOwner) && !isArchived && !isPaused && (
+                                <button
+                                  onClick={() => handleSoftDeletePost(p.id)}
+                                  className="p-1 border border-slate-200 hover:border-rose-300 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                  title="Remove post"
+                                  id={`delete-post-${p.id}`}
+                                >
+                                  🗑️
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 4. Replies Collapsible Drawer */}
+                          {expandedPostId === p.id && (
+                            <div className="mt-4 border-t border-slate-100 pt-4 space-y-3 bg-slate-50/50 -mx-5 -mb-5 px-5 pb-5 rounded-b-xl border-x-0 border-b-0">
+                              <h4 className="text-xs font-bold text-slate-500 text-left uppercase tracking-wider mb-2">Comments</h4>
+                              
+                              {/* Replies lists */}
+                              {loadingRepliesPostId === p.id ? (
+                                <LoadingSpinner label="Loading comments..." />
+                              ) : !repliesByPost[p.id] || repliesByPost[p.id].length === 0 ? (
+                                <p className="text-xs text-slate-400 italic py-2 text-left">No comments yet. Start the conversation!</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {repliesByPost[p.id].map((r) => {
+                                    const isReplyAuthor = r.created_by === currentUserId;
+                                    const replyPres = presences.find((pr) => pr.user_id === r.created_by);
+                                    const isReplyAuthorOnline = replyPres ? derivePresenceStatus(replyPres.last_seen_at) === 'online' : false;
+
+                                    if (r.deleted_at) {
+                                      return (
+                                        <div key={r.id} className="p-2 border border-slate-150 border-dashed rounded-lg bg-white/70 text-left text-[11px] text-slate-400 font-semibold italic flex items-center justify-between">
+                                          <span>🚫 Comment removed.</span>
+                                          <span>{formatRelativeTime(r.deleted_at)}</span>
+                                        </div>
+                                      );
+                                    }
+
+                                    return (
+                                      <div key={r.id} className="p-3 bg-white border border-slate-200/80 rounded-lg flex items-start gap-2.5 text-left relative shadow-xs group transition hover:border-slate-300">
+                                        <div className="w-6.5 h-6.5 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-[10px] shrink-0 relative">
+                                          {r.author_profile?.full_name?.[0]?.toUpperCase() ?? '?'}
+                                          {isReplyAuthorOnline && (
+                                            <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 rounded-full border border-white animate-pulse" />
+                                          )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="text-[11px] font-bold text-slate-800">{r.author_profile?.full_name ?? 'Unknown'}</span>
+                                            <span className="text-[9px] text-slate-400">{formatRelativeTime(r.created_at)}</span>
+                                            {r.edited_at && <span className="text-[8px] bg-slate-100 text-slate-400 px-0.5 rounded">(edited)</span>}
+                                          </div>
+                                          
+                                          {/* Reply edit state */}
+                                          {editingReply?.id === r.id ? (
+                                            <form
+                                              onSubmit={handleUpdateReplySubmit}
+                                              className="mt-1 space-y-1.5"
+                                            >
+                                              <textarea
+                                                value={editingReplyBody}
+                                                onChange={(e) => setEditingReplyBody(e.target.value)}
+                                                rows={2}
+                                                className="w-full px-2.5 py-1.5 border border-indigo-200 rounded-md text-xs focus:outline-none bg-white text-slate-700 text-left"
+                                              />
+                                              <div className="flex justify-end gap-1.5">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setEditingReply(null)}
+                                                  className="px-2 py-1 text-[10px] font-semibold text-slate-500 bg-white border border-slate-250 rounded hover:bg-slate-50"
+                                                >
+                                                  Cancel
+                                                </button>
+                                                <button
+                                                  type="submit"
+                                                  className="px-2.5 py-1 text-[10px] font-semibold text-white bg-indigo-600 rounded hover:bg-indigo-700"
+                                                >
+                                                  Save
+                                                </button>
+                                              </div>
+                                            </form>
+                                          ) : (
+                                            <p className="text-xs text-slate-600 mt-1 whitespace-pre-wrap leading-relaxed">{r.body}</p>
+                                          )}
+                                        </div>
+
+                                        {/* Reply Actions */}
+                                        {editingReply?.id !== r.id && !isArchived && !isPaused && (isReplyAuthor || isOwner) && (
+                                          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 self-start ml-2 transition">
+                                            {isReplyAuthor && (
+                                              <button
+                                                onClick={() => {
+                                                  setEditingReply(r);
+                                                  setEditingReplyBody(r.body);
+                                                }}
+                                                className="p-0.5 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 text-slate-400 hover:text-indigo-600 rounded transition"
+                                                title="Edit comment"
+                                                id={`edit-comment-${r.id}`}
+                                              >
+                                                ✏️
+                                              </button>
+                                            )}
+                                            <button
+                                              onClick={() => handleDeleteReply(r.id, p.id)}
+                                              className="p-0.5 hover:bg-rose-50 border border-transparent hover:border-rose-200 text-slate-400 hover:text-rose-600 rounded transition"
+                                              title="Delete comment"
+                                              id={`delete-comment-${r.id}`}
+                                            >
+                                              🗑️
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Comment Inline Composer */}
+                              {!isArchived && !isPaused && (
+                                <div className="flex gap-2 items-start pt-2">
+                                  <textarea
+                                    value={replyInputTexts[p.id] || ''}
+                                    onChange={(e) =>
+                                      setReplyInputTexts((prev) => ({ ...prev, [p.id]: e.target.value }))
+                                    }
+                                    placeholder="Write a comment..."
+                                    rows={1}
+                                    className="flex-1 px-3 py-1.5 border border-slate-200 focus:border-indigo-400 rounded-lg text-xs bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none text-left"
+                                  />
+                                  <button
+                                    onClick={() => handleAddReplySubmit(p.id)}
+                                    disabled={submittingReplyPostId === p.id || !(replyInputTexts[p.id] || '').trim()}
+                                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-xs rounded-lg transition active:scale-95 shrink-0"
+                                    id={`submit-reply-${p.id}`}
+                                  >
+                                    {submittingReplyPostId === p.id ? 'Sending...' : 'Reply'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{p.content}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </>
@@ -2903,6 +3781,251 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                   id="confirm-decline-resource-btn"
                 >
                   {submittingRejection ? 'Declining…' : 'Decline Material'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. New Post Composer Modal (Requirement 1, 7) */}
+      {showNewPostModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-left border border-slate-100">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                <span>➕</span> Create New Discussion Post
+              </h3>
+              <button
+                onClick={() => setShowNewPostModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePost} className="p-6 space-y-4">
+              {/* Type picking */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Post Category <span className="text-rose-500">*</span></label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewPostForm((prev) => ({ ...prev, post_type: 'discussion' }))}
+                    className={`px-3 py-2 text-xs font-semibold rounded-lg border transition ${
+                      newPostForm.post_type === 'discussion'
+                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-bold shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    📢 Discussion
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewPostForm((prev) => ({ ...prev, post_type: 'question' }))}
+                    className={`px-3 py-2 text-xs font-semibold rounded-lg border transition ${
+                      newPostForm.post_type === 'question'
+                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-bold shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    ❓ Question
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewPostForm((prev) => ({ ...prev, post_type: 'study_plan' }))}
+                    className={`px-3 py-2 text-xs font-semibold rounded-lg border transition ${
+                      newPostForm.post_type === 'study_plan'
+                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-bold shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    📅 Study Plan
+                  </button>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      onClick={() => setNewPostForm((prev) => ({ ...prev, post_type: 'announcement' }))}
+                      className={`px-3 py-2 text-xs font-semibold rounded-lg border transition col-span-2 sm:col-span-1 ${
+                        newPostForm.post_type === 'announcement'
+                          ? 'bg-rose-50 border-rose-500 text-rose-700 font-bold shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      📣 Announcement
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Title input */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold text-slate-700">Post Title <span className="text-rose-500">*</span></label>
+                  <span className={`text-[10px] font-semibold ${newPostForm.title.trim().length >= 3 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {newPostForm.title.trim().length}/100 chars (min 3)
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  maxLength={100}
+                  value={newPostForm.title}
+                  onChange={(e) => setNewPostForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="Summarize your question or discussion topic..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-800 text-left"
+                  required
+                />
+              </div>
+
+              {/* Body input */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold text-slate-700">Detailed Message <span className="text-rose-500">*</span></label>
+                  <span className={`text-[10px] font-semibold ${newPostForm.body.trim().length >= 5 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {newPostForm.body.trim().length}/1000 chars (min 5)
+                  </span>
+                </div>
+                <textarea
+                  rows={4}
+                  maxLength={1000}
+                  value={newPostForm.body}
+                  onChange={(e) => setNewPostForm((prev) => ({ ...prev, body: e.target.value }))}
+                  placeholder="Provide context, references, questions, or updates..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white text-slate-800 text-left"
+                  required
+                />
+              </div>
+
+              {/* Tags input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Tags <span className="text-slate-400 font-normal">(comma separated, max 5)</span></label>
+                <input
+                  type="text"
+                  value={newPostForm.tagsString}
+                  onChange={(e) => setNewPostForm((prev) => ({ ...prev, tagsString: e.target.value }))}
+                  placeholder="e.g. revision, arrays, midterm"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-800 text-left"
+                />
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {newPostForm.tagsString
+                    .split(',')
+                    .map((t) => t.trim())
+                    .filter((t) => t.length > 0)
+                    .slice(0, 5)
+                    .map((tag, i) => (
+                      <span key={i} className="px-2 py-0.5 text-[9px] font-semibold bg-indigo-50 text-indigo-700 rounded border border-indigo-200">
+                        #{tag}
+                      </span>
+                    ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowNewPostModal(false)}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-slate-650 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingPost || newPostForm.title.trim().length < 3 || newPostForm.body.trim().length < 5}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition shadow-sm"
+                  id="confirm-create-post-btn"
+                >
+                  {submittingPost ? 'Publishing…' : '📢 Publish Post'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Edit Post Composer Modal (Requirement 1, 7) */}
+      {editingPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-left border border-slate-100">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                <span>✏️</span> Edit Discussion Post
+              </h3>
+              <button
+                onClick={() => setEditingPost(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdatePost} className="p-6 space-y-4">
+              {/* Title input */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold text-slate-700">Post Title <span className="text-rose-500">*</span></label>
+                  <span className={`text-[10px] font-semibold ${editingPostForm.title.trim().length >= 3 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {editingPostForm.title.trim().length}/100 chars (min 3)
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  maxLength={100}
+                  value={editingPostForm.title}
+                  onChange={(e) => setEditingPostForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="Summarize your question..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-800 text-left"
+                  required
+                />
+              </div>
+
+              {/* Body input */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold text-slate-700">Detailed Message <span className="text-rose-500">*</span></label>
+                  <span className={`text-[10px] font-semibold ${editingPostForm.body.trim().length >= 5 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {editingPostForm.body.trim().length}/1000 chars (min 5)
+                  </span>
+                </div>
+                <textarea
+                  rows={4}
+                  maxLength={1000}
+                  value={editingPostForm.body}
+                  onChange={(e) => setEditingPostForm((prev) => ({ ...prev, body: e.target.value }))}
+                  placeholder="Provide details..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white text-slate-800 text-left"
+                  required
+                />
+              </div>
+
+              {/* Tags input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Tags <span className="text-slate-400 font-normal">(comma separated, max 5)</span></label>
+                <input
+                  type="text"
+                  value={editingPostForm.tagsString}
+                  onChange={(e) => setEditingPostForm((prev) => ({ ...prev, tagsString: e.target.value }))}
+                  placeholder="e.g. revision, midterm"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-800 text-left"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingPost(null)}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-slate-650 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editingPostForm.title.trim().length < 3 || editingPostForm.body.trim().length < 5}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-sm"
+                  id="confirm-edit-post-btn"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>

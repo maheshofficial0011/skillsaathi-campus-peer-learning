@@ -740,3 +740,106 @@ Use this checklist to perform regression testing and ensure full readiness of al
 - [ ] **Request Again Verification**:
   - After a member intentionally leaves or is removed, verify that the Discover card join button displays `"Request Again"` and lets the student re-apply.
 
+---
+
+## 🗣️ Phase 5.6: Professional Discussion Board, Moderation, Presence System & UX Polish
+
+### 1. SQL Database Patch Verification
+- [ ] **Presence Table Created**:
+  - In Supabase Table Editor, verify `public.learning_circle_presence` table exists with columns: `id`, `circle_id`, `user_id`, `last_seen_at`, `current_tab`, `created_at`, `updated_at`.
+  - Verify the unique constraint `unique_circle_user` on `(circle_id, user_id)`.
+- [ ] **Post Extensions Applied**:
+  - In Supabase Table Editor, verify `public.learning_circle_posts` now has: `title`, `body`, `tags`, `is_pinned`, `pinned_by`, `pinned_at`, `is_resolved`, `resolved_by`, `resolved_at`, `edited_at`, `deleted_at`, `deleted_by` columns.
+- [ ] **Replies Table Created**:
+  - Verify `public.learning_circle_post_replies` table exists.
+- [ ] **Reactions Table Created**:
+  - Verify `public.learning_circle_post_reactions` table exists.
+
+### 2. Discussion Stats Dashboard
+- [ ] **Stat Cards Render**:
+  - Navigate to the **Discussion** tab inside a circle workspace.
+  - Verify 4 stat cards are displayed: `Total Posts`, `Open Questions`, `Announcements`, `Active Replies`.
+  - Verify that the numbers are correct and match actual data.
+- [ ] **Real-time Stats Updates**:
+  - Add a new reply to a post. Verify that `Active Replies` count increments immediately without a full page reload.
+  - Delete a reply. Verify that `Active Replies` count decrements immediately.
+
+### 3. New Post Composer Modal
+- [ ] **Open Composer**:
+  - Click `➕ New Post`. Verify the composer modal opens.
+- [ ] **Post Type Selection**:
+  - Verify the post type dropdown includes: `📢 Discussion`, `❓ Question`, `📣 Announcement` (owner only), `📅 Study Plan`.
+  - As a non-owner, verify that the `Announcement` option is hidden or blocked.
+- [ ] **Character Counter Validation**:
+  - Try submitting with an empty title or body. Verify inline error messages appear.
+  - Verify that the submit button is disabled until minimum requirements are met.
+- [ ] **Successful Submission**:
+  - Fill in title and body, select a post type, and submit. Verify the post appears immediately in the discussion list without a full page reload.
+  - Verify a success toast fires.
+
+### 4. Post Card Features
+- [ ] **Post Type Badge**:
+  - Verify that each post card renders a colored badge for its type (e.g., sky blue for Discussion, amber for Question, rose for Announcement, indigo for Study Plan).
+- [ ] **Announcement Glow Line**:
+  - Pin an announcement post as the owner. Verify a red line appears at the very top of the post card.
+- [ ] **"Edited" Label**:
+  - Edit an existing post. Verify a small `(edited)` timestamp label appears next to the post's timestamp after saving.
+- [ ] **Soft-Delete Placeholder**:
+  - As the owner, soft-delete a post. Verify the post renders a dashed placeholder: `"🚫 This post was removed by the owner."` instead of disappearing from the list.
+
+### 5. Question Resolution
+- [ ] **Mark Resolved**:
+  - Create a `question` type post. Verify the `✅ Mark Resolved` button is present.
+  - Click it. Verify the post card shows a `✅ Resolved` badge.
+- [ ] **Filter by Resolved State**:
+  - In the filter bar, select the `❓ Questions` post type. Verify a new filter dropdown appears: `All Questions`, `❓ Open / Unresolved`, `✅ Resolved Only`.
+  - Toggle between states. Verify only matching posts appear in the list.
+
+### 6. Post Pinning & Helpful Reactions
+- [ ] **Owner Pin Post**:
+  - As the circle owner, click the pin action on a post. Verify the post moves to the top of the list and shows a `📌 Pinned` indicator.
+- [ ] **Helpful Reaction**:
+  - Click `👍 Helpful` on a post. Verify the count increments.
+  - Click again to undo. Verify the count decrements.
+  - Verify users cannot react to their own posts (or that it handles gracefully).
+
+### 7. Threaded Reply Drawer
+- [ ] **Expand Replies**:
+  - Click on a post to expand the reply drawer. Verify existing replies load correctly.
+- [ ] **Add Reply**:
+  - Type a reply and submit. Verify the reply appears immediately in the drawer.
+  - Verify that the main post list shows the incremented reply count instantly.
+- [ ] **Edit / Delete Reply**:
+  - As the reply author, click edit. Modify the text and save. Verify `(edited)` appears.
+  - Delete the reply. Verify it disappears from the drawer and the post's reply count decrements.
+- [ ] **Author Online Dot**:
+  - If the post author is logged in concurrently, verify a small animated green dot 🟢 appears on their avatar.
+
+### 8. Search & Filter Controls
+- [ ] **Search Input**:
+  - Type a keyword in the search box. Verify only matching posts (by title or body) are shown.
+  - Clear the search. Verify all posts return.
+- [ ] **"My Posts" Toggle**:
+  - Click `👤 My Posts`. Verify only posts by the current user are shown.
+- [ ] **Paused/Archived Read-Only Banner**:
+  - As the owner, change the circle status to `Paused` or `Archived`.
+  - Navigate to the Discussion tab. Verify the amber banner `"🔒 Discussions are read-only because this circle is currently paused/archived."` appears.
+  - Verify the `➕ New Post` button is hidden while in this state.
+
+### 9. Lightweight Presence Bar
+- [ ] **Bar Renders for Members**:
+  - As an accepted member, open a circle workspace. Verify the presence bar appears between the tab navigation and the tab content area.
+- [ ] **Presence Counts**:
+  - Verify the bar shows: 🟢 X online · 🟡 Y recently active · ⚫ Z offline.
+  - Open the workspace from a second user account in a separate browser. Verify the online count updates on the next heartbeat (within ~60 seconds).
+- [ ] **Hidden for Non-Members**:
+  - As a non-member or guest, verify the presence bar does not render.
+
+### 10. Member Tab Presence Indicators
+- [ ] **Color-coded Status Dots**:
+  - Navigate to the Members tab. Verify each member card shows a colored status dot: green for Online, amber for Recently active, and grey for Offline.
+- [ ] **"Last seen" Timestamp**:
+  - Verify that each member card shows their last seen timestamp in relative format (e.g., "Last seen: just now" or "Last seen: 5m ago").
+- [ ] **Heartbeat Accuracy**:
+  - Stay in the workspace for more than 60 seconds. Verify that the current user's status shows as Online in the members list.
+

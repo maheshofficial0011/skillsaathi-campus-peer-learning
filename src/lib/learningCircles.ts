@@ -5,6 +5,7 @@ import type {
   LearningCircleMember,
   LearningCircleResource,
   LearningCirclePost,
+  LearningCirclePostReply,
   CircleRole,
   CircleDifficulty,
   CircleMeetingMode,
@@ -14,6 +15,7 @@ import type {
   LearningCircleRoleInterest,
   LearningCircleJoinRequest,
   LearningCircleJoinRequestWithProfile,
+  LearningCirclePresence,
 } from '../types';
 
 // ──────────────────────────────────────────
@@ -1364,50 +1366,299 @@ export const getSignedResourceUrl = async (
 // POST QUERIES & MUTATIONS
 // ──────────────────────────────────────────
 
+export interface CirclePostFilters {
+  post_type?: string;
+  search?: string;
+  mine?: boolean;
+  resolved?: boolean;
+}
+
 /**
- * Fetch all discussion posts for a circle.
+ * Fetch all discussion posts for a circle, sorted and filtered.
  */
-export const getCirclePosts = async (circleId: string): Promise<LearningCirclePost[]> => {
+export const getCirclePosts = async (
+  circleId: string,
+  filters?: CirclePostFilters
+): Promise<LearningCirclePost[]> => {
   try {
+    const { data: authData } = await supabase.auth.getUser();
+    const currentUserId = authData?.user?.id;
+
+    // Fetch posts with author, replies count, and reactions
     const { data, error } = await supabase
       .from('learning_circle_posts')
       .select(`
-        id, circle_id, created_by, content, post_type, created_at, updated_at,
-        author_profile:profiles!learning_circle_posts_created_by_fkey(full_name)
+        id, circle_id, created_by, content, title, body, post_type, tags,
+        is_pinned, pinned_by, pinned_at, is_resolved, resolved_by, resolved_at,
+        edited_at, deleted_at, deleted_by, created_at, updated_at,
+        author_profile:profiles!learning_circle_posts_created_by_fkey(full_name),
+        replies:learning_circle_post_replies(id, deleted_at),
+        reactions:learning_circle_post_reactions(user_id, reaction_type)
       `)
       .eq('circle_id', circleId)
-      .order('created_at', { ascending: false });
+      .is('deleted_at', null);
 
     if (error) throw error;
-    return (data || []) as unknown as LearningCirclePost[];
+
+    const rawPosts = (data || []) as any[];
+
+    // Map and enrich in TypeScript
+    let mapped = rawPosts.map((p) => {
+      const activeReplies = (p.replies || []).filter((r: any) => r.deleted_at === null);
+      const helpfulReactions = (p.reactions || []).filter((r: any) => r.reaction_type === 'helpful');
+      return {
+        ...p,
+        title: p.title || p.content || 'Untitled Post',
+        body: p.body || p.content || '',
+        tags: p.tags || [],
+        replies_count: activeReplies.length,
+        helpful_count: helpfulReactions.length,
+        reacted_by_me: currentUserId ? helpfulReactions.some((r: any) => r.user_id === currentUserId) : false,
+      } as LearningCirclePost;
+    });
+
+    // Apply Filters client-side
+    if (filters) {
+      if (filters.post_type && filters.post_type !== 'All') {
+        const typeLower = filters.post_type.toLowerCase();
+        mapped = mapped.filter((p) => {
+          const pType = p.post_type.toLowerCase();
+          if (typeLower === 'discussion') {
+            return pType === 'discussion' || pType === 'update';
+          }
+          if (typeLower === 'study_plan') {
+            return pType === 'study_plan' || pType === 'plan';
+          }
+          return pType === typeLower;
+        });
+      }
+
+      if (filters.search) {
+        const query = filters.search.toLowerCase().trim();
+        if (query) {
+          mapped = mapped.filter((p) => {
+            return (
+              p.title?.toLowerCase().includes(query) ||
+              p.body?.toLowerCase().includes(query) ||
+              p.author_profile?.full_name?.toLowerCase().includes(query) ||
+              p.tags?.some((t) => t.toLowerCase().includes(query))
+            );
+          });
+        }
+      }
+
+      if (filters.mine && currentUserId) {
+        mapped = mapped.filter((p) => p.created_by === currentUserId);
+      }
+
+      if (filters.resolved !== undefined && filters.resolved !== null) {
+        mapped = mapped.filter((p) => {
+          const isQ = p.post_type.toLowerCase() === 'question';
+          if (!isQ) return true;
+          return p.is_resolved === filters.resolved;
+        });
+      }
+    }
+
+    // Sort: Pinned Announcements -> Pinned Posts -> Unresolved Questions -> Latest (updated_at/created_at desc)
+    return mapped.sort((a, b) => {
+      const typeA = a.post_type.toLowerCase();
+      const typeB = b.post_type.toLowerCase();
+
+      // 1. Pinned Announcements first
+      const isPinnedAnnounceA = typeA === 'announcement' && a.is_pinned;
+      const isPinnedAnnounceB = typeB === 'announcement' && b.is_pinned;
+      if (isPinnedAnnounceA && !isPinnedAnnounceB) return -1;
+      if (!isPinnedAnnounceA && isPinnedAnnounceB) return 1;
+
+      // 2. Normal Pinned Posts
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+
+      // 3. Unresolved Questions
+      const isUnresolvedQA = typeA === 'question' && !a.is_resolved;
+      const isUnresolvedQB = typeB === 'question' && !b.is_resolved;
+      if (isUnresolvedQA && !isUnresolvedQB) return -1;
+      if (!isUnresolvedQA && isUnresolvedQB) return 1;
+
+      // 4. Newest first (using updated_at or created_at)
+      const timeA = new Date(a.updated_at || a.created_at).getTime();
+      const timeB = new Date(b.updated_at || b.created_at).getTime();
+      return timeB - timeA;
+    });
   } catch (err) {
     console.error('getCirclePosts error:', err);
     return [];
   }
 };
 
-export interface AddPostInput {
+export interface CreatePostInput {
   circle_id: string;
-  created_by: string;
-  content: string;
+  title: string;
+  body: string;
   post_type: CirclePostType;
+  tags?: string[];
 }
 
 /**
- * Add a discussion post to a circle (member only, RLS enforced).
+ * Create a new learning circle post.
  */
-export const addCirclePost = async (input: AddPostInput): Promise<LearningCirclePost> => {
+export const createCirclePost = async (input: CreatePostInput): Promise<LearningCirclePost> => {
   try {
+    const titleTrimmed = input.title.trim();
+    const bodyTrimmed = input.body.trim();
+
+    if (titleTrimmed.length < 3) {
+      throw new Error('Title must be at least 3 characters.');
+    }
+    if (bodyTrimmed.length < 5) {
+      throw new Error('Body must be at least 5 characters.');
+    }
+
+    const tagsArr = input.tags || [];
+    if (tagsArr.length > 5) {
+      throw new Error('You can add a maximum of 5 tags.');
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in again before posting.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Check if circle is active
+    const { data: circle, error: circleErr } = await supabase
+      .from('learning_circles')
+      .select('status')
+      .eq('id', input.circle_id)
+      .single();
+
+    if (circleErr || !circle) {
+      throw new Error('Circle not found.');
+    }
+
+    if (circle.status !== 'active') {
+      throw new Error('Discussions are locked because this circle is paused/archived.');
+    }
+
+    // Role check: announcements only posted by owner
+    const { data: membership } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', input.circle_id)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    const isOwner = membership?.role === 'owner';
+    const typeLower = input.post_type.toLowerCase();
+
+    if (typeLower === 'announcement' && !isOwner) {
+      throw new Error('Only the circle owner can create announcements.');
+    }
+
     const { data, error } = await supabase
       .from('learning_circle_posts')
       .insert({
         circle_id: input.circle_id,
-        created_by: input.created_by,
-        content: input.content.trim(),
+        created_by: currentUserId,
+        title: titleTrimmed,
+        body: bodyTrimmed,
+        content: bodyTrimmed, // Backwards compatibility content
         post_type: input.post_type,
+        tags: tagsArr,
       })
       .select(`
-        id, circle_id, created_by, content, post_type, created_at, updated_at,
+        *,
+        author_profile:profiles!learning_circle_posts_created_by_fkey(full_name)
+      `)
+      .single();
+
+    if (error) throw error;
+    return {
+      ...data,
+      replies_count: 0,
+      helpful_count: 0,
+      reacted_by_me: false,
+    } as unknown as LearningCirclePost;
+  } catch (err) {
+    console.error('createCirclePost error:', err);
+    throw err;
+  }
+};
+
+export interface UpdatePostInput {
+  title?: string;
+  body?: string;
+  tags?: string[];
+}
+
+/**
+ * Update an existing post (author or owner moderate).
+ */
+export const updateCirclePost = async (
+  postId: string,
+  input: UpdatePostInput
+): Promise<LearningCirclePost> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in first.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Fetch post to check uploader/owner status
+    const { data: post, error: fetchErr } = await supabase
+      .from('learning_circle_posts')
+      .select('created_by, circle_id')
+      .eq('id', postId)
+      .single();
+
+    if (fetchErr || !post) {
+      throw new Error('Post not found.');
+    }
+
+    const { data: membership } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', post.circle_id)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    const isOwner = membership?.role === 'owner';
+    const isAuthor = post.created_by === currentUserId;
+
+    if (!isAuthor && !isOwner) {
+      throw new Error('You do not have permission to edit this post.');
+    }
+
+    const payload: Record<string, any> = {
+      edited_at: new Date().toISOString(),
+    };
+
+    if (input.title !== undefined) {
+      const titleTrimmed = input.title.trim();
+      if (titleTrimmed.length < 3) throw new Error('Title must be at least 3 characters.');
+      payload.title = titleTrimmed;
+    }
+
+    if (input.body !== undefined) {
+      const bodyTrimmed = input.body.trim();
+      if (bodyTrimmed.length < 5) throw new Error('Body must be at least 5 characters.');
+      payload.body = bodyTrimmed;
+      payload.content = bodyTrimmed; // backwards compatibility
+    }
+
+    if (input.tags !== undefined) {
+      if (input.tags.length > 5) throw new Error('Maximum of 5 tags allowed.');
+      payload.tags = input.tags;
+    }
+
+    const { data, error } = await supabase
+      .from('learning_circle_posts')
+      .update(payload)
+      .eq('id', postId)
+      .select(`
+        *,
         author_profile:profiles!learning_circle_posts_created_by_fkey(full_name)
       `)
       .single();
@@ -1415,25 +1666,474 @@ export const addCirclePost = async (input: AddPostInput): Promise<LearningCircle
     if (error) throw error;
     return data as unknown as LearningCirclePost;
   } catch (err) {
-    console.error('addCirclePost error:', err);
+    console.error('updateCirclePost error:', err);
     throw err;
   }
 };
 
 /**
- * Delete a discussion post. Author or circle owner only (RLS enforced).
+ * Soft delete a learning circle post.
  */
-export const deleteCirclePost = async (postId: string): Promise<void> => {
+export const softDeleteCirclePost = async (postId: string): Promise<void> => {
   try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in first.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Fetch post to check permissions
+    const { data: post, error: fetchErr } = await supabase
+      .from('learning_circle_posts')
+      .select('created_by, circle_id')
+      .eq('id', postId)
+      .single();
+
+    if (fetchErr || !post) {
+      throw new Error('Post not found.');
+    }
+
+    const { data: membership } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', post.circle_id)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    const isOwner = membership?.role === 'owner';
+    const isAuthor = post.created_by === currentUserId;
+
+    if (!isAuthor && !isOwner) {
+      throw new Error('You do not have permission to delete this post.');
+    }
+
     const { error } = await supabase
       .from('learning_circle_posts')
-      .delete()
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: currentUserId,
+      })
       .eq('id', postId);
 
     if (error) throw error;
   } catch (err) {
-    console.error('deleteCirclePost error:', err);
+    console.error('softDeleteCirclePost error:', err);
     throw err;
+  }
+};
+
+/**
+ * Delete a post (keeps old interface name but calls soft delete).
+ */
+export const deleteCirclePost = async (postId: string): Promise<void> => {
+  return softDeleteCirclePost(postId);
+};
+
+/**
+ * Toggle pin status of a post (owner only).
+ */
+export const togglePostPin = async (postId: string): Promise<void> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in first.');
+    }
+    const currentUserId = authData.user.id;
+
+    const { data: post, error: fetchErr } = await supabase
+      .from('learning_circle_posts')
+      .select('circle_id, is_pinned')
+      .eq('id', postId)
+      .single();
+
+    if (fetchErr || !post) {
+      throw new Error('Post not found.');
+    }
+
+    const { data: membership } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', post.circle_id)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    if (membership?.role !== 'owner') {
+      throw new Error('Only the circle owner can pin or unpin posts.');
+    }
+
+    const nextPinned = !post.is_pinned;
+    const { error } = await supabase
+      .from('learning_circle_posts')
+      .update({
+        is_pinned: nextPinned,
+        pinned_by: nextPinned ? currentUserId : null,
+        pinned_at: nextPinned ? new Date().toISOString() : null,
+      })
+      .eq('id', postId);
+
+    if (error) throw error;
+  } catch (err) {
+    console.error('togglePostPin error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Toggle resolution status of a question post.
+ */
+export const togglePostResolved = async (postId: string): Promise<void> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in first.');
+    }
+    const currentUserId = authData.user.id;
+
+    const { data: post, error: fetchErr } = await supabase
+      .from('learning_circle_posts')
+      .select('circle_id, created_by, is_resolved, post_type')
+      .eq('id', postId)
+      .single();
+
+    if (fetchErr || !post) {
+      throw new Error('Post not found.');
+    }
+
+    const typeLower = post.post_type.toLowerCase();
+    if (typeLower !== 'question') {
+      throw new Error('Only question posts can be marked as resolved.');
+    }
+
+    const { data: membership } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', post.circle_id)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    const isOwner = membership?.role === 'owner';
+    const isAuthor = post.created_by === currentUserId;
+
+    if (!isAuthor && !isOwner) {
+      throw new Error('You do not have permission to resolve this question.');
+    }
+
+    const nextResolved = !post.is_resolved;
+    const { error } = await supabase
+      .from('learning_circle_posts')
+      .update({
+        is_resolved: nextResolved,
+        resolved_by: nextResolved ? currentUserId : null,
+        resolved_at: nextResolved ? new Date().toISOString() : null,
+      })
+      .eq('id', postId);
+
+    if (error) throw error;
+  } catch (err) {
+    console.error('togglePostResolved error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Add a comment reply to a post.
+ */
+export const addPostReply = async (postId: string, body: string): Promise<LearningCirclePostReply> => {
+  try {
+    const bodyTrimmed = body.trim();
+    if (bodyTrimmed.length < 2) {
+      throw new Error('Reply body must be at least 2 characters.');
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in first.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Fetch post to get circle_id and check if active
+    const { data: post, error: fetchErr } = await supabase
+      .from('learning_circle_posts')
+      .select('circle_id')
+      .eq('id', postId)
+      .single();
+
+    if (fetchErr || !post) {
+      throw new Error('Post not found.');
+    }
+
+    // Check if circle is active
+    const { data: circle, error: circleErr } = await supabase
+      .from('learning_circles')
+      .select('status')
+      .eq('id', post.circle_id)
+      .single();
+
+    if (circleErr || !circle) {
+      throw new Error('Circle not found.');
+    }
+
+    if (circle.status !== 'active') {
+      throw new Error('Discussions are locked because this circle is paused/archived.');
+    }
+
+    // Insert reply
+    const { data, error } = await supabase
+      .from('learning_circle_post_replies')
+      .insert({
+        post_id: postId,
+        circle_id: post.circle_id,
+        created_by: currentUserId,
+        body: bodyTrimmed,
+      })
+      .select(`
+        *,
+        author_profile:profiles!learning_circle_post_replies_created_by_fkey(full_name)
+      `)
+      .single();
+
+    if (error) throw error;
+    return data as unknown as LearningCirclePostReply;
+  } catch (err) {
+    console.error('addPostReply error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Fetch non-deleted comment replies for a post, ordered oldest first.
+ */
+export const getPostReplies = async (postId: string): Promise<LearningCirclePostReply[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('learning_circle_post_replies')
+      .select(`
+        *,
+        author_profile:profiles!learning_circle_post_replies_created_by_fkey(full_name)
+      `)
+      .eq('post_id', postId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return (data || []) as unknown as LearningCirclePostReply[];
+  } catch (err) {
+    console.error('getPostReplies error:', err);
+    return [];
+  }
+};
+
+/**
+ * Update a comment reply (author only).
+ */
+export const updatePostReply = async (replyId: string, body: string): Promise<LearningCirclePostReply> => {
+  try {
+    const bodyTrimmed = body.trim();
+    if (bodyTrimmed.length < 2) {
+      throw new Error('Reply body must be at least 2 characters.');
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in first.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Check uploader
+    const { data: reply, error: fetchErr } = await supabase
+      .from('learning_circle_post_replies')
+      .select('created_by')
+      .eq('id', replyId)
+      .single();
+
+    if (fetchErr || !reply) {
+      throw new Error('Reply not found.');
+    }
+
+    if (reply.created_by !== currentUserId) {
+      throw new Error('You do not have permission to edit this reply.');
+    }
+
+    const { data, error } = await supabase
+      .from('learning_circle_post_replies')
+      .update({
+        body: bodyTrimmed,
+        edited_at: new Date().toISOString(),
+      })
+      .eq('id', replyId)
+      .select(`
+        *,
+        author_profile:profiles!learning_circle_post_replies_created_by_fkey(full_name)
+      `)
+      .single();
+
+    if (error) throw error;
+    return data as unknown as LearningCirclePostReply;
+  } catch (err) {
+    console.error('updatePostReply error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Delete a comment reply (author or circle owner).
+ */
+export const deletePostReply = async (replyId: string): Promise<void> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in first.');
+    }
+    const currentUserId = authData.user.id;
+
+    const { data: reply, error: fetchErr } = await supabase
+      .from('learning_circle_post_replies')
+      .select('created_by, circle_id')
+      .eq('id', replyId)
+      .single();
+
+    if (fetchErr || !reply) {
+      throw new Error('Reply not found.');
+    }
+
+    const { data: membership } = await supabase
+      .from('learning_circle_members')
+      .select('role')
+      .eq('circle_id', reply.circle_id)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    const isOwner = membership?.role === 'owner';
+    const isAuthor = reply.created_by === currentUserId;
+
+    if (!isAuthor && !isOwner) {
+      throw new Error('You do not have permission to delete this reply.');
+    }
+
+    const { error } = await supabase
+      .from('learning_circle_post_replies')
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: currentUserId,
+      })
+      .eq('id', replyId);
+
+    if (error) throw error;
+  } catch (err) {
+    console.error('deletePostReply error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Toggle the helpful reaction on a post.
+ */
+export const togglePostHelpful = async (postId: string): Promise<void> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in first.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Check if helpful reaction already exists
+    const { data: existing, error: fetchErr } = await supabase
+      .from('learning_circle_post_reactions')
+      .select('id')
+      .eq('post_id', postId)
+      .eq('user_id', currentUserId)
+      .eq('reaction_type', 'helpful')
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+
+    if (existing) {
+      // Unlike/Remove
+      const { error } = await supabase
+        .from('learning_circle_post_reactions')
+        .delete()
+        .eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      // Like/Add
+      const { error } = await supabase
+        .from('learning_circle_post_reactions')
+        .insert({
+          post_id: postId,
+          user_id: currentUserId,
+          reaction_type: 'helpful',
+        });
+      if (error) throw error;
+    }
+  } catch (err) {
+    console.error('togglePostHelpful error:', err);
+    throw err;
+  }
+};
+
+export interface DiscussionStats {
+  totalPosts: number;
+  openQuestions: number;
+  resolvedQuestions: number;
+  announcementsCount: number;
+  totalReplies: number;
+}
+
+/**
+ * Compute discussion summary statistics for a circle workspace.
+ */
+export const getDiscussionStats = async (circleId: string): Promise<DiscussionStats> => {
+  try {
+    const { data, error } = await supabase
+      .from('learning_circle_posts')
+      .select(`
+        id, post_type, is_resolved,
+        replies:learning_circle_post_replies(id, deleted_at)
+      `)
+      .eq('circle_id', circleId)
+      .is('deleted_at', null);
+
+    if (error) throw error;
+
+    const posts = data || [];
+    let totalPosts = posts.length;
+    let openQuestions = 0;
+    let resolvedQuestions = 0;
+    let announcementsCount = 0;
+    let totalReplies = 0;
+
+    posts.forEach((p: any) => {
+      const typeLower = p.post_type.toLowerCase();
+      if (typeLower === 'question') {
+        if (p.is_resolved) {
+          resolvedQuestions++;
+        } else {
+          openQuestions++;
+        }
+      } else if (typeLower === 'announcement') {
+        announcementsCount++;
+      }
+
+      const activeReplies = (p.replies || []).filter((r: any) => r.deleted_at === null);
+      totalReplies += activeReplies.length;
+    });
+
+    return {
+      totalPosts,
+      openQuestions,
+      resolvedQuestions,
+      announcementsCount,
+      totalReplies,
+    };
+  } catch (err) {
+    console.error('getDiscussionStats error:', err);
+    return {
+      totalPosts: 0,
+      openQuestions: 0,
+      resolvedQuestions: 0,
+      announcementsCount: 0,
+      totalReplies: 0,
+    };
   }
 };
 
@@ -1948,5 +2648,109 @@ export const toggleResourceLike = async (resourceId: string): Promise<void> => {
     throw err;
   }
 };
+
+// ──────────────────────────────────────────
+// PRESENCE SYSTEM APIS (Phase 5.6 ADD-ON)
+// ──────────────────────────────────────────
+
+/**
+ * Upsert the current authenticated user's presence row for a specific learning circle workspace.
+ */
+export const updateCirclePresence = async (
+  circleId: string,
+  currentTab?: string
+): Promise<void> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      return; // Silent fail if user is not authenticated
+    }
+    const userId = authData.user.id;
+
+    // Verify current user is member/owner of the circle before upsert
+    const { data: membership, error: memErr } = await supabase
+      .from('learning_circle_members')
+      .select('id')
+      .eq('circle_id', circleId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (memErr || !membership) {
+      return; // Silent fail if user is not authorized or not a member/owner
+    }
+
+    const { error } = await supabase
+      .from('learning_circle_presence')
+      .upsert(
+        {
+          circle_id: circleId,
+          user_id: userId,
+          last_seen_at: new Date().toISOString(),
+          current_tab: currentTab || null,
+        },
+        { onConflict: 'circle_id,user_id' }
+      );
+
+    if (error) {
+      console.warn('[updateCirclePresence] database upsert failed:', error.message);
+    }
+  } catch (err) {
+    console.error('[updateCirclePresence] failed:', err);
+  }
+};
+
+/**
+ * Fetch all presence rows for a learning circle, joining basic public profile details.
+ */
+export const getCirclePresence = async (
+  circleId: string
+): Promise<LearningCirclePresence[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('learning_circle_presence')
+      .select(`
+        *,
+        profile:profiles!learning_circle_presence_user_id_fkey(
+          full_name,
+          department,
+          year_of_study
+        )
+      `)
+      .eq('circle_id', circleId);
+
+    if (error) throw error;
+    return (data || []) as unknown as LearningCirclePresence[];
+  } catch (err) {
+    console.error('[getCirclePresence] failed:', err);
+    return [];
+  }
+};
+
+/**
+ * Helper to derive user status (online, recently_active, offline) based on last seen timestamp.
+ * - online: within last 2 minutes
+ * - recently_active: within last 15 minutes
+ * - offline: older than 15 minutes
+ */
+export const derivePresenceStatus = (
+  lastSeenIso: string
+): 'online' | 'recently_active' | 'offline' => {
+  try {
+    const lastSeenTime = new Date(lastSeenIso).getTime();
+    const nowTime = Date.now();
+    const diffMinutes = (nowTime - lastSeenTime) / 60000;
+
+    if (diffMinutes <= 2) {
+      return 'online';
+    } else if (diffMinutes <= 15) {
+      return 'recently_active';
+    } else {
+      return 'offline';
+    }
+  } catch {
+    return 'offline';
+  }
+};
+
 
 
