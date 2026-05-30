@@ -182,10 +182,8 @@ export const ProjectMatePage: React.FC = () => {
   const [resourcesLimit, setResourcesLimit] = useState(3);
 
   // Phase 6.3D limits states
-  const [rosterLimit, setRosterLimit] = useState(3);
   const [pastMembersLimit, setPastMembersLimit] = useState(3);
   const [rolesLimit, setRolesLimit] = useState(3);
-  const [applicantsLimit, setApplicantsLimit] = useState(3);
 
   // Phase 6.3E local states for teammates filter & search
   const [teammateSearch, setTeammateSearch] = useState('');
@@ -3365,16 +3363,59 @@ export const ProjectMatePage: React.FC = () => {
                   </div>
                 )}
 
-                 {/* Active Roster List */}
+                 {/* Active Roster List (Teammates Console) */}
                 <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
-                  <h4 className="text-md font-black text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-1.5">
-                    <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                    Team Roster ({teamMembers.length}/{selectedProject.max_team_size})
-                  </h4>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-3">
+                    <h4 className="text-md font-black text-slate-800 flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                      Teammates
+                      <span className="ml-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-150 text-[10px] font-bold rounded-full">
+                        {teamMembers.length} / {selectedProject.max_team_size}
+                      </span>
+                    </h4>
+                    
+                    {teamMembers.length > 3 && (
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <input
+                          type="text"
+                          placeholder="Search members..."
+                          value={teammateSearch}
+                          onChange={(e) => setTeammateSearch(e.target.value)}
+                          className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 bg-slate-50 flex-1 sm:w-32"
+                        />
+                        <select
+                          value={teammateRoleFilter}
+                          onChange={(e) => setTeammateRoleFilter(e.target.value)}
+                          className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 bg-slate-50 flex-1 sm:w-32"
+                        >
+                          <option value="">All Roles</option>
+                          <option value="owner">Project Lead</option>
+                          {Array.from(new Set(teamMembers.map(m => m.role_name).filter(Boolean))).map(role => (
+                            role !== 'Project Lead' && <option key={role as string} value={role as string}>{role}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
 
-                                    <div className="space-y-3.5 divide-y divide-slate-100">
+                  <div className={`space-y-3.5 divide-y divide-slate-100 pr-1 ${teamMembers.length > 3 ? 'max-h-[280px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {(() => {
-                      const activeMembersSorted = [...teamMembers].sort((a, b) => {
+                      let filteredMembers = [...teamMembers];
+                      
+                      if (teammateSearch) {
+                        const s = teammateSearch.toLowerCase();
+                        filteredMembers = filteredMembers.filter(m => m.profile?.full_name?.toLowerCase().includes(s));
+                      }
+                      
+                      if (teammateRoleFilter) {
+                        if (teammateRoleFilter === 'owner') {
+                          filteredMembers = filteredMembers.filter(m => m.user_id === selectedProject.created_by);
+                        } else {
+                          filteredMembers = filteredMembers.filter(m => m.role_name === teammateRoleFilter);
+                        }
+                      }
+
+                      const activeMembersSorted = filteredMembers.sort((a, b) => {
                         const isOwnerA = a.user_id === selectedProject.created_by;
                         const isOwnerB = b.user_id === selectedProject.created_by;
                         if (isOwnerA) return -1;
@@ -3384,103 +3425,89 @@ export const ProjectMatePage: React.FC = () => {
                         return nameA.localeCompare(nameB);
                       });
 
-                      return activeMembersSorted.slice(0, rosterLimit).map((member, idx) => {
+                      if (activeMembersSorted.length === 0) {
+                        return (
+                          <div className="py-6 text-center text-xs text-slate-400 italic">
+                            No teammates found matching your filters.
+                          </div>
+                        );
+                      }
+
+                      return activeMembersSorted.map((member, idx) => {
                         const isOwner = member.user_id === selectedProject.created_by;
                         const initials = member.profile?.full_name 
                           ? member.profile.full_name.split(' ').filter(n => n.length > 0).map(n => n[0]).slice(0, 2).join('').toUpperCase()
                           : 'SS';
                         
                         return (
-                          <div key={member.id} className={`flex items-start justify-between gap-3 text-xs ${idx > 0 ? 'pt-3.5' : ''}`}>
-                            <div className="flex gap-2.5">
+                          <div key={member.id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${idx > 0 ? 'pt-3.5' : ''}`}>
+                            <div className="flex gap-3">
                               {/* circular initials avatar */}
-                              <div className="w-9 h-9 rounded-full bg-indigo-50/80 border border-indigo-100 text-indigo-650 font-black flex items-center justify-center text-xs shrink-0 shadow-sm">
+                              <div className="w-10 h-10 rounded-full bg-indigo-50/80 border border-indigo-150 text-indigo-700 font-black flex items-center justify-center text-sm shrink-0 shadow-sm">
                                 {initials}
                               </div>
                               <div className="space-y-0.5">
-                                <h5 className="font-extrabold text-slate-800 leading-tight">
+                                <h5 className="font-extrabold text-slate-800 text-sm leading-tight">
                                   {member.profile?.full_name}
                                 </h5>
-                                <span className="text-[10px] text-slate-400 block">
+                                <span className="text-[10px] text-slate-500 block font-medium">
                                   {member.profile?.department} ({member.profile?.year_of_study})
                                 </span>
-                                <span className="text-[10px] text-slate-400 block font-medium">
-                                  Joined: {new Date(member.joined_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                                </span>
-
+                                
                                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
                                   {isOwner && (
-                                    <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-250 text-[8px] font-black uppercase rounded">
+                                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-250 text-[9px] font-black uppercase rounded shadow-xs">
                                       👑 Lead
                                     </span>
                                   )}
                                   {member.role_name && member.role_name !== 'Project Lead' && (
-                                    <span className="px-1.5 py-0.2 bg-indigo-50 text-indigo-700 border border-indigo-150 text-[8px] font-bold rounded">
+                                    <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-150 text-[9px] font-bold rounded shadow-xs">
                                       {member.role_name}
                                     </span>
                                   )}
                                 </div>
-
-                                <div className="pt-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedUserIdForProfile(member.user_id)}
-                                    className="px-2.5 py-0.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-150 rounded text-[9px] font-bold transition-all"
-                                  >
-                                    View Profile
-                                  </button>
-                                </div>
                               </div>
                             </div>
 
-                            <div className="flex gap-1 shrink-0">
-                              {selectedProject.is_owner && member.user_id !== user?.id && (
+                            <div className="flex sm:flex-col sm:items-end justify-between items-center gap-2 shrink-0 pt-2 sm:pt-0">
+                              <span className="text-[9px] text-slate-400 font-medium">
+                                Joined {new Date(member.joined_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              </span>
+                              <div className="flex gap-1.5">
                                 <button
-                                  onClick={() => {
-                                    setExitingMemberId(member.user_id);
-                                    setIsKickModalOpen(true);
-                                  }}
-                                  className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-650 font-bold rounded border border-red-150 transition-colors text-[10px]"
+                                  type="button"
+                                  onClick={() => setSelectedUserIdForProfile(member.user_id)}
+                                  className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-650 rounded border border-slate-200 transition-colors shadow-sm font-bold"
                                 >
-                                  Kick
+                                  Profile
                                 </button>
-                              )}
-                              
-                              {!selectedProject.is_owner && member.user_id === user?.id && (
-                                <button
-                                  onClick={() => setIsLeaveModalOpen(true)}
-                                  className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-650 font-bold rounded border border-red-150 transition-colors text-[10px]"
-                                >
-                                  Leave Team
-                                </button>
-                              )}
+                                
+                                {selectedProject.is_owner && member.user_id !== user?.id && (
+                                  <button
+                                    onClick={() => {
+                                      setExitingMemberId(member.user_id);
+                                      setIsKickModalOpen(true);
+                                    }}
+                                    className="px-2.5 py-1 bg-white hover:bg-red-50 text-red-600 font-bold rounded border border-slate-200 hover:border-red-200 transition-colors shadow-sm"
+                                  >
+                                    Kick
+                                  </button>
+                                )}
+                                
+                                {!selectedProject.is_owner && member.user_id === user?.id && (
+                                  <button
+                                    onClick={() => setIsLeaveModalOpen(true)}
+                                    className="px-2.5 py-1 bg-white hover:bg-red-50 text-red-600 font-bold rounded border border-slate-200 hover:border-red-200 transition-colors shadow-sm"
+                                  >
+                                    Leave Team
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
                       });
                     })()}
-                    
-                    {teamMembers.length > 3 && (
-                      <div className="flex justify-center gap-2 pt-2 border-t border-slate-200/50 mt-2">
-                        {teamMembers.length > rosterLimit ? (
-                          <button
-                            type="button"
-                            onClick={() => setRosterLimit(prev => prev + 3)}
-                            className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-lg border border-indigo-200 transition-colors"
-                          >
-                            Show More ({teamMembers.length - rosterLimit} more)
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setRosterLimit(3)}
-                            className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-slate-650 text-[10px] font-bold rounded-lg border border-slate-200 transition-colors"
-                          >
-                            Show Less
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
 
