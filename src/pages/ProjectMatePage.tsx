@@ -193,6 +193,7 @@ export const ProjectMatePage: React.FC = () => {
       const proj = await getProjectById(projectId, user.id, userProfile);
       setSelectedProject(proj);
       setSelectedProjectId(projectId);
+      setIsEditingLinks(false);
       
       let roster: ProjectTeamMember[] = [];
       try {
@@ -210,6 +211,8 @@ export const ProjectMatePage: React.FC = () => {
           console.error('[ProjectMate] Failed to load applications:', appsErr);
         }
         setPendingApplicants((apps || []).filter(a => a.status === 'pending'));
+      } else {
+        setPendingApplicants([]);
       }
       
       setActiveTab('workspace');
@@ -1097,6 +1100,20 @@ export const ProjectMatePage: React.FC = () => {
                           <div className="p-3 bg-slate-50 rounded-xl border border-slate-150 text-xs">
                             <span className="font-black text-slate-600 block mb-1">Leader Response:</span>
                             <p className="text-slate-500 italic">"{app.owner_response}"</p>
+                          </div>
+                        )}
+
+                        {app.status === 'accepted' && (
+                          <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <p className="text-xs font-semibold text-emerald-600">
+                              🎉 You're on this team now. Open the workspace to view team details and coordination links.
+                            </p>
+                            <button
+                              onClick={() => loadWorkspace(app.project_id)}
+                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition-colors whitespace-nowrap self-start sm:self-auto"
+                            >
+                              Open Team Workspace
+                            </button>
                           </div>
                         )}
                       </div>

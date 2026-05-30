@@ -140,7 +140,7 @@ export async function getProjectPosts(
     const isOwner = currentUserId === post.created_by;
 
     const myApp = myApplications.find(a => a.project_id === post.id);
-    const isMember = myMemberships.some(m => m.project_id === post.id) || isOwner;
+    const isMember = myMemberships.some(m => m.project_id === post.id) || isOwner || (myApp && myApp.status === 'accepted');
 
     // Enforce private collaboration fields gating
     const cleanPost = { ...post };
@@ -192,26 +192,6 @@ export async function getProjectById(
     .select('*')
     .eq('project_id', projectId);
 
-  // Memberships to check access
-  const { data: activeMembers } = await supabase
-    .from('project_team_members')
-    .select('*')
-    .eq('project_id', projectId)
-    .eq('user_id', currentUserId)
-    .is('left_at', null);
-
-  const isOwner = currentUserId === post.created_by;
-  const isMember = (activeMembers && activeMembers.length > 0) || isOwner;
-
-  // Enforce private collaboration fields gating
-  const cleanPost = { ...post };
-  if (!isOwner && !isMember) {
-    cleanPost.coordination_link = null;
-    cleanPost.github_repo_url = null;
-    cleanPost.shared_doc_url = null;
-    cleanPost.private_notes = null;
-  }
-
   // Application
   const { data: apps } = await supabase
     .from('project_applications')
@@ -222,6 +202,27 @@ export async function getProjectById(
     .limit(1);
 
   const myApp = apps && apps.length > 0 ? apps[0] : null;
+
+  // Memberships to check access
+  const { data: activeMembers } = await supabase
+    .from('project_team_members')
+    .select('*')
+    .eq('project_id', projectId)
+    .eq('user_id', currentUserId)
+    .is('left_at', null);
+
+  const isOwner = currentUserId === post.created_by;
+  const isMember = isOwner || (activeMembers && activeMembers.length > 0) || (myApp && myApp.status === 'accepted');
+
+  // Enforce private collaboration fields gating
+  const cleanPost = { ...post };
+  if (!isOwner && !isMember) {
+    cleanPost.coordination_link = null;
+    cleanPost.github_repo_url = null;
+    cleanPost.shared_doc_url = null;
+    cleanPost.private_notes = null;
+  }
+
   const match = calculateProjectMatchScore(cleanPost, roles || [], userProfile);
 
   return {
