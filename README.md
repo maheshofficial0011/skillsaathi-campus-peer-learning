@@ -366,3 +366,15 @@ Learning Circles connect peer study groups, allowing collaborative resource shar
    - **New SQL Patch** (`supabase/phase5-learning-circle-discussion-board-patch.sql`): Extends `learning_circle_posts` with title, body, tags, pinning, resolution, soft-delete and edited_at fields; creates `learning_circle_post_replies`, `learning_circle_post_reactions`, and `learning_circle_presence` tables with full RLS policies and performance indexes.
    - **TypeScript & Build Stability**: Zero TypeScript errors. Clean `npm run build` compilation. All new types (`LearningCirclePostReply`, `LearningCirclePostReaction`, `LearningCirclePresence`) added to `src/types/index.ts`.
    - **Current Status**: Phase 5.6 fully implemented and verified.
+
+11. **Phase 5.6B: Discussion Auto-Cleanup, Deletion Lifecycle & Production Polish**:
+   - **4-Hour Placeholder Expiry**: Soft-deleted posts and replies show a context placeholder for up to 4 hours after deletion, then are **automatically hidden** from all UI views. No hard deletes — rows remain permanently for moderation.
+   - **`isDeletedRecently` Helper**: Centralized utility in `src/lib/learningCircles.ts` enforces the 4-hour window across `getCirclePosts`, `getPostReplies`, and `getDiscussionStats`. Adjustable by changing a single constant.
+   - **Strict Content Safety**: Deleted post/reply placeholders never render title, body, tags, helpful buttons, reply buttons, edit/delete actions, pin controls, or resolve controls. Content is hidden the instant the soft-delete is confirmed.
+   - **Self-Delete vs. Owner-Remove Copy**: Placeholders distinguish between `"deleted by the author"` and `"removed by the owner"` for precise moderation context.
+   - **Accurate Stats Counts**: `getDiscussionStats` now counts visible posts (non-deleted + recently-deleted-within-4h). Type-specific stats (open questions, announcements) only count non-deleted posts.
+   - **Show More/Fewer Fix**: The `"➕ Show more discussions (N more)"` button counts only visible (non-expired) posts, preventing ghost count inflation from expired placeholders.
+   - **Confirmation Modal Copy Updated**: Delete modal now informs the user that content is hidden immediately, a placeholder appears for up to 4 hours, and the record is retained for moderation.
+   - **Success Toast Messaging**: Post and comment removal toasts now explicitly communicate the temporary placeholder behavior and auto-cleanup timeline.
+   - **Documentation Hardened**: `supabase/README.md` now documents the soft-delete data model, the `isDeletedRecently` rule table, moderation audit SQL queries, and the 4-hour window constant location. `docs/testing-checklist.md` includes a full Phase 5.6B test suite covering deletion lifecycle, content safety, stats accuracy, and regression tests.
+   - **Current Status**: Phase 5.6B fully implemented, build verified (zero TypeScript errors, clean `npm run build`).

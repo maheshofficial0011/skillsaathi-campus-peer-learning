@@ -1363,6 +1363,19 @@ export const getSignedResourceUrl = async (
 };
 
 // ──────────────────────────────────────────
+// DISCUSSION AUTO-CLEANUP HELPER
+// ──────────────────────────────────────────
+
+/**
+ * Checks if a deleted timestamp is within the last 4 hours.
+ */
+export const isDeletedRecently = (deletedAt?: string | null): boolean => {
+  if (!deletedAt) return false;
+  const deletedTime = new Date(deletedAt).getTime();
+  return Date.now() - deletedTime <= 4 * 60 * 60 * 1000;
+};
+
+// ──────────────────────────────────────────
 // POST QUERIES & MUTATIONS
 // ──────────────────────────────────────────
 
@@ -1402,7 +1415,7 @@ export const getCirclePosts = async (
 
     // Map and enrich in TypeScript
     let mapped = rawPosts.map((p) => {
-      const activeReplies = (p.replies || []).filter((r: any) => r.deleted_at === null);
+      const activeReplies = (p.replies || []).filter((r: any) => r.deleted_at === null || isDeletedRecently(r.deleted_at));
       const helpfulReactions = (p.reactions || []).filter((r: any) => r.reaction_type === 'helpful');
       return {
         ...p,
@@ -1414,6 +1427,9 @@ export const getCirclePosts = async (
         reacted_by_me: currentUserId ? helpfulReactions.some((r: any) => r.user_id === currentUserId) : false,
       } as LearningCirclePost;
     });
+
+    // Filter out expired deleted posts (only keep if not deleted, or deleted within the last 4 hours)
+    mapped = mapped.filter((p) => p.deleted_at === null || isDeletedRecently(p.deleted_at));
 
     // Apply Filters client-side
     if (filters) {
@@ -1919,7 +1935,10 @@ export const getPostReplies = async (postId: string): Promise<LearningCirclePost
     if (error) throw new Error(error.message);
     const rawReplies = (data || []) as any[];
 
-    return rawReplies.map((r) => {
+    // Filter out expired deleted replies
+    const validReplies = rawReplies.filter((r) => r.deleted_at === null || isDeletedRecently(r.deleted_at));
+
+    return validReplies.map((r) => {
       const helpfulReactions = (r.reactions || []).filter((react: any) => react.reaction_type === 'helpful');
       return {
         id: r.id,
@@ -2153,15 +2172,18 @@ export const getDiscussionStats = async (circleId: string): Promise<DiscussionSt
     const { data, error } = await supabase
       .from('learning_circle_posts')
       .select(`
-        id, post_type, is_resolved,
+        id, post_type, is_resolved, deleted_at,
         replies:learning_circle_post_replies(id, deleted_at)
       `)
-      .eq('circle_id', circleId)
-      .is('deleted_at', null);
+      .eq('circle_id', circleId);
 
     if (error) throw error;
 
-    const posts = data || [];
+    // Only count posts that are visible: not deleted, or deleted within the last 4 hours
+    const posts = (data || []).filter(
+      (p: any) => p.deleted_at === null || isDeletedRecently(p.deleted_at)
+    );
+
     let totalPosts = posts.length;
     let openQuestions = 0;
     let resolvedQuestions = 0;
@@ -2169,18 +2191,24 @@ export const getDiscussionStats = async (circleId: string): Promise<DiscussionSt
     let totalReplies = 0;
 
     posts.forEach((p: any) => {
-      const typeLower = p.post_type.toLowerCase();
-      if (typeLower === 'question') {
-        if (p.is_resolved) {
-          resolvedQuestions++;
-        } else {
-          openQuestions++;
+      // Only count non-deleted posts in type-specific stats
+      if (!p.deleted_at) {
+        const typeLower = p.post_type.toLowerCase();
+        if (typeLower === 'question') {
+          if (p.is_resolved) {
+            resolvedQuestions++;
+          } else {
+            openQuestions++;
+          }
+        } else if (typeLower === 'announcement') {
+          announcementsCount++;
         }
-      } else if (typeLower === 'announcement') {
-        announcementsCount++;
       }
 
-      const activeReplies = (p.replies || []).filter((r: any) => r.deleted_at === null);
+      // Count active replies (not deleted, or deleted within 4 hours)
+      const activeReplies = (p.replies || []).filter(
+        (r: any) => r.deleted_at === null || isDeletedRecently(r.deleted_at)
+      );
       totalReplies += activeReplies.length;
     });
 

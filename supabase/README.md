@@ -349,3 +349,61 @@ where id = '<confirmed_request_id>';
 
 > [!WARNING]
 > Do NOT execute automated, broad destructive queries on production data. Always target verified request IDs.
+
+---
+
+### 🗑️ Phase 5.6B: Discussion Soft-Delete & 4-Hour Retention Policy
+
+**Core Principle**: Discussion posts and replies are **never hard-deleted** from the database. Soft deletion is implemented via `deleted_at` and `deleted_by` timestamp columns on `learning_circle_posts` and `learning_circle_post_replies`.
+
+#### Database Behaviour
+- When a post/reply is "deleted", the row is updated with `deleted_at = now()` and `deleted_by = auth.uid()`.
+- The row remains permanently in the database for moderation and audit.
+- RLS policies are **not changed** by Phase 5.6B. The server returns all rows; filtering is done client-side.
+
+#### UI Filtering Rule (Client-Side)
+The helper `isDeletedRecently(deletedAt)` in `src/lib/learningCircles.ts` determines visibility:
+```ts
+// Returns true if deleted within the last 4 hours
+export const isDeletedRecently = (deletedAt?: string | null): boolean => {
+  if (!deletedAt) return false;
+  return Date.now() - new Date(deletedAt).getTime() <= 4 * 60 * 60 * 1000;
+};
+```
+
+| Condition | UI Behaviour |
+|---|---|
+| `deleted_at IS NULL` | Post/reply renders normally |
+| `deleted_at` within 4 hours | Placeholder card shown (no content, no actions) |
+| `deleted_at` older than 4 hours | Completely hidden from UI — filtered out |
+
+#### Deleted Placeholder Rendering
+- Deleted post: shows `🚫 This post was deleted by the author.` or `removed by the owner.`
+- Deleted reply: shows `🚫 This comment was deleted by the author.` or `removed by the owner.`
+- Neither renders: title, body, tags, helpful buttons, reply buttons, edit/delete, pin, resolve controls.
+- Both show a context timestamp: `Visible for a few hours for context · <relative time>`.
+
+#### Stats and Count Accuracy
+- `getDiscussionStats()`: counts visible posts (not deleted, or recently deleted within 4h). Type-specific stats (openQuestions, announcements) only count non-deleted posts.
+- `getCirclePosts()`: filters out expired deleted posts after fetching; `replies_count` only includes visible replies.
+- `getPostReplies()`: returns only visible replies (not deleted, or recently deleted within 4h).
+
+#### Moderation Audit Queries
+To view all soft-deleted posts across all circles:
+```sql
+SELECT id, circle_id, created_by, deleted_at, deleted_by, title
+FROM public.learning_circle_posts
+WHERE deleted_at IS NOT NULL
+ORDER BY deleted_at DESC;
+```
+
+To view soft-deleted replies:
+```sql
+SELECT id, post_id, created_by, deleted_at, deleted_by, body
+FROM public.learning_circle_post_replies
+WHERE deleted_at IS NOT NULL
+ORDER BY deleted_at DESC;
+```
+
+> [!NOTE]
+> The 4-hour window is defined solely in `isDeletedRecently` in `src/lib/learningCircles.ts`. To adjust the retention window, change the `4 * 60 * 60 * 1000` constant and rebuild.

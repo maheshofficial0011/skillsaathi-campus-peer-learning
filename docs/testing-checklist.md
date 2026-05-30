@@ -843,3 +843,59 @@ Use this checklist to perform regression testing and ensure full readiness of al
 - [ ] **Heartbeat Accuracy**:
   - Stay in the workspace for more than 60 seconds. Verify that the current user's status shows as Online in the members list.
 
+---
+
+## 📋 Phase 5.6B — Discussion Auto-Cleanup & Deletion Lifecycle
+
+### 1. Deleted Post Placeholder (4-Hour Window)
+- [ ] **Soft delete a post** as the author or owner. Verify:
+  - The post's content (title, body, tags) is immediately hidden.
+  - A `🚫 This post was deleted by the author.` or `This post was removed by the owner.` placeholder appears.
+  - The placeholder shows `Visible for a few hours for context · <relative time>`.
+  - No helpful button, reply button, edit/delete actions, pin, or resolve controls are shown on the placeholder.
+- [ ] **Confirm delete modal** reads:  
+  `"This will soft-delete the post. The content will be hidden immediately. A placeholder will remain visible for up to 4 hours for context, then disappear automatically. The record is retained for moderation."`
+- [ ] **Success toast** after deletion reads:  
+  `"The post was removed. A placeholder will appear for up to 4 hours for context, then disappear automatically."`
+
+### 2. Deleted Reply Placeholder (4-Hour Window)
+- [ ] **Delete a reply** in the threaded drawer. Verify:
+  - The reply body, helpful buttons, and edit/delete actions are immediately hidden.
+  - A `🚫 This comment was deleted by the author.` or `removed by the owner.` placeholder appears.
+  - The placeholder shows `Visible temporarily for context · <relative time>`.
+- [ ] **Success toast** after reply deletion reads:  
+  `"The comment was removed. A placeholder will appear for up to 4 hours for context, then disappear automatically."`
+
+### 3. Automatic Expiry (After 4 Hours)
+- [ ] Simulate an expired deletion by temporarily editing `isDeletedRecently` to use a 0-second window in dev.
+  - Verify deleted post/reply placeholders completely vanish from the UI (no empty slot, no placeholder card).
+  - Verify the post/reply is absent from `posts` array and `repliesByPost` state after refresh.
+- [ ] Verify that expired deleted posts do NOT count in the `Show more/fewer` button count.
+
+### 4. Show More / Fewer Accuracy
+- [ ] With >3 visible posts, verify the `➕ Show more discussions (N more)` button appears.
+- [ ] The count `N` should only include non-deleted posts and placeholders within the 4-hour window.
+- [ ] After all posts expire (or only ≤3 remain visible), verify the button disappears entirely.
+
+### 5. Content Safety — No Leakage
+- [ ] Inspect the DOM on a deleted post placeholder. Verify:
+  - No title, body, or tags text is rendered.
+  - No author email or UUID is visible.
+  - No helpful/reaction buttons are rendered.
+  - No pin, resolve, edit, or delete action buttons are rendered.
+- [ ] Inspect the network response: verify deleted content body is returned by the API but never rendered in JSX.
+
+### 6. Stats Accuracy
+- [ ] After deleting a post, verify the discussion stats bar updates:
+  - `totalPosts` reflects only visible posts (non-deleted, or recently deleted within 4h).
+  - `openQuestions` and `resolvedQuestions` only count non-deleted question posts.
+  - `totalReplies` reflects only visible (non-expired) replies.
+- [ ] After 4 hours (simulate by mock or wait), re-fetch stats. Verify expired posts drop from all counts.
+
+### 7. Regression — Existing Features
+- [ ] Post create, edit, pin, resolve still work correctly.
+- [ ] Reply add, edit, helpful reaction still work correctly.
+- [ ] Filter by type, search, mine, resolved still work correctly.
+- [ ] Reset filters button clears all active filters correctly.
+- [ ] Owner badge and You badge still render correctly on non-deleted posts/replies.
+- [ ] Real-time presence heartbeat and online dot still function on non-deleted posts.

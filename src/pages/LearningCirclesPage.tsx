@@ -68,6 +68,7 @@ import {
   getMySubmittedResources,
   getCircleMemberResourceStats,
   getCircleRejectedResources,
+  isDeletedRecently,
 } from '../lib/learningCircles';
 import { PublicProfileModal } from '../components/profile/PublicProfileModal';
 
@@ -1376,7 +1377,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
           )
         );
 
-        toast.success('Post removed successfully.');
+        toast.success('Post Removed', 'The post was removed. A placeholder will appear for up to 4 hours for context, then disappear automatically.');
 
         // Refresh Stats
         const stats = await getDiscussionStats(circle.id);
@@ -1409,7 +1410,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
           )
         );
 
-        toast.success('Comment removed successfully.');
+        toast.success('Comment Removed', 'The comment was removed. A placeholder will appear for up to 4 hours for context, then disappear automatically.');
 
         // Refresh Stats
         const stats = await getDiscussionStats(circle.id);
@@ -3331,12 +3332,20 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                         // Distinguish self-delete vs owner moderation
                         const selfDeleted = p.deleted_by === p.created_by;
                         return (
-                          <div key={p.id} className="p-3 bg-slate-50 border border-slate-200 border-dashed rounded-xl flex items-center justify-between text-left">
+                          <div
+                            key={p.id}
+                            className="p-3 bg-slate-50 border border-slate-200 border-dashed rounded-xl flex flex-col sm:flex-row sm:items-center justify-between text-left gap-1"
+                            title="Deleted content is hidden for privacy and moderation safety."
+                          >
                             <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                               <span>🚫</span>
-                              <span>{selfDeleted ? 'This post was deleted.' : 'This post was removed by the owner.'}</span>
+                              <span>
+                                {selfDeleted ? 'This post was deleted by the author.' : 'This post was removed by the owner.'}
+                              </span>
                             </div>
-                            <span className="text-[10px] text-slate-400 font-normal">{formatRelativeTime(p.deleted_at)}</span>
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              Visible for a few hours for context · {formatRelativeTime(p.deleted_at)}
+                            </span>
                           </div>
                         );
                       }
@@ -3570,9 +3579,14 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
 
                                     if (r.deleted_at) {
                                       return (
-                                        <div key={r.id} className="p-2 border border-slate-150 border-dashed rounded-lg bg-white/70 text-left text-[11px] text-slate-400 font-semibold italic flex items-center justify-between">
-                                          <span>🚫 Comment removed.</span>
-                                          <span>{formatRelativeTime(r.deleted_at)}</span>
+                                        <div key={r.id} className="p-2 border border-slate-150 border-dashed rounded-lg bg-white/70 text-left text-[11px] text-slate-400 font-semibold italic flex flex-col sm:flex-row sm:items-center justify-between gap-1" title="Deleted content is hidden for privacy and moderation safety.">
+                                          <span>
+                                             🚫{' '}
+                                             {r.deleted_by === r.created_by
+                                               ? 'This comment was deleted by the author.'
+                                               : 'This comment was removed by the owner.'}
+                                           </span>
+                                          <span>Visible temporarily for context · {formatRelativeTime(r.deleted_at)}</span>
                                         </div>
                                       );
                                     }
@@ -3716,21 +3730,25 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                       );
                     })}
 
-                    {/* Show more/fewer toggle */}
-                    {posts.length > 3 && (
-                      <div className="flex justify-center pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowAllPosts((prev) => !prev)}
-                          className="px-5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-indigo-700 font-semibold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5 focus:outline-none active:scale-95"
-                          id="toggle-show-all-posts"
-                        >
-                          {showAllPosts
-                            ? '➖ Show fewer discussions'
-                            : `➕ Show more discussions (${posts.length - 3} more)`}
-                        </button>
-                      </div>
-                    )}
+                    {/* Show more/fewer toggle — count only visible (non-deleted or recently deleted) posts */}
+                    {(() => {
+                      const visiblePosts = posts.filter((p) => !p.deleted_at || isDeletedRecently(p.deleted_at));
+                      if (visiblePosts.length <= 3) return null;
+                      return (
+                        <div className="flex justify-center pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowAllPosts((prev) => !prev)}
+                            className="px-5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-indigo-700 font-semibold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5 focus:outline-none active:scale-95"
+                            id="toggle-show-all-posts"
+                          >
+                            {showAllPosts
+                              ? '➖ Show fewer discussions'
+                              : `➕ Show more discussions (${visiblePosts.length - 3} more)`}
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </>
@@ -4221,8 +4239,8 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
             <div className="p-6 space-y-4">
               <p className="text-xs text-slate-600 leading-relaxed bg-rose-50 p-3 rounded-lg border border-rose-100 text-rose-800">
                 {deleteConfirm.type === 'post'
-                  ? '⚠️ This will permanently hide the post. A placeholder message will be shown in its place. This action cannot be undone.'
-                  : '⚠️ This will permanently remove the comment. This action cannot be undone.'}
+                  ? '⚠️ This will soft-delete the post. The content will be hidden immediately. A placeholder will remain visible for up to 4 hours for context, then disappear automatically. The record is retained for moderation.'
+                  : '⚠️ This will soft-delete the comment. The content will be hidden immediately. A placeholder will remain visible for up to 4 hours for context, then disappear automatically. The record is retained for moderation.'}
               </p>
               <div className="flex gap-3">
                 <button
