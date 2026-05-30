@@ -178,8 +178,14 @@ export const ProjectMatePage: React.FC = () => {
   const [editIsHackathon, setEditIsHackathon] = useState<boolean>(false);
 
   // Discussion & Resource Paging States
-  const [discussionLimit, setDiscussionLimit] = useState(5);
+  const [discussionLimit, setDiscussionLimit] = useState(3);
   const [resourcesLimit, setResourcesLimit] = useState(3);
+
+  // Phase 6.3D limits states
+  const [rosterLimit, setRosterLimit] = useState(3);
+  const [pastMembersLimit, setPastMembersLimit] = useState(3);
+  const [rolesLimit, setRolesLimit] = useState(3);
+  const [applicantsLimit, setApplicantsLimit] = useState(3);
 
   // Discover Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -914,6 +920,10 @@ export const ProjectMatePage: React.FC = () => {
   };
 
   const handleLoadReplies = async (post: any) => {
+    if (selectedPostForReplies?.id === post.id) {
+      setSelectedPostForReplies(null);
+      return;
+    }
     try {
       setSelectedPostForReplies(post);
       const data = await getProjectDiscussionReplies(post.id);
@@ -2358,10 +2368,10 @@ export const ProjectMatePage: React.FC = () => {
           })()}
           {/* TAB 4: TEAM WORKSPACE */}
           {activeTab === 'workspace' && selectedProject && (selectedProject.is_owner || selectedProject.is_member) && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="space-y-6">
               
               {/* Workspace Main Details */}
-              <div className="lg:col-span-2 space-y-6">
+              <div className="space-y-6">
                 <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
                     <div>
@@ -2456,8 +2466,10 @@ export const ProjectMatePage: React.FC = () => {
                 </div>
 
                 {/* Subtab Content */}
-                {workspaceSubTab === 'coordination' && (
-                  <>
+                                {workspaceSubTab === 'coordination' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 space-y-6">
+
                     {/* PHASE 6.3C: Completed Project Summary Banner */}
                     {(selectedProject.status === 'completed' || selectedProject.status === 'archived') && (
                       <div className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl shadow-sm space-y-3">
@@ -2972,6 +2984,7 @@ export const ProjectMatePage: React.FC = () => {
                           <div className={`space-y-4 ${pendingApplicants.length > 3 ? 'max-h-64 overflow-y-auto pr-1' : ''}`}>
                             {[...pendingApplicants]
                               .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime())
+                              .slice(0, applicantsLimit)
                               .map(app => (
                               <div key={app.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-150 space-y-3">
                                 <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200/60 pb-2.5 gap-2">
@@ -3060,6 +3073,28 @@ export const ProjectMatePage: React.FC = () => {
                                 </div>
                               </div>
                             ))}
+                            
+                            {pendingApplicants.length > 3 && (
+                              <div className="flex justify-center gap-2 pt-2 border-t border-slate-200/50 mt-2">
+                                {pendingApplicants.length > applicantsLimit ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setApplicantsLimit(prev => prev + 3)}
+                                    className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-lg border border-indigo-200 transition-colors"
+                                  >
+                                    Show More ({pendingApplicants.length - applicantsLimit} more)
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setApplicantsLimit(3)}
+                                    className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-slate-650 text-[10px] font-bold rounded-lg border border-slate-200 transition-colors"
+                                  >
+                                    Show Less
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -3149,9 +3184,391 @@ export const ProjectMatePage: React.FC = () => {
                         </div>
                       )}
                     </div>
-                  </>
+                                      </div>
+                    <div className="space-y-6">
+
+                {/* === PHASE 6.3C: ROLE MANAGEMENT PANEL === */}
+                {selectedProject.is_owner && (
+                  <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                        Role Slots ({selectedProject.roles?.length || 0})
+                      </h4>
+                      {!isAddingRole && !editingRoleId && (
+                        <button
+                          onClick={() => { setIsAddingRole(true); setEditingRoleId(null); setNewRoleName(''); setNewRoleDescription(''); setNewRoleSkills(''); setNewRoleSlots(1); setNewRolePriority('medium'); }}
+                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 transition-colors"
+                        >
+                          + Add Role
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Roles List */}
+                    <div className="space-y-2">
+                      {(!selectedProject.roles || selectedProject.roles.length === 0) && !isAddingRole && (
+                        <p className="text-xs text-slate-400 italic text-center py-3">No roles defined yet. Add roles to structure your team.</p>
+                      )}
+                      {selectedProject.roles && selectedProject.roles.map((role: any) => {
+                        const isFilled = role.slots_filled >= role.slots_needed;
+                        const isEditing = editingRoleId === role.id;
+                        if (isEditing) {
+                          return (
+                            <form key={role.id} onSubmit={handleUpdateRoleSubmit} className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-xs">
+                              <p className="font-black text-indigo-800 text-xs uppercase tracking-wider">Edit Role</p>
+                              <input required value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="Role name (e.g. Backend Dev)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                              <input value={newRoleDescription} onChange={e => setNewRoleDescription(e.target.value)} placeholder="Short description (optional)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                              <input value={newRoleSkills} onChange={e => setNewRoleSkills(e.target.value)} placeholder="Required skills (comma-separated)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                              <div className="flex gap-2">
+                                <div className="flex-1">
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase">Slots Needed</label>
+                                  <input type="number" min={role.slots_filled || 1} max={10} value={newRoleSlots} onChange={e => setNewRoleSlots(Number(e.target.value))} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                                  {role.slots_filled > 0 && <p className="text-[9px] text-slate-400 mt-0.5">Cannot go below {role.slots_filled} (filled)</p>}
+                                </div>
+                                <div className="flex-1">
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase">Priority</label>
+                                  <select value={newRolePriority} onChange={e => setNewRolePriority(e.target.value as any)} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400">
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="flex gap-2 pt-1">
+                                <button type="submit" disabled={actionLoading} className="flex-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50">Save Changes</button>
+                                <button type="button" onClick={() => setEditingRoleId(null)} className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg text-xs transition-colors">Cancel</button>
+                              </div>
+                            </form>
+                          );
+                        }
+                        return (
+                          <div key={role.id} className={`flex items-start justify-between p-2.5 rounded-xl border text-xs gap-2 ${isFilled ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-slate-200'}`}>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1">
+                                <span className="font-black text-slate-800 truncate">{role.role_name}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
+                                  role.priority === 'high' ? 'bg-red-50 text-red-600 border border-red-100' :
+                                  role.priority === 'medium' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                  'bg-slate-100 text-slate-500 border border-slate-200'
+                                }`}>{role.priority}</span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                {role.slots_filled}/{role.slots_needed} filled {isFilled ? '✓' : '· open'}
+                              </p>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              <button
+                                onClick={() => startEditRole(role)}
+                                className="px-1.5 py-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded border border-slate-200 transition-colors"
+                                title="Edit role"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRole(role.id, role.role_name)}
+                                disabled={(role.slots_filled || 0) > 0}
+                                className="px-1.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded border border-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={(role.slots_filled || 0) > 0 ? 'Cannot delete — role has active members' : 'Delete role'}
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Add Role Form */}
+                    {isAddingRole && (
+                      <form onSubmit={handleAddRoleSubmit} className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-xs">
+                        <p className="font-black text-indigo-800 text-xs uppercase tracking-wider">Add New Role</p>
+                        <input required value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="Role name (e.g. UI Designer)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                        <input value={newRoleDescription} onChange={e => setNewRoleDescription(e.target.value)} placeholder="Short description (optional)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                        <input value={newRoleSkills} onChange={e => setNewRoleSkills(e.target.value)} placeholder="Required skills (comma-separated)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Slots Needed</label>
+                            <input type="number" min={1} max={10} value={newRoleSlots} onChange={e => setNewRoleSlots(Number(e.target.value))} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Priority</label>
+                            <select value={newRolePriority} onChange={e => setNewRolePriority(e.target.value as any)} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400">
+                              <option value="low">Low</option>
+                              <option value="medium">Medium</option>
+                              <option value="high">High</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button type="submit" disabled={actionLoading} className="flex-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50">Add Role</button>
+                          <button type="button" onClick={() => setIsAddingRole(false)} className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg text-xs transition-colors">Cancel</button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
                 )}
 
+                 {/* Active Roster List */}
+                <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+                  <h4 className="text-md font-black text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-1.5">
+                    <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                    Team Roster ({teamMembers.length}/{selectedProject.max_team_size})
+                  </h4>
+
+                                    <div className="space-y-3.5 divide-y divide-slate-100">
+                    {(() => {
+                      const activeMembersSorted = [...teamMembers].sort((a, b) => {
+                        const isOwnerA = a.user_id === selectedProject.created_by;
+                        const isOwnerB = b.user_id === selectedProject.created_by;
+                        if (isOwnerA) return -1;
+                        if (isOwnerB) return 1;
+                        const nameA = a.profile?.full_name || '';
+                        const nameB = b.profile?.full_name || '';
+                        return nameA.localeCompare(nameB);
+                      });
+
+                      return activeMembersSorted.slice(0, rosterLimit).map((member, idx) => {
+                        const isOwner = member.user_id === selectedProject.created_by;
+                        const initials = member.profile?.full_name 
+                          ? member.profile.full_name.split(' ').filter(n => n.length > 0).map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                          : 'SS';
+                        
+                        return (
+                          <div key={member.id} className={`flex items-start justify-between gap-3 text-xs ${idx > 0 ? 'pt-3.5' : ''}`}>
+                            <div className="flex gap-2.5">
+                              {/* circular initials avatar */}
+                              <div className="w-9 h-9 rounded-full bg-indigo-50/80 border border-indigo-100 text-indigo-650 font-black flex items-center justify-center text-xs shrink-0 shadow-sm">
+                                {initials}
+                              </div>
+                              <div className="space-y-0.5">
+                                <h5 className="font-extrabold text-slate-800 leading-tight">
+                                  {member.profile?.full_name}
+                                </h5>
+                                <span className="text-[10px] text-slate-400 block">
+                                  {member.profile?.department} ({member.profile?.year_of_study})
+                                </span>
+                                <span className="text-[10px] text-slate-400 block font-medium">
+                                  Joined: {new Date(member.joined_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
+
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                  {isOwner && (
+                                    <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-250 text-[8px] font-black uppercase rounded">
+                                      👑 Lead
+                                    </span>
+                                  )}
+                                  {member.role_name && member.role_name !== 'Project Lead' && (
+                                    <span className="px-1.5 py-0.2 bg-indigo-50 text-indigo-700 border border-indigo-150 text-[8px] font-bold rounded">
+                                      {member.role_name}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedUserIdForProfile(member.user_id)}
+                                    className="px-2.5 py-0.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-150 rounded text-[9px] font-bold transition-all"
+                                  >
+                                    View Profile
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-1 shrink-0">
+                              {selectedProject.is_owner && member.user_id !== user?.id && (
+                                <button
+                                  onClick={() => {
+                                    setExitingMemberId(member.user_id);
+                                    setIsKickModalOpen(true);
+                                  }}
+                                  className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-650 font-bold rounded border border-red-150 transition-colors text-[10px]"
+                                >
+                                  Kick
+                                </button>
+                              )}
+                              
+                              {!selectedProject.is_owner && member.user_id === user?.id && (
+                                <button
+                                  onClick={() => setIsLeaveModalOpen(true)}
+                                  className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-650 font-bold rounded border border-red-150 transition-colors text-[10px]"
+                                >
+                                  Leave Team
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                    
+                    {teamMembers.length > 3 && (
+                      <div className="flex justify-center gap-2 pt-2 border-t border-slate-200/50 mt-2">
+                        {teamMembers.length > rosterLimit ? (
+                          <button
+                            type="button"
+                            onClick={() => setRosterLimit(prev => prev + 3)}
+                            className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-lg border border-indigo-200 transition-colors"
+                          >
+                            Show More ({teamMembers.length - rosterLimit} more)
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setRosterLimit(3)}
+                            className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-slate-650 text-[10px] font-bold rounded-lg border border-slate-200 transition-colors"
+                          >
+                            Show Less
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Past Members Section (Owner Only) */}
+                {selectedProject.is_owner && pastTeamMembers.length > 0 && (
+                  <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm space-y-3">
+                    <button
+                      onClick={() => setIsPastRosterOpen(!isPastRosterOpen)}
+                      className="w-full flex items-center justify-between text-xs font-black text-slate-500 uppercase tracking-wider focus:outline-none"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span>⌛ Past Members / Team History</span>
+                        <span className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full text-[10px] font-bold">
+                          {pastTeamMembers.length}
+                        </span>
+                      </span>
+                      <span>{isPastRosterOpen ? '▼' : '▶'}</span>
+                    </button>
+
+                                        {isPastRosterOpen && (
+                      <div className="pt-2 space-y-2.5">
+                        {pastTeamMembers.length === 0 ? (
+                          <p className="text-[10px] text-slate-400 italic text-center py-4 bg-white rounded-xl border border-slate-150">
+                            No team history recorded.
+                          </p>
+                        ) : (
+                          <div className="divide-y divide-slate-200/60 space-y-2.5">
+                            {[...pastTeamMembers]
+                              .sort((a, b) => new Date(b.left_at || '').getTime() - new Date(a.left_at || '').getTime())
+                              .slice(0, pastMembersLimit)
+                              .map((member, idx) => {
+                          const isRemoved = !!member.removed_by;
+                          return (
+                            <div key={member.id} className={`text-xs text-slate-500 space-y-1 ${idx > 0 ? 'pt-2.5' : ''}`}>
+                              <div className="flex items-center justify-between">
+                                <span className="font-extrabold text-slate-800">{member.profile?.full_name}</span>
+                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
+                                  isRemoved ? 'bg-red-50 text-red-650 border-red-200' : 'bg-slate-100 text-slate-500 border-slate-200'
+                                }`}>
+                                  {isRemoved ? 'Removed' : 'Left'}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400">
+                                Role: {member.role_name || 'Team Member'} · Exit: {new Date(member.left_at!).toLocaleDateString()}
+                              </p>
+                              {member.leave_reason && (
+                                <p className="text-[10px] italic text-slate-500 bg-white/70 p-1.5 rounded border border-slate-150 mt-0.5 leading-relaxed">
+                                  "Reason: {member.leave_reason}"
+                                </p>
+                              )}
+                              <div className="pt-1 flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedUserIdForProfile(member.user_id)}
+                                  className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 border border-slate-300 rounded text-[9px] font-bold transition-all"
+                                >
+                                  View Profile
+                                </button>
+                              </div>
+                            </div>
+                            );
+                          })}
+                          
+                          {pastTeamMembers.length > 3 && (
+                            <div className="flex justify-center gap-2 pt-2 border-t border-slate-200/50 mt-2">
+                              {pastTeamMembers.length > pastMembersLimit ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setPastMembersLimit(prev => prev + 3)}
+                                  className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-lg border border-indigo-200 transition-colors"
+                                >
+                                  Show More ({pastTeamMembers.length - pastMembersLimit} more)
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setPastMembersLimit(3)}
+                                  className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-slate-650 text-[10px] font-bold rounded-lg border border-slate-200 transition-colors"
+                                >
+                                  Show Less
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Open positions info */}
+                {selectedProject.roles && selectedProject.roles.length > 0 && (
+                  <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
+                                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Required Slots</h4>
+                    {(!selectedProject.roles || selectedProject.roles.length === 0) ? (
+                      <p className="text-xs text-slate-450 italic text-center py-4 bg-slate-50 rounded-xl border border-slate-100">
+                        All team positions have been filled! 🎉
+                      </p>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          {selectedProject.roles.slice(0, rolesLimit).map(r => (
+                        <div key={r.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-700">{r.role_name}</span>
+                            <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase">
+                              {r.priority} priority
+                            </span>
+                          </div>
+                          <p className="text-slate-400 text-[10px] mt-0.5">{r.slots_filled} of {r.slots_needed} slots filled</p>
+                          {r.description && <p className="text-slate-500 italic text-[10px] mt-1">"{r.description}"</p>}
+                        </div>
+                          ))}
+                        </div>
+                        
+                        {selectedProject.roles.length > 3 && (
+                          <div className="flex justify-center gap-2 pt-2 border-t border-slate-250/50 mt-2">
+                            {selectedProject.roles.length > rolesLimit ? (
+                              <button
+                                type="button"
+                                onClick={() => setRolesLimit(prev => prev + 3)}
+                                className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-lg border border-indigo-200 transition-colors"
+                              >
+                                Show More ({selectedProject.roles.length - rolesLimit} more)
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setRolesLimit(3)}
+                                className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-slate-650 text-[10px] font-bold rounded-lg border border-slate-200 transition-colors"
+                              >
+                                Show Less
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+                  </div>
+                )}
                 {/* Team Discussion Subtab View */}
                 {workspaceSubTab === 'discussion' && (
                   <div className="space-y-6">
@@ -3492,14 +3909,92 @@ export const ProjectMatePage: React.FC = () => {
                                       {(post.created_by === user?.id || selectedProject.is_owner) && (
                                         <button
                                           onClick={() => handleDeletePost(post.id)}
-                                          className="p-1.5 border border-red-150 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
+                                          className="p-1.5 border border-red-150 bg-red-50 hover:bg-red-100 text-red-650 rounded-lg transition-colors"
                                           title="Delete Post"
+                                          type="button"
                                         >
                                           🗑️
                                         </button>
                                       )}
                                     </div>
                                   </div>
+
+                                  {/* Inline replies accordion drawer */}
+                                  {selectedPostForReplies?.id === post.id && (
+                                    <div className="mt-4 pt-4 border-t border-slate-100 space-y-4 animate-fade-in text-xs font-semibold">
+                                      <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                        <span>💬 Comments ({replies.length})</span>
+                                      </h5>
+
+                                      {/* Comments list */}
+                                      {replies.length === 0 ? (
+                                        <p className="text-[11px] text-slate-400 italic py-3 text-center bg-slate-50 rounded-xl border border-slate-100">
+                                          No comments published yet. Be the first to reply!
+                                        </p>
+                                      ) : (
+                                        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                                          {replies.map(reply => (
+                                            <div key={reply.id} className="p-3 bg-slate-50 border border-slate-150 rounded-xl space-y-2 font-normal text-slate-700">
+                                              <div className="flex items-center gap-1.5">
+                                                <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-black text-slate-700">
+                                                  {reply.author_profile?.full_name ? reply.author_profile.full_name[0].toUpperCase() : 'SS'}
+                                                </div>
+                                                <span className="text-xs font-bold text-slate-800">{reply.author_profile?.full_name}</span>
+                                                <span className="text-[9px] text-slate-400 ml-auto">{new Date(reply.created_at).toLocaleString()}</span>
+                                              </div>
+                                              <p className="text-[11px] text-slate-655 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200/50">{reply.body}</p>
+                                              
+                                              <div className="flex justify-between items-center pt-1 text-[9px] font-bold text-slate-500">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleToggleReplyHelpful(reply.id)}
+                                                  className={`flex items-center gap-1 px-2 py-0.5 rounded border transition-colors ${
+                                                    reply.reacted_by_me
+                                                      ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                                                      : 'bg-white border-slate-200 hover:bg-slate-100'
+                                                  }`}
+                                                >
+                                                  <span>👍</span>
+                                                  <span>Helpful ({reply.helpful_count})</span>
+                                                </button>
+
+                                                {(reply.created_by === user?.id || selectedProject?.is_owner) && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteReply(reply.id)}
+                                                    className="text-red-500 hover:text-red-700 bg-white hover:bg-red-50 px-2 py-0.5 rounded border border-slate-200"
+                                                  >
+                                                    Delete
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+
+                                      {/* Comment Form */}
+                                      <form onSubmit={handleCreateReplySubmit} className="space-y-2 pt-2 border-t border-slate-100">
+                                        <textarea
+                                          required
+                                          rows={2}
+                                          value={newReplyBody}
+                                          onChange={e => setNewReplyBody(e.target.value)}
+                                          placeholder="Type a helpful comment or reply..."
+                                          className="w-full px-3 py-2 border border-slate-250 rounded-xl text-[11px] focus:outline-none focus:border-indigo-500 font-medium"
+                                        />
+                                        <div className="flex gap-2 justify-end">
+                                          <button
+                                            type="submit"
+                                            disabled={actionLoading}
+                                            className="px-3.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg shadow-sm"
+                                          >
+                                            {actionLoading ? 'Publishing...' : 'Add Comment'}
+                                          </button>
+                                        </div>
+                                      </form>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -3932,7 +4427,7 @@ export const ProjectMatePage: React.FC = () => {
                                           )}
                                         </div>
 
-                                        <h5 className="font-extrabold text-slate-850 text-sm line-clamp-1 mt-1 pr-8">{res.title}</h5>
+                                        <h5 className="font-extrabold text-slate-850 text-sm line-clamp-1 mt-1 pr-8 break-words break-all">{res.title}</h5>
                                         
                                         <p className="text-[10px] text-slate-400 font-medium">
                                           Shared by <span className="font-bold text-slate-600">{res.uploader_profile?.full_name || 'Teammate'}</span> · {new Date(res.created_at).toLocaleDateString()}
@@ -3941,7 +4436,7 @@ export const ProjectMatePage: React.FC = () => {
                                         {res.description && <p className="text-slate-505 italic pr-2 line-clamp-2 leading-relaxed">"{res.description}"</p>}
                                         
                                         {res.file_path && (
-                                          <p className="text-[9px] text-indigo-500 font-bold bg-indigo-50/50 p-1.5 rounded-lg border border-indigo-100/50 inline-block">
+                                          <p className="text-[9px] text-indigo-500 font-bold bg-indigo-50/50 p-1.5 rounded-lg border border-indigo-100/50 inline-block break-words break-all">
                                             💾 File Resource: {res.file_name} ({(res.file_size_bytes ? (res.file_size_bytes / 1024).toFixed(1) : 0)} KB)
                                           </p>
                                         )}
@@ -3954,8 +4449,8 @@ export const ProjectMatePage: React.FC = () => {
                                       </div>
                                     </div>
 
-                                    <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
-                                      <div className="flex gap-2">
+                                    <div className="pt-3 border-t border-slate-250 flex flex-wrap items-center justify-between gap-3 mt-auto shrink-0">
+                                      <div className="flex flex-wrap gap-2 items-center">
                                         {res.file_path ? (
                                           <>
                                             {(res.resource_type === 'pdf' || res.resource_type === 'image') && (
@@ -4134,309 +4629,8 @@ export const ProjectMatePage: React.FC = () => {
                 )}
               </div>
               {/* Roster & Left Bar settings */}
-              <div className="space-y-6">
-
-                {/* === PHASE 6.3C: ROLE MANAGEMENT PANEL === */}
-                {selectedProject.is_owner && (
-                  <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
-                        <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                        Role Slots ({selectedProject.roles?.length || 0})
-                      </h4>
-                      {!isAddingRole && !editingRoleId && (
-                        <button
-                          onClick={() => { setIsAddingRole(true); setEditingRoleId(null); setNewRoleName(''); setNewRoleDescription(''); setNewRoleSkills(''); setNewRoleSlots(1); setNewRolePriority('medium'); }}
-                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 transition-colors"
-                        >
-                          + Add Role
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Roles List */}
-                    <div className="space-y-2">
-                      {(!selectedProject.roles || selectedProject.roles.length === 0) && !isAddingRole && (
-                        <p className="text-xs text-slate-400 italic text-center py-3">No roles defined yet. Add roles to structure your team.</p>
-                      )}
-                      {selectedProject.roles && selectedProject.roles.map((role: any) => {
-                        const isFilled = role.slots_filled >= role.slots_needed;
-                        const isEditing = editingRoleId === role.id;
-                        if (isEditing) {
-                          return (
-                            <form key={role.id} onSubmit={handleUpdateRoleSubmit} className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-xs">
-                              <p className="font-black text-indigo-800 text-xs uppercase tracking-wider">Edit Role</p>
-                              <input required value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="Role name (e.g. Backend Dev)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                              <input value={newRoleDescription} onChange={e => setNewRoleDescription(e.target.value)} placeholder="Short description (optional)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                              <input value={newRoleSkills} onChange={e => setNewRoleSkills(e.target.value)} placeholder="Required skills (comma-separated)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                              <div className="flex gap-2">
-                                <div className="flex-1">
-                                  <label className="text-[10px] font-bold text-slate-500 uppercase">Slots Needed</label>
-                                  <input type="number" min={role.slots_filled || 1} max={10} value={newRoleSlots} onChange={e => setNewRoleSlots(Number(e.target.value))} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                                  {role.slots_filled > 0 && <p className="text-[9px] text-slate-400 mt-0.5">Cannot go below {role.slots_filled} (filled)</p>}
-                                </div>
-                                <div className="flex-1">
-                                  <label className="text-[10px] font-bold text-slate-500 uppercase">Priority</label>
-                                  <select value={newRolePriority} onChange={e => setNewRolePriority(e.target.value as any)} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400">
-                                    <option value="low">Low</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="high">High</option>
-                                  </select>
-                                </div>
-                              </div>
-                              <div className="flex gap-2 pt-1">
-                                <button type="submit" disabled={actionLoading} className="flex-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50">Save Changes</button>
-                                <button type="button" onClick={() => setEditingRoleId(null)} className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg text-xs transition-colors">Cancel</button>
-                              </div>
-                            </form>
-                          );
-                        }
-                        return (
-                          <div key={role.id} className={`flex items-start justify-between p-2.5 rounded-xl border text-xs gap-2 ${isFilled ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-slate-200'}`}>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-1">
-                                <span className="font-black text-slate-800 truncate">{role.role_name}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
-                                  role.priority === 'high' ? 'bg-red-50 text-red-600 border border-red-100' :
-                                  role.priority === 'medium' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                                  'bg-slate-100 text-slate-500 border border-slate-200'
-                                }`}>{role.priority}</span>
-                              </div>
-                              <p className="text-[10px] text-slate-500 mt-0.5">
-                                {role.slots_filled}/{role.slots_needed} filled {isFilled ? '✓' : '· open'}
-                              </p>
-                            </div>
-                            <div className="flex gap-1 shrink-0">
-                              <button
-                                onClick={() => startEditRole(role)}
-                                className="px-1.5 py-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded border border-slate-200 transition-colors"
-                                title="Edit role"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                              </button>
-                              <button
-                                onClick={() => handleDeleteRole(role.id, role.role_name)}
-                                disabled={(role.slots_filled || 0) > 0}
-                                className="px-1.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded border border-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                title={(role.slots_filled || 0) > 0 ? 'Cannot delete — role has active members' : 'Delete role'}
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
-                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Add Role Form */}
-                    {isAddingRole && (
-                      <form onSubmit={handleAddRoleSubmit} className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-xs">
-                        <p className="font-black text-indigo-800 text-xs uppercase tracking-wider">Add New Role</p>
-                        <input required value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="Role name (e.g. UI Designer)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                        <input value={newRoleDescription} onChange={e => setNewRoleDescription(e.target.value)} placeholder="Short description (optional)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                        <input value={newRoleSkills} onChange={e => setNewRoleSkills(e.target.value)} placeholder="Required skills (comma-separated)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                        <div className="flex gap-2">
-                          <div className="flex-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Slots Needed</label>
-                            <input type="number" min={1} max={10} value={newRoleSlots} onChange={e => setNewRoleSlots(Number(e.target.value))} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                          </div>
-                          <div className="flex-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Priority</label>
-                            <select value={newRolePriority} onChange={e => setNewRolePriority(e.target.value as any)} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400">
-                              <option value="low">Low</option>
-                              <option value="medium">Medium</option>
-                              <option value="high">High</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div className="flex gap-2 pt-1">
-                          <button type="submit" disabled={actionLoading} className="flex-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50">Add Role</button>
-                          <button type="button" onClick={() => setIsAddingRole(false)} className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg text-xs transition-colors">Cancel</button>
-                        </div>
-                      </form>
-                    )}
-                  </div>
-                )}
-
-                 {/* Active Roster List */}
-                <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
-                  <h4 className="text-md font-black text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-1.5">
-                    <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                    Team Roster ({teamMembers.length}/{selectedProject.max_team_size})
-                  </h4>
-
-                                    <div className={`space-y-3.5 divide-y divide-slate-100 ${teamMembers.length > 3 ? 'max-h-64 overflow-y-auto pr-1' : ''}`}>
-                    {(() => {
-                      const activeMembersSorted = [...teamMembers].sort((a, b) => {
-                        const isOwnerA = a.user_id === selectedProject.created_by;
-                        const isOwnerB = b.user_id === selectedProject.created_by;
-                        if (isOwnerA) return -1;
-                        if (isOwnerB) return 1;
-                        const nameA = a.profile?.full_name || '';
-                        const nameB = b.profile?.full_name || '';
-                        return nameA.localeCompare(nameB);
-                      });
-
-                      return activeMembersSorted.map((member, idx) => {
-                        const isOwner = member.user_id === selectedProject.created_by;
-                        const initials = member.profile?.full_name 
-                          ? member.profile.full_name.split(' ').filter(n => n.length > 0).map(n => n[0]).slice(0, 2).join('').toUpperCase()
-                          : 'SS';
-                        
-                        return (
-                          <div key={member.id} className={`flex items-start justify-between gap-3 text-xs ${idx > 0 ? 'pt-3.5' : ''}`}>
-                            <div className="flex gap-2.5">
-                              {/* circular initials avatar */}
-                              <div className="w-9 h-9 rounded-full bg-indigo-50/80 border border-indigo-100 text-indigo-650 font-black flex items-center justify-center text-xs shrink-0 shadow-sm">
-                                {initials}
-                              </div>
-                              <div className="space-y-0.5">
-                                <h5 className="font-extrabold text-slate-800 leading-tight">
-                                  {member.profile?.full_name}
-                                </h5>
-                                <span className="text-[10px] text-slate-400 block">
-                                  {member.profile?.department} ({member.profile?.year_of_study})
-                                </span>
-                                <span className="text-[10px] text-slate-400 block font-medium">
-                                  Joined: {new Date(member.joined_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                                </span>
-
-                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                  {isOwner && (
-                                    <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-250 text-[8px] font-black uppercase rounded">
-                                      👑 Lead
-                                    </span>
-                                  )}
-                                  {member.role_name && member.role_name !== 'Project Lead' && (
-                                    <span className="px-1.5 py-0.2 bg-indigo-50 text-indigo-700 border border-indigo-150 text-[8px] font-bold rounded">
-                                      {member.role_name}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="pt-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedUserIdForProfile(member.user_id)}
-                                    className="px-2.5 py-0.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-150 rounded text-[9px] font-bold transition-all"
-                                  >
-                                    View Profile
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex gap-1 shrink-0">
-                              {selectedProject.is_owner && member.user_id !== user?.id && (
-                                <button
-                                  onClick={() => {
-                                    setExitingMemberId(member.user_id);
-                                    setIsKickModalOpen(true);
-                                  }}
-                                  className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-650 font-bold rounded border border-red-150 transition-colors text-[10px]"
-                                >
-                                  Kick
-                                </button>
-                              )}
-                              
-                              {!selectedProject.is_owner && member.user_id === user?.id && (
-                                <button
-                                  onClick={() => setIsLeaveModalOpen(true)}
-                                  className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-650 font-bold rounded border border-red-150 transition-colors text-[10px]"
-                                >
-                                  Leave Team
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-
-                {/* Past Members Section (Owner Only) */}
-                {selectedProject.is_owner && pastTeamMembers.length > 0 && (
-                  <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm space-y-3">
-                    <button
-                      onClick={() => setIsPastRosterOpen(!isPastRosterOpen)}
-                      className="w-full flex items-center justify-between text-xs font-black text-slate-500 uppercase tracking-wider focus:outline-none"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <span>⌛ Past Members / Team History</span>
-                        <span className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full text-[10px] font-bold">
-                          {pastTeamMembers.length}
-                        </span>
-                      </span>
-                      <span>{isPastRosterOpen ? '▼' : '▶'}</span>
-                    </button>
-
-                                        {isPastRosterOpen && (
-                      <div className={`divide-y divide-slate-200/60 pt-2 space-y-2.5 ${pastTeamMembers.length > 3 ? 'max-h-64 overflow-y-auto pr-1' : ''}`}>
-                        {[...pastTeamMembers]
-                          .sort((a, b) => new Date(b.left_at || '').getTime() - new Date(a.left_at || '').getTime())
-                          .map((member, idx) => {
-                          const isRemoved = !!member.removed_by;
-                          return (
-                            <div key={member.id} className={`text-xs text-slate-500 space-y-1 ${idx > 0 ? 'pt-2.5' : ''}`}>
-                              <div className="flex items-center justify-between">
-                                <span className="font-extrabold text-slate-800">{member.profile?.full_name}</span>
-                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
-                                  isRemoved ? 'bg-red-50 text-red-650 border-red-200' : 'bg-slate-100 text-slate-500 border-slate-200'
-                                }`}>
-                                  {isRemoved ? 'Removed' : 'Left'}
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-slate-400">
-                                Role: {member.role_name || 'Team Member'} · Exit: {new Date(member.left_at!).toLocaleDateString()}
-                              </p>
-                              {member.leave_reason && (
-                                <p className="text-[10px] italic text-slate-500 bg-white/70 p-1.5 rounded border border-slate-150 mt-0.5 leading-relaxed">
-                                  "Reason: {member.leave_reason}"
-                                </p>
-                              )}
-                              <div className="pt-1 flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedUserIdForProfile(member.user_id)}
-                                  className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 border border-slate-300 rounded text-[9px] font-bold transition-all"
-                                >
-                                  View Profile
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Open positions info */}
-                {selectedProject.roles && selectedProject.roles.length > 0 && (
-                  <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
-                                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Required Slots</h4>
-                    <div className={`space-y-2 ${selectedProject.roles && selectedProject.roles.length > 3 ? 'max-h-60 overflow-y-auto pr-1' : ''}`}>
-                      {selectedProject.roles.map(r => (
-                        <div key={r.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-700">{r.role_name}</span>
-                            <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase">
-                              {r.priority} priority
-                            </span>
-                          </div>
-                          <p className="text-slate-400 text-[10px] mt-0.5">{r.slots_filled} of {r.slots_needed} slots filled</p>
-                          {r.description && <p className="text-slate-500 italic text-[10px] mt-1">"{r.description}"</p>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-        )}
-
-          {activeTab === 'workspace' && selectedProject && !(selectedProject.is_owner || selectedProject.is_member) && (
+        )}          {activeTab === 'workspace' && selectedProject && !(selectedProject.is_owner || selectedProject.is_member) && (
             <div className="p-8 bg-white border border-slate-200 rounded-3xl shadow-sm max-w-xl mx-auto text-center space-y-4 my-8">
               <div className="w-16 h-16 bg-red-50 text-red-650 rounded-2xl flex items-center justify-center text-2xl mx-auto border border-red-100">
                 🔒
