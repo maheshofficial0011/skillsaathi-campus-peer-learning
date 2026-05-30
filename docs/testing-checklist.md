@@ -1326,3 +1326,15 @@ select * from public.project_team_members limit 5;
 - [ ] Under the **Shared Resources** subtab, verify that verified resource cards with long filenames or URLs wrap cleanly without card blow-outs (using `break-all` and `break-words`).
 - [ ] Verify that verified library card footer action buttons (Preview, Download, Helpful, Pin, Delete) use a flex-wrap container so they stack elegantly on smaller viewports.
 
+ 
+ 
+## Phase 6.3E: Project Mate Sidebar Scroll Cards, Header Polish, and Teammates Section Upgrade
+- [ ] Verify the workspace header grid shows Difficulty, Work Mode, Type, Capacity, and Open Roles perfectly aligned.
+- [ ] Open a project with more than 3 members. Verify the Teammates Console applies thin-scrollbar and search/filter inputs appear.
+- [ ] Test teammate search by typing a name; verify the list filters correctly.
+- [ ] Test teammate role filter; verify the list filters by role.
+- [ ] Open Role Slots (Owner view). Verify max-height scroll is applied for > 3 roles and progress bars appear for slots.
+- [ ] Open Required Slots. Verify open roles are sorted first, skill chips are rendered, and max-height scroll is applied for > 3 roles.
+- [ ] Expand Past Members. Verify it has a scroll body for > 3 members, sorted by recent exit date.
+- [ ] Open Applications Queue (Owner view). Verify applicants are sorted by newest-first and scroll body applies for > 3 applications.
+
