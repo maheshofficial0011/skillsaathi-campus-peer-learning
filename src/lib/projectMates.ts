@@ -406,6 +406,9 @@ export async function createProjectPost(input: {
     slots_needed: number;
     priority: 'low' | 'medium' | 'high';
   }[];
+  owner_role_type?: 'project_lead_only' | 'role_index' | 'other';
+  owner_role_index?: number;
+  owner_custom_role?: string;
 }): Promise<ProjectPost> {
   if (input.title.length < 5) throw new Error('Title must be at least 5 characters long.');
   if (input.description.length < 20) throw new Error('Description must be at least 20 characters long.');
@@ -458,19 +461,8 @@ export async function createProjectPost(input: {
 
   if (projectError) throw projectError;
 
-  // Owner bootstrap membership
-  const { error: memberError } = await supabase
-    .from('project_team_members')
-    .insert({
-      project_id: project.id,
-      user_id: input.created_by,
-      role_name: 'Project Owner',
-      added_by: input.created_by
-    });
-
-  if (memberError) throw memberError;
-
-  // Insert roles if provided
+  // Insert roles if provided, and get generated IDs
+  let insertedRoles: any[] = [];
   if (input.roles && input.roles.length > 0) {
     const rolesPayload = input.roles.map(r => ({
       project_id: project.id,
@@ -482,12 +474,44 @@ export async function createProjectPost(input: {
       priority: r.priority
     }));
 
-    const { error: rolesError } = await supabase
+    const { data: rolesData, error: rolesError } = await supabase
       .from('project_roles')
-      .insert(rolesPayload);
+      .insert(rolesPayload)
+      .select();
 
     if (rolesError) throw rolesError;
+    insertedRoles = rolesData || [];
   }
+
+  // Determine owner's dynamic reserved role
+  let ownerRoleName = 'Project Lead';
+  let ownerRoleId: string | null = null;
+
+  if (input.owner_role_type === 'other') {
+    ownerRoleName = input.owner_custom_role || 'Project Lead';
+  } else if (input.owner_role_type === 'role_index' && typeof input.owner_role_index === 'number') {
+    const matchingRole = insertedRoles[input.owner_role_index];
+    if (matchingRole) {
+      ownerRoleName = matchingRole.role_name;
+      ownerRoleId = matchingRole.id;
+    }
+  }
+
+  // Owner bootstrap membership
+  const { error: memberError } = await supabase
+    .from('project_team_members')
+    .insert({
+      project_id: project.id,
+      user_id: input.created_by,
+      role_id: ownerRoleId,
+      role_name: ownerRoleName,
+      added_by: input.created_by
+    });
+
+  if (memberError) throw memberError;
+
+  // Sync metrics (owner is now registered in the dynamic slot, sync will calculate correct staffing counts!)
+  await syncProjectTeamMetrics(project.id);
 
   return project;
 }
@@ -1258,26 +1282,60 @@ export async function toggleProjectDiscussionHelpful(input: {
 }
 
 /**
- * Increment the helpful count for a resource. Simple toggle without per-user tracking.
+ * Toggle helpful reaction for a resource. Strict one-helpful-reaction-per-user model.
  */
-export async function incrementProjectResourceHelpful(resourceId: string): Promise<void> {
+export async function toggleProjectResourceHelpful(
+  resourceId: string
+): Promise<{ reacted_by_me: boolean; helpful_count: number }> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated.');
 
-  // Fetch current count
-  const { data: resource, error: fetchErr } = await supabase
+  // Check if reaction already exists for this user
+  const { data: existing, error: findErr } = await supabase
+    .from('project_resource_reactions')
+    .select('id')
+    .eq('resource_id', resourceId)
+    .eq('user_id', user.id)
+    .eq('reaction_type', 'helpful')
+    .maybeSingle();
+
+  if (findErr) throw findErr;
+
+  let reactedByMe = false;
+  if (existing) {
+    // Delete reaction (trigger will decrement helpful_count)
+    const { error: delErr } = await supabase
+      .from('project_resource_reactions')
+      .delete()
+      .eq('id', existing.id);
+    if (delErr) throw delErr;
+    reactedByMe = false;
+  } else {
+    // Insert reaction (trigger will increment helpful_count)
+    const { error: insErr } = await supabase
+      .from('project_resource_reactions')
+      .insert({
+        resource_id: resourceId,
+        user_id: user.id,
+        reaction_type: 'helpful'
+      });
+    if (insErr) throw insErr;
+    reactedByMe = true;
+  }
+
+  // Fetch updated count from database cache
+  const { data: res, error: resErr } = await supabase
     .from('project_resources')
     .select('helpful_count')
     .eq('id', resourceId)
     .single();
-  if (fetchErr) throw fetchErr;
 
-  const newCount = (resource?.helpful_count ?? 0) + 1;
-  const { error: updateErr } = await supabase
-    .from('project_resources')
-    .update({ helpful_count: newCount })
-    .eq('id', resourceId);
-  if (updateErr) throw updateErr;
+  if (resErr) throw resErr;
+
+  return {
+    reacted_by_me: reactedByMe,
+    helpful_count: res?.helpful_count ?? 0
+  };
 }
 /**
  * Add verified resource link.
@@ -1353,7 +1411,23 @@ export async function getProjectResources(projectId: string): Promise<any[]> {
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  if (!data) return [];
+
+  // Map reacted_by_me boolean flag based on database reaction rows for the logged in user
+  const { data: authData } = await supabase.auth.getUser();
+  let reactedResourceIds: string[] = [];
+  if (authData?.user?.id) {
+    const { data: reactions } = await supabase
+      .from('project_resource_reactions')
+      .select('resource_id')
+      .eq('user_id', authData.user.id);
+    reactedResourceIds = (reactions || []).map(r => r.resource_id);
+  }
+
+  return data.map((res: any) => ({
+    ...res,
+    reacted_by_me: reactedResourceIds.includes(res.id)
+  }));
 }
 
 /**
@@ -1451,16 +1525,35 @@ export async function pinProjectResource(resourceId: string): Promise<void> {
  * Delete a resource. Uploader or project owner only (RLS enforced).
  */
 export async function deleteProjectResource(resourceId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
   try {
-    // 1. Fetch metadata row to see if there is an associated file
+    // 1. Fetch metadata row to inspect uploader, project ID, and status
     const { data: resource, error: fetchErr } = await supabase
       .from('project_resources')
-      .select('file_path, storage_bucket')
+      .select('project_id, uploaded_by, verification_status, file_path, storage_bucket')
       .eq('id', resourceId)
-      .maybeSingle();
+      .single();
 
-    if (fetchErr) {
-      console.warn('[deleteProjectResource] metadata fetch failed:', fetchErr);
+    if (fetchErr || !resource) throw new Error('Resource not found.');
+
+    // Fetch project owner ID to verify permissions
+    const { data: project } = await supabase
+      .from('project_posts')
+      .select('created_by')
+      .eq('id', resource.project_id)
+      .single();
+
+    const isOwner = project?.created_by === user.id;
+    const isUploader = resource.uploaded_by === user.id;
+
+    if (!isOwner && !isUploader) {
+      throw new Error('Only the uploader of the resource or the project owner can delete this material.');
+    }
+
+    if (!isOwner && isUploader && resource.verification_status === 'verified') {
+      throw new Error('You cannot remove a verified resource once approved. Please contact the project lead.');
     }
 
     // 2. Delete row from database
@@ -1472,15 +1565,13 @@ export async function deleteProjectResource(resourceId: string): Promise<void> {
     if (dbErr) throw dbErr;
 
     // 3. If file exists in storage, delete it
-    if (resource?.file_path && resource?.storage_bucket) {
+    if (resource.file_path && resource.storage_bucket) {
       const { error: storageErr } = await supabase.storage
         .from(resource.storage_bucket)
         .remove([resource.file_path]);
 
       if (storageErr) {
         console.error('[deleteProjectResource] storage file remove failed:', storageErr);
-      } else {
-        console.log('[deleteProjectResource] storage file deleted successfully:', resource.file_path);
       }
     }
   } catch (err) {

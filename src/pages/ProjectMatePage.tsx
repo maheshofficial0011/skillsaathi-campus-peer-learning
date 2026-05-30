@@ -46,7 +46,7 @@ import {
   syncProjectTeamMetrics,
   uploadProjectResourceFile,
   getSignedProjectResourceUrl,
-  incrementProjectResourceHelpful
+  toggleProjectResourceHelpful
 } from '../lib/projectMates';
 
 const CATEGORIES = [
@@ -152,6 +152,19 @@ export const ProjectMatePage: React.FC = () => {
   const [editExpectedTimeline, setEditExpectedTimeline] = useState<string>('');
   const [editMeetingPreference, setEditMeetingPreference] = useState<string>('');
   const [editMaxTeamSize, setEditMaxTeamSize] = useState<number>(4);
+  const [editTitle, setEditTitle] = useState<string>('');
+  const [editSummary, setEditSummary] = useState<string>('');
+  const [editDescription, setEditDescription] = useState<string>('');
+  const [editCategory, setEditCategory] = useState<string>('');
+  const [editProjectType, setEditProjectType] = useState<string>('');
+  const [editDifficultyLevel, setEditDifficultyLevel] = useState<ProjectDifficulty>('Beginner');
+  const [editWorkMode, setEditWorkMode] = useState<ProjectWorkMode>('Hybrid');
+  const [editRequiredSkills, setEditRequiredSkills] = useState<string>('');
+  const [editPreferredDepartments, setEditPreferredDepartments] = useState<string[]>([]);
+  const [editPreferredYears, setEditPreferredYears] = useState<string[]>([]);
+  const [editDeadline, setEditDeadline] = useState<string>('');
+  const [editIsBeginnerFriendly, setEditIsBeginnerFriendly] = useState<boolean>(false);
+  const [editIsHackathon, setEditIsHackathon] = useState<boolean>(false);
 
   // Discussion & Resource Paging States
   const [discussionLimit, setDiscussionLimit] = useState(5);
@@ -203,6 +216,11 @@ export const ProjectMatePage: React.FC = () => {
   }[]>([
     { role_name: '', description: '', required_skills: '', slots_needed: 1, priority: 'medium' }
   ]);
+
+  // Owner dynamic role reservation states
+  const [ownerRoleType, setOwnerRoleType] = useState<'project_lead_only' | 'role_index' | 'other'>('project_lead_only');
+  const [ownerRoleIndex, setOwnerRoleIndex] = useState<number>(-1);
+  const [ownerCustomRole, setOwnerCustomRole] = useState<string>('');
 
   // Apply Form State
   const [applyMessage, setApplyMessage] = useState('');
@@ -446,6 +464,12 @@ export const ProjectMatePage: React.FC = () => {
 
     setActionLoading(true);
     try {
+      if (ownerRoleType === 'role_index' && (ownerRoleIndex === -1 || !rolesBuilder[ownerRoleIndex]?.role_name.trim())) {
+        toast.error('Please select which role slot to reserve.');
+        setActionLoading(false);
+        return;
+      }
+
       // Validate Roles Builder payload
       const validRoles = rolesBuilder
         .filter(r => r.role_name.trim() !== '')
@@ -479,7 +503,10 @@ export const ProjectMatePage: React.FC = () => {
         github_repo_url: newGithubUrl || undefined,
         shared_doc_url: newSharedDocUrl || undefined,
         private_notes: newPrivateNotes || undefined,
-        roles: validRoles
+        roles: validRoles,
+        owner_role_type: ownerRoleType,
+        owner_role_index: ownerRoleType === 'role_index' ? ownerRoleIndex : undefined,
+        owner_custom_role: ownerRoleType === 'other' ? ownerCustomRole : undefined
       });
 
       toast.success('Project post created successfully! 🚀');
@@ -507,6 +534,9 @@ export const ProjectMatePage: React.FC = () => {
       setNewSharedDocUrl('');
       setNewPrivateNotes('');
       setRolesBuilder([{ role_name: '', description: '', required_skills: '', slots_needed: 1, priority: 'medium' }]);
+      setOwnerRoleType('project_lead_only');
+      setOwnerRoleIndex(-1);
+      setOwnerCustomRole('');
 
       fetchData();
     } catch (err: any) {
@@ -650,6 +680,15 @@ export const ProjectMatePage: React.FC = () => {
     e.preventDefault();
     if (!selectedProjectId || !selectedProject) return;
 
+    if (editTitle.trim().length < 5) {
+      toast.error('Title must be at least 5 characters long.');
+      return;
+    }
+    if (editDescription.trim().length < 20) {
+      toast.error('Description must be at least 20 characters long.');
+      return;
+    }
+
     // Helper validation for secure HTTPS links
     const validateHttps = (url?: string) => {
       if (!url || url.trim() === '') return true;
@@ -670,23 +709,23 @@ export const ProjectMatePage: React.FC = () => {
     setActionLoading(true);
     try {
       await updateProjectPost(selectedProjectId, {
-        title: selectedProject.title,
-        summary: selectedProject.summary || undefined,
-        description: selectedProject.description,
-        category: selectedProject.category,
-        project_type: selectedProject.project_type,
-        difficulty_level: selectedProject.difficulty_level,
-        work_mode: selectedProject.work_mode,
-        required_skills: selectedProject.required_skills,
-        preferred_departments: selectedProject.preferred_departments,
-        preferred_years: selectedProject.preferred_years,
+        title: editTitle,
+        summary: editSummary || undefined,
+        description: editDescription,
+        category: editCategory,
+        project_type: editProjectType,
+        difficulty_level: editDifficultyLevel,
+        work_mode: editWorkMode,
+        required_skills: editRequiredSkills ? editRequiredSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
+        preferred_departments: editPreferredDepartments,
+        preferred_years: editPreferredYears,
         expected_timeline: editExpectedTimeline || undefined,
         meeting_preference: editMeetingPreference || undefined,
         max_team_size: editMaxTeamSize,
         status: editStatus as any,
-        is_beginner_friendly: selectedProject.is_beginner_friendly,
-        is_hackathon: selectedProject.is_hackathon,
-        deadline: selectedProject.deadline || undefined,
+        is_beginner_friendly: editIsBeginnerFriendly,
+        is_hackathon: editIsHackathon,
+        deadline: editDeadline || null,
         coordination_link: editCoordLink || undefined,
         github_repo_url: editGithubUrl || undefined,
         shared_doc_url: editSharedDocUrl || undefined,
@@ -716,6 +755,20 @@ export const ProjectMatePage: React.FC = () => {
     setEditExpectedTimeline(selectedProject.expected_timeline || '');
     setEditMeetingPreference(selectedProject.meeting_preference || '');
     setEditMaxTeamSize(selectedProject.max_team_size);
+
+    setEditTitle(selectedProject.title || '');
+    setEditSummary(selectedProject.summary || '');
+    setEditDescription(selectedProject.description || '');
+    setEditCategory(selectedProject.category || '');
+    setEditProjectType(selectedProject.project_type || '');
+    setEditDifficultyLevel(selectedProject.difficulty_level || 'Beginner');
+    setEditWorkMode(selectedProject.work_mode || 'Hybrid');
+    setEditRequiredSkills(selectedProject.required_skills ? selectedProject.required_skills.join(', ') : '');
+    setEditPreferredDepartments(selectedProject.preferred_departments || []);
+    setEditPreferredYears(selectedProject.preferred_years || []);
+    setEditDeadline(selectedProject.deadline || '');
+    setEditIsBeginnerFriendly(selectedProject.is_beginner_friendly || false);
+    setEditIsHackathon(selectedProject.is_hackathon || false);
     
     setIsEditingLinks(true);
   };
@@ -1131,12 +1184,16 @@ export const ProjectMatePage: React.FC = () => {
   const handleToggleResourceHelpful = async (resourceId: string) => {
     if (!selectedProjectId) return;
     try {
-      await incrementProjectResourceHelpful(resourceId);
-      toast.success('Thank you for upvoting this resource! 👍');
+      const res = await toggleProjectResourceHelpful(resourceId);
+      if (res.reacted_by_me) {
+        toast.success('Thank you for upvoting this resource! 👍');
+      } else {
+        toast.info('Removed helpful reaction.');
+      }
       const resList = await getProjectResources(selectedProjectId);
       setResources(resList);
     } catch (err: any) {
-      toast.error(err.message || 'Error liking resource.');
+      toast.error(err.message || 'Error updating reaction.');
     }
   };
 
@@ -2038,121 +2095,333 @@ export const ProjectMatePage: React.FC = () => {
                       </p>
 
                       {isEditingLinks ? (
-                        <form onSubmit={handleSaveCoordinates} className="space-y-4 pt-2 text-xs">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                            <div>
-                              <label className="block font-bold text-slate-300 mb-1">Coordination Link (Meet, Zoom, WhatsApp, Discord)</label>
-                              <input
-                                type="text"
-                                value={editCoordLink}
-                                onChange={e => setEditCoordLink(e.target.value)}
-                                placeholder="https://..."
-                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
-                              />
-                              <span className="text-[10px] text-slate-400 mt-0.5 block">Must be an https:// URL.</span>
-                            </div>
-                            
-                            <div>
-                              <label className="block font-bold text-slate-300 mb-1">GitHub Repository Link</label>
-                              <input
-                                type="text"
-                                value={editGithubUrl}
-                                onChange={e => setEditGithubUrl(e.target.value)}
-                                placeholder="https://github.com/..."
-                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
-                              />
-                              <span className="text-[10px] text-slate-400 mt-0.5 block">Must be an https:// URL.</span>
-                            </div>
+                        <form onSubmit={handleSaveCoordinates} className="space-y-6 pt-2 text-xs">
+                          {/* Segment 1: Basic Project Details */}
+                          <div className="p-4 bg-slate-850 rounded-2xl border border-slate-800 space-y-4">
+                            <h5 className="text-[11px] font-black text-indigo-400 uppercase tracking-widest border-b border-slate-800 pb-1">
+                              1. Basic Project Details
+                            </h5>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="md:col-span-2">
+                                <label className="block font-bold text-slate-300 mb-1">Project Title *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={editTitle}
+                                  onChange={e => setEditTitle(e.target.value)}
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                                <span className="text-[10px] text-slate-400 mt-0.5 block">Minimum 5 characters.</span>
+                              </div>
 
-                            <div>
-                              <label className="block font-bold text-slate-300 mb-1">Shared Workspace Document</label>
-                              <input
-                                type="text"
-                                value={editSharedDocUrl}
-                                onChange={e => setEditSharedDocUrl(e.target.value)}
-                                placeholder="https://docs.google.com/..."
-                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
-                              />
-                              <span className="text-[10px] text-slate-400 mt-0.5 block">Must be an https:// URL.</span>
-                            </div>
+                              <div className="md:col-span-2">
+                                <label className="block font-bold text-slate-300 mb-1">One-Line Summary / Slogan</label>
+                                <input
+                                  type="text"
+                                  value={editSummary}
+                                  onChange={e => setEditSummary(e.target.value)}
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                              </div>
 
-                            <div>
-                              <label className="block font-bold text-slate-300 mb-1">Project Status</label>
-                              <select
-                                value={editStatus}
-                                onChange={e => setEditStatus(e.target.value)}
-                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
-                              >
-                                <option value="recruiting">Recruiting</option>
-                                <option value="in_progress">In Progress</option>
-                                <option value="team_full">Team Full</option>
-                                <option value="completed">Completed</option>
-                                <option value="paused">Paused</option>
-                                <option value="archived">Archived</option>
-                              </select>
-                            </div>
+                              <div className="md:col-span-2">
+                                <label className="block font-bold text-slate-300 mb-1">Detailed Description *</label>
+                                <textarea
+                                  required
+                                  rows={4}
+                                  value={editDescription}
+                                  onChange={e => setEditDescription(e.target.value)}
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                                <span className="text-[10px] text-slate-400 mt-0.5 block">Minimum 20 characters.</span>
+                              </div>
 
-                            <div>
-                              <label className="block font-bold text-slate-300 mb-1">Expected Timeline</label>
-                              <input
-                                type="text"
-                                value={editExpectedTimeline}
-                                onChange={e => setEditExpectedTimeline(e.target.value)}
-                                placeholder="e.g. 4-6 weeks, Hackathon weekend"
-                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
-                              />
-                            </div>
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">Category *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={editCategory}
+                                  onChange={e => setEditCategory(e.target.value)}
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                              </div>
 
-                            <div>
-                              <label className="block font-bold text-slate-300 mb-1">Meeting Preference</label>
-                              <input
-                                type="text"
-                                value={editMeetingPreference}
-                                onChange={e => setEditMeetingPreference(e.target.value)}
-                                placeholder="e.g. Tuesdays at 7 PM, hybrid checkins"
-                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
-                              />
-                            </div>
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">Project Type *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={editProjectType}
+                                  onChange={e => setEditProjectType(e.target.value)}
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                              </div>
 
-                            <div>
-                              <label className="block font-bold text-slate-300 mb-1">Maximum Team Size (Capacity limit)</label>
-                              <input
-                                type="number"
-                                min={Math.max(2, teamMembers.length)}
-                                max={20}
-                                value={editMaxTeamSize}
-                                onChange={e => setEditMaxTeamSize(Number(e.target.value))}
-                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
-                              />
-                              <span className="text-[10px] text-slate-400 mt-0.5 block">Cannot be lower than active roster count ({teamMembers.length}).</span>
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">Difficulty level *</label>
+                                <select
+                                  value={editDifficultyLevel}
+                                  onChange={e => setEditDifficultyLevel(e.target.value as ProjectDifficulty)}
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none"
+                                >
+                                  {DIFFICULTIES.map(d => (
+                                    <option key={d} value={d}>{d}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">Work Mode *</label>
+                                <select
+                                  value={editWorkMode}
+                                  onChange={e => setEditWorkMode(e.target.value as ProjectWorkMode)}
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none"
+                                >
+                                  {WORK_MODES.map(w => (
+                                    <option key={w} value={w}>{w}</option>
+                                  ))}
+                                </select>
+                              </div>
                             </div>
                           </div>
 
-                          <div>
-                            <label className="block font-bold text-slate-300 mb-1">Private Tasks &amp; Notes</label>
-                            <textarea
-                              rows={3}
-                              value={editPrivateNotes}
-                              onChange={e => setEditPrivateNotes(e.target.value)}
-                              placeholder="Add task lists, milestones, API credentials safely..."
-                              className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
-                            />
+                          {/* Segment 2: Skills & Preferences */}
+                          <div className="p-4 bg-slate-850 rounded-2xl border border-slate-800 space-y-4">
+                            <h5 className="text-[11px] font-black text-indigo-400 uppercase tracking-widest border-b border-slate-800 pb-1">
+                              2. Skills &amp; Preferences
+                            </h5>
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">Required Skills (Comma separated)</label>
+                                <input
+                                  type="text"
+                                  value={editRequiredSkills}
+                                  onChange={e => setEditRequiredSkills(e.target.value)}
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <span className="block font-bold text-slate-300 mb-2">Preferred Departments</span>
+                                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-slate-800 rounded-xl p-3 bg-slate-900">
+                                    {DEPARTMENTS.filter(d => d !== 'Other').map(dept => (
+                                      <label key={dept} className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={editPreferredDepartments.includes(dept)}
+                                          onChange={() => togglePreferenceArr(dept, editPreferredDepartments, setEditPreferredDepartments)}
+                                          className="rounded text-indigo-650 bg-slate-950 border-slate-800"
+                                        />
+                                        <span>{dept}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <span className="block font-bold text-slate-300 mb-2">Preferred Academic Year</span>
+                                  <div className="grid grid-cols-1 gap-2 border border-slate-800 rounded-xl p-3 bg-slate-900">
+                                    {ACADEMIC_YEARS.map(year => (
+                                      <label key={year} className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={editPreferredYears.includes(year)}
+                                          onChange={() => togglePreferenceArr(year, editPreferredYears, setEditPreferredYears)}
+                                          className="rounded text-indigo-650 bg-slate-950 border-slate-800"
+                                        />
+                                        <span>{year}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-4 pt-1 font-semibold text-slate-300">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={editIsBeginnerFriendly}
+                                    onChange={e => setEditIsBeginnerFriendly(e.target.checked)}
+                                    className="rounded text-indigo-600"
+                                  />
+                                  <span>Beginner Friendly Project</span>
+                                </label>
+
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={editIsHackathon}
+                                    onChange={e => setEditIsHackathon(e.target.checked)}
+                                    className="rounded text-indigo-600"
+                                  />
+                                  <span>Hackathon Team (Urgent recruitment)</span>
+                                </label>
+                              </div>
+                            </div>
                           </div>
-                          
+
+                          {/* Segment 3: Timeline & Capacity */}
+                          <div className="p-4 bg-slate-850 rounded-2xl border border-slate-800 space-y-4">
+                            <h5 className="text-[11px] font-black text-indigo-400 uppercase tracking-widest border-b border-slate-800 pb-1">
+                              3. Timeline &amp; Capacity
+                            </h5>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">Project Status</label>
+                                <select
+                                  value={editStatus}
+                                  onChange={e => setEditStatus(e.target.value)}
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none"
+                                >
+                                  <option value="recruiting">Recruiting</option>
+                                  <option value="in_progress">In Progress</option>
+                                  <option value="team_full">Team Full</option>
+                                  <option value="completed">Completed</option>
+                                  <option value="paused">Paused</option>
+                                  <option value="archived">Archived</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">Expected Timeline</label>
+                                <input
+                                  type="text"
+                                  value={editExpectedTimeline}
+                                  onChange={e => setEditExpectedTimeline(e.target.value)}
+                                  placeholder="e.g. 4-6 weeks, Hackathon weekend"
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">Meeting Preference</label>
+                                <input
+                                  type="text"
+                                  value={editMeetingPreference}
+                                  onChange={e => setEditMeetingPreference(e.target.value)}
+                                  placeholder="e.g. Tuesdays at 7 PM"
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">Maximum Team Size (Capacity limit)</label>
+                                <input
+                                  type="number"
+                                  min={Math.max(2, teamMembers.length)}
+                                  max={20}
+                                  value={editMaxTeamSize}
+                                  onChange={e => setEditMaxTeamSize(Number(e.target.value))}
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none"
+                                />
+                                <span className="text-[10px] text-slate-400 mt-0.5 block">Cannot be lower than active roster count ({teamMembers.length}).</span>
+                              </div>
+
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">Application Deadline</label>
+                                <input
+                                  type="date"
+                                  value={editDeadline}
+                                  onChange={e => setEditDeadline(e.target.value)}
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Segment 4: Role Slots (Read-only Summary) */}
+                          {selectedProject.roles && selectedProject.roles.length > 0 && (
+                            <div className="p-4 bg-slate-850 rounded-2xl border border-slate-800 space-y-3">
+                              <h5 className="text-[11px] font-black text-indigo-400 uppercase tracking-widest border-b border-slate-800 pb-1">
+                                4. Role Slots (Read-only Summary)
+                              </h5>
+                              <div className="space-y-2">
+                                {selectedProject.roles.map(r => (
+                                  <div key={r.id} className="p-2.5 bg-slate-900 rounded-xl border border-slate-800 text-xs flex justify-between items-center text-slate-300">
+                                    <div>
+                                      <span className="font-bold">{r.role_name}</span>
+                                      <span className="text-[10px] block text-slate-400">Filled: {r.slots_filled} / {r.slots_needed} slots</span>
+                                    </div>
+                                    <span className="px-2 py-0.5 bg-indigo-950 text-indigo-300 rounded text-[9px] font-black uppercase border border-indigo-900">
+                                      {r.priority} priority
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Segment 5: Secure Coordination */}
+                          <div className="p-4 bg-slate-850 rounded-2xl border border-slate-800 space-y-4">
+                            <h5 className="text-[11px] font-black text-indigo-400 uppercase tracking-widest border-b border-slate-800 pb-1">
+                              5. Secure Coordination &amp; Links
+                            </h5>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">Coordination Link (Meet, WhatsApp, etc.)</label>
+                                <input
+                                  type="text"
+                                  value={editCoordLink}
+                                  onChange={e => setEditCoordLink(e.target.value)}
+                                  placeholder="https://..."
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                                <span className="text-[10px] text-slate-400 mt-0.5 block">Must be an https:// URL.</span>
+                              </div>
+
+                              <div>
+                                <label className="block font-bold text-slate-300 mb-1">GitHub Repository Link</label>
+                                <input
+                                  type="text"
+                                  value={editGithubUrl}
+                                  onChange={e => setEditGithubUrl(e.target.value)}
+                                  placeholder="https://github.com/..."
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                                <span className="text-[10px] text-slate-400 mt-0.5 block">Must be an https:// URL.</span>
+                              </div>
+
+                              <div className="md:col-span-2">
+                                <label className="block font-bold text-slate-300 mb-1">Shared Workspace Document</label>
+                                <input
+                                  type="text"
+                                  value={editSharedDocUrl}
+                                  onChange={e => setEditSharedDocUrl(e.target.value)}
+                                  placeholder="https://docs.google.com/..."
+                                  className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                                <span className="text-[10px] text-slate-400 mt-0.5 block">Must be an https:// URL.</span>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block font-bold text-slate-300 mb-1">Private Tasks &amp; Notes</label>
+                              <textarea
+                                rows={4}
+                                value={editPrivateNotes}
+                                onChange={e => setEditPrivateNotes(e.target.value)}
+                                placeholder="Add task lists, milestones, API credentials safely..."
+                                className="w-full px-3 py-2 bg-slate-900 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500 font-mono"
+                              />
+                            </div>
+                          </div>
+
                           <div className="flex gap-2 justify-end pt-2">
                             <button
                               type="button"
                               onClick={() => setIsEditingLinks(false)}
-                              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold rounded-lg transition-colors"
+                              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold rounded-xl transition-colors border border-slate-700"
                             >
                               Cancel
                             </button>
                             <button
                               type="submit"
                               disabled={actionLoading}
-                              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow transition-colors"
+                              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-colors"
                             >
-                              {actionLoading ? 'Saving...' : 'Save Settings'}
+                              {actionLoading ? 'Saving...' : 'Save All Settings'}
                             </button>
                           </div>
                         </form>
@@ -2982,6 +3251,16 @@ export const ProjectMatePage: React.FC = () => {
                                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
                                   />
                                   <span className="text-[9px] text-slate-400 mt-0.5 block">Must strictly begin with the secure https:// protocol.</span>
+                                  {resourceMode === 'folder' && (
+                                    <span className="text-[9px] text-amber-650 block mt-1 font-semibold">
+                                      ⚠️ Note: Browser directory uploads are disabled for security. Paste a secure Google Drive, OneDrive, or Dropbox folder link here.
+                                    </span>
+                                  )}
+                                  {resourceMode === 'code_repo' && (
+                                    <span className="text-[9px] text-indigo-600 block mt-1 font-semibold">
+                                      💻 Note: Paste a secure GitHub, GitLab, or Bitbucket link. Code repositories are link-based coordinates.
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -3244,7 +3523,11 @@ export const ProjectMatePage: React.FC = () => {
 
                                         <button
                                           onClick={() => handleToggleResourceHelpful(res.id)}
-                                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors font-bold text-slate-500"
+                                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border transition-all font-bold ${
+                                            res.reacted_by_me
+                                              ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm shadow-indigo-50/50'
+                                              : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                          }`}
                                         >
                                           <span>👍</span>
                                           <span>Helpful ({res.helpful_count || 0})</span>
@@ -3265,7 +3548,7 @@ export const ProjectMatePage: React.FC = () => {
                                             📌
                                           </button>
                                         )}
-                                        {(res.uploaded_by === user?.id || selectedProject.is_owner) && (
+                                        {(selectedProject.is_owner || (res.uploaded_by === user?.id && res.verification_status !== 'verified')) && (
                                           <button
                                             onClick={() => handleDeleteResourceAction(res.id)}
                                             className="p-1.5 border border-red-150 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
@@ -3364,6 +3647,18 @@ export const ProjectMatePage: React.FC = () => {
                                       <p className="italic font-normal">"{res.rejection_reason}"</p>
                                     </div>
                                   )}
+
+                                  {res.verification_status !== 'verified' && (
+                                    <div className="flex justify-end pt-2 border-t border-slate-200/50">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteResourceAction(res.id)}
+                                        className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-650 font-bold rounded-lg text-[10px] border border-red-150 transition-colors"
+                                      >
+                                        Cancel Submission &amp; Delete
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -3383,7 +3678,7 @@ export const ProjectMatePage: React.FC = () => {
                     Team Roster ({teamMembers.length}/{selectedProject.max_team_size})
                   </h4>
 
-                  <div className="divide-y divide-slate-100">
+                  <div className="space-y-3.5 divide-y divide-slate-100">
                     {(() => {
                       const activeMembersSorted = [...teamMembers].sort((a, b) => {
                         const isOwnerA = a.user_id === selectedProject.created_by;
@@ -3395,50 +3690,80 @@ export const ProjectMatePage: React.FC = () => {
                         return nameA.localeCompare(nameB);
                       });
 
-                      return activeMembersSorted.map(member => (
-                        <div key={member.id} className="py-3 flex items-center justify-between gap-3 text-xs">
-                          <div>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedUserIdForProfile(member.user_id)}
-                              className="font-bold text-slate-800 hover:text-indigo-600 hover:underline block text-left"
-                            >
-                              {member.profile?.full_name}
-                            </button>
-                            <span className="text-[10px] text-slate-400 block mt-0.5">
-                              {member.profile?.department} ({member.profile?.year_of_study})
-                            </span>
-                            <span className="text-[10px] font-semibold text-slate-505 mt-1 block">
-                              Role: <span className="font-bold text-indigo-600">
-                                {member.user_id === selectedProject.created_by ? '👑 Project Lead' : (member.role_name || 'Team Member')}
-                              </span>
-                            </span>
-                          </div>
+                      return activeMembersSorted.map((member, idx) => {
+                        const isOwner = member.user_id === selectedProject.created_by;
+                        const initials = member.profile?.full_name 
+                          ? member.profile.full_name.split(' ').filter(n => n.length > 0).map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                          : 'SS';
+                        
+                        return (
+                          <div key={member.id} className={`flex items-start justify-between gap-3 text-xs ${idx > 0 ? 'pt-3.5' : ''}`}>
+                            <div className="flex gap-2.5">
+                              {/* circular initials avatar */}
+                              <div className="w-9 h-9 rounded-full bg-indigo-50/80 border border-indigo-100 text-indigo-650 font-black flex items-center justify-center text-xs shrink-0 shadow-sm">
+                                {initials}
+                              </div>
+                              <div className="space-y-0.5">
+                                <h5 className="font-extrabold text-slate-800 leading-tight">
+                                  {member.profile?.full_name}
+                                </h5>
+                                <span className="text-[10px] text-slate-400 block">
+                                  {member.profile?.department} ({member.profile?.year_of_study})
+                                </span>
+                                <span className="text-[10px] text-slate-400 block font-medium">
+                                  Joined: {new Date(member.joined_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
 
-                          <div className="flex gap-1">
-                            {selectedProject.is_owner && member.user_id !== user?.id && (
-                              <button
-                                onClick={() => {
-                                  setExitingMemberId(member.user_id);
-                                  setIsKickModalOpen(true);
-                                }}
-                                className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded border border-red-150 transition-colors"
-                              >
-                                Kick
-                              </button>
-                            )}
-                            
-                            {!selectedProject.is_owner && member.user_id === user?.id && (
-                              <button
-                                onClick={() => setIsLeaveModalOpen(true)}
-                                className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded border border-red-150 transition-colors"
-                              >
-                                Leave Team
-                              </button>
-                            )}
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                  {isOwner && (
+                                    <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-250 text-[8px] font-black uppercase rounded">
+                                      👑 Lead
+                                    </span>
+                                  )}
+                                  {member.role_name && member.role_name !== 'Project Lead' && (
+                                    <span className="px-1.5 py-0.2 bg-indigo-50 text-indigo-700 border border-indigo-150 text-[8px] font-bold rounded">
+                                      {member.role_name}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedUserIdForProfile(member.user_id)}
+                                    className="px-2.5 py-0.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-150 rounded text-[9px] font-bold transition-all"
+                                  >
+                                    View Profile
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-1 shrink-0">
+                              {selectedProject.is_owner && member.user_id !== user?.id && (
+                                <button
+                                  onClick={() => {
+                                    setExitingMemberId(member.user_id);
+                                    setIsKickModalOpen(true);
+                                  }}
+                                  className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-650 font-bold rounded border border-red-150 transition-colors text-[10px]"
+                                >
+                                  Kick
+                                </button>
+                              )}
+                              
+                              {!selectedProject.is_owner && member.user_id === user?.id && (
+                                <button
+                                  onClick={() => setIsLeaveModalOpen(true)}
+                                  className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-650 font-bold rounded border border-red-150 transition-colors text-[10px]"
+                                >
+                                  Leave Team
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ));
+                        );
+                      });
                     })()}
                   </div>
                 </div>
@@ -3460,15 +3785,15 @@ export const ProjectMatePage: React.FC = () => {
                     </button>
 
                     {isPastRosterOpen && (
-                      <div className="divide-y divide-slate-205 pt-2">
-                        {pastTeamMembers.map(member => {
+                      <div className="divide-y divide-slate-200/60 pt-2 space-y-2.5">
+                        {pastTeamMembers.map((member, idx) => {
                           const isRemoved = !!member.removed_by;
                           return (
-                            <div key={member.id} className="py-2.5 text-xs text-slate-500 space-y-1">
+                            <div key={member.id} className={`text-xs text-slate-500 space-y-1 ${idx > 0 ? 'pt-2.5' : ''}`}>
                               <div className="flex items-center justify-between">
-                                <span className="font-bold text-slate-750">{member.profile?.full_name}</span>
-                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
-                                  isRemoved ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-100 text-slate-500 border-slate-200'
+                                <span className="font-extrabold text-slate-800">{member.profile?.full_name}</span>
+                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
+                                  isRemoved ? 'bg-red-50 text-red-650 border-red-200' : 'bg-slate-100 text-slate-500 border-slate-200'
                                 }`}>
                                   {isRemoved ? 'Removed' : 'Left'}
                                 </span>
@@ -3477,10 +3802,19 @@ export const ProjectMatePage: React.FC = () => {
                                 Role: {member.role_name || 'Team Member'} · Exit: {new Date(member.left_at!).toLocaleDateString()}
                               </p>
                               {member.leave_reason && (
-                                <p className="text-[10px] italic text-slate-500 bg-white/70 p-1.5 rounded border border-slate-150 mt-0.5">
+                                <p className="text-[10px] italic text-slate-500 bg-white/70 p-1.5 rounded border border-slate-150 mt-0.5 leading-relaxed">
                                   "Reason: {member.leave_reason}"
                                 </p>
                               )}
+                              <div className="pt-1 flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedUserIdForProfile(member.user_id)}
+                                  className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 border border-slate-300 rounded text-[9px] font-bold transition-all"
+                                >
+                                  View Profile
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
@@ -3917,6 +4251,63 @@ export const ProjectMatePage: React.FC = () => {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* Owner Role Selection Section */}
+                <div className="space-y-4 pt-2">
+                  <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest border-b border-indigo-50 pb-1">
+                    4.5. My Role in This Project *
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">My Role Option *</label>
+                      <select
+                        value={ownerRoleType}
+                        onChange={e => {
+                          const type = e.target.value as 'project_lead_only' | 'role_index' | 'other';
+                          setOwnerRoleType(type);
+                          if (type !== 'role_index') setOwnerRoleIndex(-1);
+                        }}
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none"
+                      >
+                        <option value="project_lead_only">👑 Project Lead Only (Do not consume dynamic slot)</option>
+                        <option value="role_index">👥 Reserve Dynamic Open Position Below</option>
+                        <option value="other">✍️ Custom Role Title</option>
+                      </select>
+                    </div>
+
+                    {ownerRoleType === 'role_index' && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Choose Position to Reserve *</label>
+                        <select
+                          value={ownerRoleIndex}
+                          onChange={e => setOwnerRoleIndex(Number(e.target.value))}
+                          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none"
+                        >
+                          <option value={-1}>-- Select Dynamic Role --</option>
+                          {rolesBuilder.map((r, i) => (
+                            <option key={i} value={i} disabled={!r.role_name.trim()}>
+                              {r.role_name.trim() || `Position #${i + 1} (Empty)`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {ownerRoleType === 'other' && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Specify Custom Role Title *</label>
+                        <input
+                          type="text"
+                          required
+                          value={ownerCustomRole}
+                          onChange={e => setOwnerCustomRole(e.target.value)}
+                          placeholder="e.g. Lead Researcher / Core UI Designer"
+                          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -1157,5 +1157,72 @@ select * from public.project_team_members limit 5;
   - If cached values inside `project_posts.current_team_size` or `project_roles.slots_filled` become desynchronized, run the idempotent sync SQL script in the Supabase SQL Editor.
   - Verify that all counts self-heal to match active memberships (`left_at IS NULL`) exactly, without destroying historical logs or applications.
 
+---
+
+## 📋 Phase 6.3B — Project Mate Workspace Repairs & UX Polish
+
+### 1. One-User-One-Helpful-Reaction Toggling
+- [ ] **Single Helpful Vote**:
+  - Log in as a member. Navigate to **Shared Resources**.
+  - Click **👍 Helpful** on a verified resource. Verify the count increments from `0` to `1` and the button highlights as active.
+  - Click the **👍 Helpful** button again. Verify the count decrements from `1` back to `0` and highlights are removed.
+  - Click the button rapidly multiple times. Verify that count never inflates beyond `1` and strictly toggles between `0` and `1`.
+  - Log in as the project owner. Verify that you see the updated reaction count, and clicking the button toggles your own individual upvote independently.
+
+### 2. Lead Role Selection & Slot Reservation
+- [ ] **Dynamic Reservation during Project Creation**:
+  - Open the **Post Teammate Search** modal.
+  - Define three required open position slots under **4. Role-Specific Open Slots** (e.g. Backend Engineer, Frontend Wizard, UI Designer).
+  - Go to **4.5. My Role in This Project** dropdown.
+  - Select **Project Lead Only (Do not consume dynamic slot)**. Submit. Open workspace Members. Verify your role is `Project Lead` and the position slots show `0/1` filled.
+  - Create another project with the same roles. Select **Reserve Dynamic Open Position Below**.
+  - Choose `Backend Engineer` from the positioning dropdown list. Submit.
+  - Open workspace Members. Verify that your roster card lists you with both `👑 Lead` and `Backend Engineer` badges, and the Backend Engineer slot displays as `1/1 Full` instantly!
+  - Create a third project. Select **Specify Custom Role Title**.
+  - Type `"System Architect"`. Submit. Open roster. Verify your card displays the custom `"System Architect"` role badge cleanly.
+
+### 3. Broader Settings Console Sidebar
+- [ ] **Pre-filled Settings Console**:
+  - Open the **Coordination & Settings** subtab as the project owner.
+  - Click **Edit Credentials** to open the Settings console form.
+  - Verify that all 12 project fields (Title, Summary, Description, Category, Project Type, Difficulty, Work Mode, Required Skills, Departments, Academic Year, Timeline, Capacity, Deadline, Coordination link, GitHub link, Shared Document, and Private Notes) pre-fill with their existing database values, rather than leaving inputs empty.
+- [ ] **HTTPS Links Only Constraints**:
+  - Under **5. Secure Collaboration Settings**, edit a coordination, repository, or shared document link with an insecure URL (e.g. `http://meet.google.com/xyz` or `javascript:...`).
+  - Click **Save All Settings**. Verify that the save is blocked and an error toast triggers: `"All external links must strictly use the https:// protocol."`
+  - Correct the links to start with `https://` and save. Verify the save succeeds.
+- [ ] **Active Roster Capacity Constraints**:
+  - In the Settings form, edit the **Maximum Team Size** input.
+  - Enter a number lower than the active roster member count (e.g. if you have 3 active members, try setting capacity to 2).
+  - Click **Save All Settings**. Verify that saving is blocked with a descriptive validation error.
+  - Set the capacity equal to or higher than 3. Verify it saves successfully.
+
+### 4. Premium Team Roster & Privacy
+- [ ] **Active Members Roster & Profile Previews**:
+  - Navigate to the **Members** list in your workspace.
+  - Verify that the Owner is strictly pinned at the very top of the list with a `"👑 Lead"` badge.
+  - Verify that other active members are sorted alphabetically by their full names.
+  - Check that each member card displays their initials avatar, department/year, joined date, and dynamic role badge.
+  - Click **View Profile** next to a teammate's name. Verify that the public profile modal opens correctly.
+  - **CRITICAL PRIVACY CHECK**: Verify that no email address, phone number, WhatsApp link, or raw database UUID is leaked inside the profile card or workspace layout.
+- [ ] **Past Members separated history (Owner only)**:
+  - As the project owner, kick an active member with a reason.
+  - Verify that the kicked member is removed from the active roster and appears under **⌛ Past Members / Team History** collapsible list (visible only to the owner).
+  - Verify that the past member card lists their name, role, exit date, exit reason, and a fully functional **View Profile** button safely gating contact fields.
+
+### 5. Sandboxed Link-Based Sharing
+- [ ] **Folder Link & Repository URL Warnings**:
+  - Click **Share Material** under the Shared Resources tab.
+  - Click **📁 Folder Link**. Verify that the form placeholder changes to an HTTPS URL guide, and a prominent yellow warning states that browser directory uploading is disabled for security sandboxing.
+  - Click **💻 Code Repo**. Verify that the help note guides the student to paste a secure HTTPS repository link.
+- [ ] **Resource Deletion Boundary Rules**:
+  - Log in as a normal member. Upload a resource to the verification queue.
+  - Log in as the Owner. Verify the queue, and click **Approve Material** to verify it.
+  - Log in as the member. Look at the verified material list. Verify that the trash/remove icon next to your verified resource is completely hidden or disabled, blocking members from removing approved resources.
+  - Go to **My Submitted Materials** at the bottom.
+  - Locate an unverified (pending or rejected) resource submission.
+  - Verify that a **Cancel Submission & Delete** button is visible.
+  - Click **Cancel Submission & Delete** and confirm the alert. Verify that the unverified resource is deleted successfully from both the list and database cache.
+
+
 
 

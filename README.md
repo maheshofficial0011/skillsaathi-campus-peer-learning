@@ -407,3 +407,38 @@ Phase 6.3A fixes all teammate/role slot count inconsistencies by declaring activ
 - **Custom "Other" Taxonomy input**: Category and Project Type select dropdowns now support a custom `"Other"` option. Selecting `"Other"` dynamically displays a text input with min 2 characters validation, storing the custom trimmed string directly in the database.
 - **Backward Compatibility mapping (`formatProjectDisplayType`)**: Translates old database snake_case IDs (`portfolio_project`, `academic_term_project`) into user-friendly labels beautifully, ensuring old data matches new custom entries.
 - **Dynamic Discover Filters**: Discover page filters dynamically extract and list unique custom category and project type strings from existing projects list, sorted alphabetically and appended after the default choices.
+
+---
+
+## 🚀 Completed Phase 6.3B: Project Mate Workspace Repairs & UX Polish
+
+Phase 6.3B delivers critical repairs and rich UX details to the Project Mate Finder cohort cohort space, establishing secure single-user upvotes, lead role reservations, an extensiveSettings Console, secure sandboxed directories, and strict privacy scopes:
+
+### Key Enhancements
+- **One-User-One-Helpful-Reaction Table**:
+  - Implemented `public.project_resource_reactions` table with unique constraints to guarantee strict single-user upvote behavior.
+  - Linked database trigger `sync_project_resource_helpful_count()` to dynamically sync upvotes count from active reactions, resolving metric bloat.
+  - Formatted upvote action with persistent styles tied directly to user reaction states mapping.
+- **Lead Role Selection & Slot Reservation**:
+  - Upgraded project creation modal (Section 4.5) to allow creators to choose their role: Project Lead Only (does not consume required role slots), dynamic open slot reservation, or a custom role title.
+  - Reserving a dynamic slot immediately consumes that slot, displaying it as `1/1 filled` inline with active roster members.
+- **Broader Settings Console Sidebar**:
+  - Consolidated and exposed 12 editable project metadata fields pre-filling input values dynamically.
+  - Restricted external coordination links, repository URLs, and shared documents strictly to secure HTTPS protocols.
+  - Enforced capacity validations: maximum team size cannot be edited lower than the active roster count.
+- **Premium Roster & Profile Cards**:
+  - Sorted roster list to place Owner/Lead first, followed by active members alphabetically.
+  - Restructured member cards to display initials avatars, departments/years, joined dates, dynamic role badges, and an integrated Public Profile preview button safely gating contact fields.
+  - Restricted "Kick" controls strictly to project owners when rendering other active members.
+  - Separated Past Members logs (owner-only) detailing exit dates and reasons with matching profile preview buttons.
+- **Sandboxed Link-Based Sharing**:
+  - Renamed misleading directory uploads to "Add Folder Link" and "Add Code Repo" link references, with explicit sandboxing warning microcopy.
+  - Restricted verified resource deletions strictly to project owners.
+  - Empowered uploaders to delete their own unverified (pending/rejected) submissions directly from "My Submitted Materials" view to cancel submissions.
+- **Threaded Discussion UX Polish**:
+  - Cleared nested inner scrollbars, allowing post panels and comments to flow naturally within the primary page canvas.
+  - Stylized badges (`👑 Lead`, `👤 You`, `Announcement`), author avatars, composition alerts, and pinned states.
+- **TypeScript & Build Stability**:
+  - Verified comprehensive compilation with zero TypeScript errors or warnings.
+  - Successfully verified production bundle using `npm run build`.
+

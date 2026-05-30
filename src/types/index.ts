@@ -685,6 +685,7 @@ export interface ProjectResource {
   } | null;
   helpful_count?: number;
   owner_recommended?: boolean;
+  reacted_by_me?: boolean;
 }
 
 
