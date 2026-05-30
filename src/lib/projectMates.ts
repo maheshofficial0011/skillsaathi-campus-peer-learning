@@ -2030,6 +2030,26 @@ export async function getProjectTasks(projectId: string): Promise<ProjectTask[]>
 }
 
 /**
+ * Fetch all tasks assigned to the current user across all projects.
+ */
+export async function getMyTasks(userId: string): Promise<ProjectTask[]> {
+  const { data, error } = await supabase
+    .from('project_tasks')
+    .select(`
+      *,
+      project:project_posts(title),
+      assignee_profile:profiles!project_tasks_assigned_to_fkey(full_name, department, year_of_study),
+      assigned_by_profile:profiles!project_tasks_assigned_by_fkey(full_name),
+      reviewer_profile:profiles!project_tasks_verified_by_fkey(full_name)
+    `)
+    .eq('assigned_to', userId)
+    .order('created_at', { ascending: false });
+    
+  if (error) throw error;
+  return data as any;
+}
+
+/**
  * Create a new task (Owner only)
  */
 export async function createProjectTask(taskInput: any): Promise<ProjectTask> {

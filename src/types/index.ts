@@ -727,6 +727,9 @@ export interface ProjectTask {
   updated_at: string;
 
   // Joined fields
+  project?: {
+    title: string;
+  };
   assignee_profile?: {
     full_name: string;
     department?: string;
