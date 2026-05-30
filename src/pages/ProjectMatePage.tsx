@@ -181,9 +181,7 @@ export const ProjectMatePage: React.FC = () => {
   const [discussionLimit, setDiscussionLimit] = useState(3);
   const [resourcesLimit, setResourcesLimit] = useState(3);
 
-  // Phase 6.3D limits states
-  const [pastMembersLimit, setPastMembersLimit] = useState(3);
-  const [rolesLimit, setRolesLimit] = useState(3);
+  // Phase 6.3D limits states (all removed in 6.3E)
 
   // Phase 6.3E local states for teammates filter & search
   const [teammateSearch, setTeammateSearch] = useState('');
@@ -3516,7 +3514,7 @@ export const ProjectMatePage: React.FC = () => {
                   <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm space-y-3">
                     <button
                       onClick={() => setIsPastRosterOpen(!isPastRosterOpen)}
-                      className="w-full flex items-center justify-between text-xs font-black text-slate-500 uppercase tracking-wider focus:outline-none"
+                      className="w-full flex items-center justify-between text-xs font-black text-slate-500 uppercase tracking-wider focus:outline-none hover:text-slate-700 transition-colors"
                     >
                       <span className="flex items-center gap-1.5">
                         <span>⌛ Past Members / Team History</span>
@@ -3527,71 +3525,51 @@ export const ProjectMatePage: React.FC = () => {
                       <span>{isPastRosterOpen ? '▼' : '▶'}</span>
                     </button>
 
-                                        {isPastRosterOpen && (
-                      <div className="pt-2 space-y-2.5">
+                    {isPastRosterOpen && (
+                      <div className="pt-2">
                         {pastTeamMembers.length === 0 ? (
                           <p className="text-[10px] text-slate-400 italic text-center py-4 bg-white rounded-xl border border-slate-150">
                             No team history recorded.
                           </p>
                         ) : (
-                          <div className="divide-y divide-slate-200/60 space-y-2.5">
+                          <div className={`divide-y divide-slate-200/60 pr-1 ${pastTeamMembers.length > 3 ? 'max-h-[200px] overflow-y-auto thin-scrollbar' : ''}`}>
                             {[...pastTeamMembers]
                               .sort((a, b) => new Date(b.left_at || '').getTime() - new Date(a.left_at || '').getTime())
-                              .slice(0, pastMembersLimit)
                               .map((member, idx) => {
-                          const isRemoved = !!member.removed_by;
-                          return (
-                            <div key={member.id} className={`text-xs text-slate-500 space-y-1 ${idx > 0 ? 'pt-2.5' : ''}`}>
-                              <div className="flex items-center justify-between">
-                                <span className="font-extrabold text-slate-800">{member.profile?.full_name}</span>
-                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
-                                  isRemoved ? 'bg-red-50 text-red-650 border-red-200' : 'bg-slate-100 text-slate-500 border-slate-200'
-                                }`}>
-                                  {isRemoved ? 'Removed' : 'Left'}
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-slate-400">
-                                Role: {member.role_name || 'Team Member'} · Exit: {new Date(member.left_at!).toLocaleDateString()}
-                              </p>
-                              {member.leave_reason && (
-                                <p className="text-[10px] italic text-slate-500 bg-white/70 p-1.5 rounded border border-slate-150 mt-0.5 leading-relaxed">
-                                  "Reason: {member.leave_reason}"
-                                </p>
-                              )}
-                              <div className="pt-1 flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedUserIdForProfile(member.user_id)}
-                                  className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 border border-slate-300 rounded text-[9px] font-bold transition-all"
-                                >
-                                  View Profile
-                                </button>
-                              </div>
-                            </div>
-                            );
-                          })}
-                          
-                          {pastTeamMembers.length > 3 && (
-                            <div className="flex justify-center gap-2 pt-2 border-t border-slate-200/50 mt-2">
-                              {pastTeamMembers.length > pastMembersLimit ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setPastMembersLimit(prev => prev + 3)}
-                                  className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-lg border border-indigo-200 transition-colors"
-                                >
-                                  Show More ({pastTeamMembers.length - pastMembersLimit} more)
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setPastMembersLimit(3)}
-                                  className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-slate-650 text-[10px] font-bold rounded-lg border border-slate-200 transition-colors"
-                                >
-                                  Show Less
-                                </button>
-                              )}
-                            </div>
-                          )}
+                                const isRemoved = !!member.removed_by;
+                                return (
+                                  <div key={member.id} className={`text-xs text-slate-500 space-y-1.5 pb-3 ${idx > 0 ? 'pt-3' : ''}`}>
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-extrabold text-slate-800">{member.profile?.full_name}</span>
+                                      <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
+                                        isRemoved ? 'bg-red-50 text-red-650 border-red-200' : 'bg-slate-100 text-slate-500 border-slate-200'
+                                      }`}>
+                                        {isRemoved ? 'Removed' : 'Left'}
+                                      </span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-medium">
+                                      Role: {member.role_name || 'Team Member'} · Exit: {new Date(member.left_at!).toLocaleDateString()}
+                                    </p>
+                                    {member.leave_reason && (
+                                      <div className="bg-white p-2 rounded-lg border border-slate-150 shadow-xs mt-1 relative">
+                                        <div className="absolute top-0 left-0 w-1 h-full bg-slate-300 rounded-l-lg"></div>
+                                        <p className="text-[10px] italic text-slate-550 leading-relaxed pl-1.5">
+                                          "{member.leave_reason}"
+                                        </p>
+                                      </div>
+                                    )}
+                                    <div className="pt-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedUserIdForProfile(member.user_id)}
+                                        className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-650 border border-slate-200 shadow-sm rounded text-[9px] font-bold transition-all"
+                                      >
+                                        View Profile
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                           </div>
                         )}
                       </div>
@@ -3600,52 +3578,86 @@ export const ProjectMatePage: React.FC = () => {
                 )}
 
                 {/* Open positions info */}
+                {/* Open positions info */}
                 {selectedProject.roles && selectedProject.roles.length > 0 && (
                   <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
-                                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Required Slots</h4>
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                      <span>Required Slots</span>
+                      <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[9px]">
+                        {selectedProject.roles.reduce((acc, r) => acc + (r.slots_needed - r.slots_filled), 0)} open
+                      </span>
+                    </h4>
                     {(!selectedProject.roles || selectedProject.roles.length === 0) ? (
                       <p className="text-xs text-slate-450 italic text-center py-4 bg-slate-50 rounded-xl border border-slate-100">
                         All team positions have been filled! 🎉
                       </p>
                     ) : (
-                      <>
-                        <div className="space-y-2">
-                          {selectedProject.roles.slice(0, rolesLimit).map(r => (
-                        <div key={r.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-700">{r.role_name}</span>
-                            <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase">
-                              {r.priority} priority
-                            </span>
-                          </div>
-                          <p className="text-slate-400 text-[10px] mt-0.5">{r.slots_filled} of {r.slots_needed} slots filled</p>
-                          {r.description && <p className="text-slate-500 italic text-[10px] mt-1">"{r.description}"</p>}
-                        </div>
-                          ))}
-                        </div>
-                        
-                        {selectedProject.roles.length > 3 && (
-                          <div className="flex justify-center gap-2 pt-2 border-t border-slate-250/50 mt-2">
-                            {selectedProject.roles.length > rolesLimit ? (
-                              <button
-                                type="button"
-                                onClick={() => setRolesLimit(prev => prev + 3)}
-                                className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-lg border border-indigo-200 transition-colors"
-                              >
-                                Show More ({selectedProject.roles.length - rolesLimit} more)
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setRolesLimit(3)}
-                                className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-slate-650 text-[10px] font-bold rounded-lg border border-slate-200 transition-colors"
-                              >
-                                Show Less
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </>
+                      <div className={`space-y-2 pr-1 ${selectedProject.roles.length > 3 ? 'max-h-[220px] overflow-y-auto thin-scrollbar' : ''}`}>
+                        {[...selectedProject.roles]
+                          .sort((a, b) => {
+                            const aOpen = a.slots_needed - a.slots_filled > 0;
+                            const bOpen = b.slots_needed - b.slots_filled > 0;
+                            if (aOpen && !bOpen) return -1;
+                            if (!aOpen && bOpen) return 1;
+                            const pA = a.priority === 'high' ? 3 : a.priority === 'medium' ? 2 : 1;
+                            const pB = b.priority === 'high' ? 3 : b.priority === 'medium' ? 2 : 1;
+                            return pB - pA;
+                          })
+                          .map(r => {
+                            const isFull = r.slots_filled >= r.slots_needed;
+                            return (
+                              <div key={r.id} className={`p-3 rounded-xl border text-xs transition-colors ${
+                                isFull 
+                                  ? 'bg-slate-50 border-slate-150 opacity-70' 
+                                  : 'bg-white border-indigo-100 shadow-sm'
+                              }`}>
+                                <div className="flex items-center justify-between">
+                                  <span className={`font-bold ${isFull ? 'text-slate-500' : 'text-slate-800'}`}>
+                                    {r.role_name}
+                                  </span>
+                                  {isFull ? (
+                                    <span className="px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded text-[9px] font-black uppercase shadow-xs">
+                                      Filled
+                                    </span>
+                                  ) : (
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase shadow-xs ${
+                                      r.priority === 'high' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                                      r.priority === 'medium' ? 'bg-indigo-50 text-indigo-600 border border-indigo-150' :
+                                      'bg-slate-100 text-slate-600 border border-slate-200'
+                                    }`}>
+                                      {r.priority} Priority
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <div className="mt-2">
+                                  <div className="flex justify-between text-[9px] font-bold text-slate-400 mb-1">
+                                    <span>{r.slots_filled} FILLED</span>
+                                    <span>{r.slots_needed} TOTAL</span>
+                                  </div>
+                                  <div className="h-1.5 w-full bg-slate-150 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full rounded-full transition-all duration-500 ${isFull ? 'bg-slate-400' : 'bg-indigo-500'}`}
+                                      style={{ width: `${Math.min(100, Math.max(0, (r.slots_filled / r.slots_needed) * 100))}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+
+                                {r.required_skills && r.required_skills.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 pt-2">
+                                    {r.required_skills.map((skill, sIdx) => (
+                                      <span key={sIdx} className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                                        isFull ? 'bg-slate-200/50 text-slate-400' : 'bg-indigo-50/50 text-indigo-500 border border-indigo-100'
+                                      }`}>
+                                        {skill}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
                     )}
                   </div>
                 )}
