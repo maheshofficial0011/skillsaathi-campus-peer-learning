@@ -108,6 +108,9 @@ ALTER TABLE public.project_task_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_task_submission_files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_task_extension_requests ENABLE ROW LEVEL SECURITY;
 
+DROP FUNCTION IF EXISTS public.is_active_project_member_or_owner(uuid, uuid);
+DROP FUNCTION IF EXISTS public.is_project_owner(uuid, uuid);
+
 -- Helper function to check if user is active member or owner
 CREATE OR REPLACE FUNCTION public.is_active_project_member_or_owner(proj_id uuid, check_user_id uuid)
 RETURNS BOOLEAN AS $$
@@ -151,26 +154,31 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ==========================================
 -- Policies for project_tasks
 -- ==========================================
+DROP POLICY IF EXISTS "Active members and owners can view project tasks" ON public.project_tasks;
 CREATE POLICY "Active members and owners can view project tasks" ON public.project_tasks
     FOR SELECT USING (
         public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Owners can insert project tasks" ON public.project_tasks;
 CREATE POLICY "Owners can insert project tasks" ON public.project_tasks
     FOR INSERT WITH CHECK (
         public.is_project_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Owners can update any project task" ON public.project_tasks;
 CREATE POLICY "Owners can update any project task" ON public.project_tasks
     FOR UPDATE USING (
         public.is_project_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Assigned members can update their own task status" ON public.project_tasks;
 CREATE POLICY "Assigned members can update their own task status" ON public.project_tasks
     FOR UPDATE USING (
         assigned_to = auth.uid() AND public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Owners can delete project tasks" ON public.project_tasks;
 CREATE POLICY "Owners can delete project tasks" ON public.project_tasks
     FOR DELETE USING (
         public.is_project_owner(project_id, auth.uid())
@@ -179,21 +187,25 @@ CREATE POLICY "Owners can delete project tasks" ON public.project_tasks
 -- ==========================================
 -- Policies for project_task_attachments
 -- ==========================================
+DROP POLICY IF EXISTS "Active members and owners can view task attachments" ON public.project_task_attachments;
 CREATE POLICY "Active members and owners can view task attachments" ON public.project_task_attachments
     FOR SELECT USING (
         public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Owners can insert task attachments" ON public.project_task_attachments;
 CREATE POLICY "Owners can insert task attachments" ON public.project_task_attachments
     FOR INSERT WITH CHECK (
         public.is_project_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Owners can update task attachments" ON public.project_task_attachments;
 CREATE POLICY "Owners can update task attachments" ON public.project_task_attachments
     FOR UPDATE USING (
         public.is_project_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Owners can delete task attachments" ON public.project_task_attachments;
 CREATE POLICY "Owners can delete task attachments" ON public.project_task_attachments
     FOR DELETE USING (
         public.is_project_owner(project_id, auth.uid())
@@ -202,26 +214,31 @@ CREATE POLICY "Owners can delete task attachments" ON public.project_task_attach
 -- ==========================================
 -- Policies for project_task_submissions
 -- ==========================================
+DROP POLICY IF EXISTS "Active members and owners can view task submissions" ON public.project_task_submissions;
 CREATE POLICY "Active members and owners can view task submissions" ON public.project_task_submissions
     FOR SELECT USING (
         public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Assigned members can insert submissions" ON public.project_task_submissions;
 CREATE POLICY "Assigned members can insert submissions" ON public.project_task_submissions
     FOR INSERT WITH CHECK (
         submitted_by = auth.uid() AND public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Assigned members can update their own submissions" ON public.project_task_submissions;
 CREATE POLICY "Assigned members can update their own submissions" ON public.project_task_submissions
     FOR UPDATE USING (
         submitted_by = auth.uid() AND public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Owners can update task submissions to verify/reject" ON public.project_task_submissions;
 CREATE POLICY "Owners can update task submissions to verify/reject" ON public.project_task_submissions
     FOR UPDATE USING (
         public.is_project_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Assigned members can delete their own submissions" ON public.project_task_submissions;
 CREATE POLICY "Assigned members can delete their own submissions" ON public.project_task_submissions
     FOR DELETE USING (
         submitted_by = auth.uid() AND public.is_active_project_member_or_owner(project_id, auth.uid())
@@ -230,21 +247,25 @@ CREATE POLICY "Assigned members can delete their own submissions" ON public.proj
 -- ==========================================
 -- Policies for project_task_submission_files
 -- ==========================================
+DROP POLICY IF EXISTS "Active members and owners can view task submission files" ON public.project_task_submission_files;
 CREATE POLICY "Active members and owners can view task submission files" ON public.project_task_submission_files
     FOR SELECT USING (
         public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Assigned members can insert submission files" ON public.project_task_submission_files;
 CREATE POLICY "Assigned members can insert submission files" ON public.project_task_submission_files
     FOR INSERT WITH CHECK (
         uploaded_by = auth.uid() AND public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Assigned members can update their own submission files" ON public.project_task_submission_files;
 CREATE POLICY "Assigned members can update their own submission files" ON public.project_task_submission_files
     FOR UPDATE USING (
         uploaded_by = auth.uid() AND public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Assigned members can delete their own submission files" ON public.project_task_submission_files;
 CREATE POLICY "Assigned members can delete their own submission files" ON public.project_task_submission_files
     FOR DELETE USING (
         uploaded_by = auth.uid() AND public.is_active_project_member_or_owner(project_id, auth.uid())
@@ -253,21 +274,25 @@ CREATE POLICY "Assigned members can delete their own submission files" ON public
 -- ==========================================
 -- Policies for project_task_extension_requests
 -- ==========================================
+DROP POLICY IF EXISTS "Active members and owners can view extension requests" ON public.project_task_extension_requests;
 CREATE POLICY "Active members and owners can view extension requests" ON public.project_task_extension_requests
     FOR SELECT USING (
         public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Assigned members can request extensions" ON public.project_task_extension_requests;
 CREATE POLICY "Assigned members can request extensions" ON public.project_task_extension_requests
     FOR INSERT WITH CHECK (
         requested_by = auth.uid() AND public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Assigned members can update their own extension requests" ON public.project_task_extension_requests;
 CREATE POLICY "Assigned members can update their own extension requests" ON public.project_task_extension_requests
     FOR UPDATE USING (
         requested_by = auth.uid() AND public.is_active_project_member_or_owner(project_id, auth.uid())
     );
 
+DROP POLICY IF EXISTS "Owners can update extension requests" ON public.project_task_extension_requests;
 CREATE POLICY "Owners can update extension requests" ON public.project_task_extension_requests
     FOR UPDATE USING (
         public.is_project_owner(project_id, auth.uid())
@@ -282,6 +307,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Storage Policies
 -- Read: Active members and owners
+DROP POLICY IF EXISTS "Active members can view task files" ON storage.objects;
 CREATE POLICY "Active members can view task files" ON storage.objects
     FOR SELECT USING (
         bucket_id = 'project-task-files' AND 
@@ -292,6 +318,7 @@ CREATE POLICY "Active members can view task files" ON storage.objects
     );
 
 -- Insert: Active members and owners (owners for attachments, members for submissions)
+DROP POLICY IF EXISTS "Active members can upload task files" ON storage.objects;
 CREATE POLICY "Active members can upload task files" ON storage.objects
     FOR INSERT WITH CHECK (
         bucket_id = 'project-task-files' AND 
@@ -302,6 +329,7 @@ CREATE POLICY "Active members can upload task files" ON storage.objects
     );
 
 -- Delete: File owner or project owner
+DROP POLICY IF EXISTS "File owners and project owners can delete task files" ON storage.objects;
 CREATE POLICY "File owners and project owners can delete task files" ON storage.objects
     FOR DELETE USING (
         bucket_id = 'project-task-files' AND 
