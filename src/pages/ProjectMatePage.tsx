@@ -3224,7 +3224,10 @@ export const ProjectMatePage: React.FC = () => {
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                       <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
                         <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                        Role Slots ({selectedProject.roles?.length || 0})
+                        Role Slots
+                        <span className="ml-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-150 text-[10px] font-bold rounded-full">
+                          {selectedProject.roles?.length || 0}
+                        </span>
                       </h4>
                       {!isAddingRole && !editingRoleId && (
                         <button
@@ -3237,72 +3240,92 @@ export const ProjectMatePage: React.FC = () => {
                     </div>
 
                     {/* Roles List */}
-                    <div className="space-y-2">
+                    <div className={`space-y-3 ${selectedProject.roles && selectedProject.roles.length > 3 ? 'max-h-[260px] overflow-y-auto thin-scrollbar pr-1' : ''}`}>
                       {(!selectedProject.roles || selectedProject.roles.length === 0) && !isAddingRole && (
-                        <p className="text-xs text-slate-400 italic text-center py-3">No roles defined yet. Add roles to structure your team.</p>
+                        <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                          No roles defined yet. Add roles to structure your team.
+                        </p>
                       )}
                       {selectedProject.roles && selectedProject.roles.map((role: any) => {
                         const isFilled = role.slots_filled >= role.slots_needed;
+                        const fillPercentage = Math.min(100, Math.round(((role.slots_filled || 0) / role.slots_needed) * 100));
                         const isEditing = editingRoleId === role.id;
+                        
                         if (isEditing) {
                           return (
-                            <form key={role.id} onSubmit={handleUpdateRoleSubmit} className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-xs">
-                              <p className="font-black text-indigo-800 text-xs uppercase tracking-wider">Edit Role</p>
-                              <input required value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="Role name (e.g. Backend Dev)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                              <input value={newRoleDescription} onChange={e => setNewRoleDescription(e.target.value)} placeholder="Short description (optional)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                              <input value={newRoleSkills} onChange={e => setNewRoleSkills(e.target.value)} placeholder="Required skills (comma-separated)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                            <form key={role.id} onSubmit={handleUpdateRoleSubmit} className="p-3 bg-indigo-50/50 border border-indigo-200 rounded-xl space-y-3 text-xs shadow-sm">
+                              <p className="font-black text-indigo-800 text-[10px] uppercase tracking-wider mb-1">Edit Role</p>
+                              <div className="space-y-2">
+                                <input required value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="Role name (e.g. Backend Dev)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                                <input value={newRoleDescription} onChange={e => setNewRoleDescription(e.target.value)} placeholder="Short description (optional)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                                <input value={newRoleSkills} onChange={e => setNewRoleSkills(e.target.value)} placeholder="Required skills (comma-separated)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                              </div>
                               <div className="flex gap-2">
                                 <div className="flex-1">
                                   <label className="text-[10px] font-bold text-slate-500 uppercase">Slots Needed</label>
-                                  <input type="number" min={role.slots_filled || 1} max={10} value={newRoleSlots} onChange={e => setNewRoleSlots(Number(e.target.value))} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                                  {role.slots_filled > 0 && <p className="text-[9px] text-slate-400 mt-0.5">Cannot go below {role.slots_filled} (filled)</p>}
+                                  <input type="number" min={role.slots_filled || 1} max={10} value={newRoleSlots} onChange={e => setNewRoleSlots(Number(e.target.value))} className="w-full mt-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                                  {role.slots_filled > 0 && <p className="text-[9px] text-slate-400 mt-1">Cannot go below {role.slots_filled} (filled)</p>}
                                 </div>
                                 <div className="flex-1">
                                   <label className="text-[10px] font-bold text-slate-500 uppercase">Priority</label>
-                                  <select value={newRolePriority} onChange={e => setNewRolePriority(e.target.value as any)} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400">
+                                  <select value={newRolePriority} onChange={e => setNewRolePriority(e.target.value as any)} className="w-full mt-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400">
                                     <option value="low">Low</option>
                                     <option value="medium">Medium</option>
                                     <option value="high">High</option>
                                   </select>
                                 </div>
                               </div>
-                              <div className="flex gap-2 pt-1">
+                              <div className="flex gap-2 pt-2 border-t border-indigo-150">
                                 <button type="submit" disabled={actionLoading} className="flex-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50">Save Changes</button>
-                                <button type="button" onClick={() => setEditingRoleId(null)} className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg text-xs transition-colors">Cancel</button>
+                                <button type="button" onClick={() => setEditingRoleId(null)} className="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-650 font-bold rounded-lg text-xs transition-colors">Cancel</button>
                               </div>
                             </form>
                           );
                         }
+                        
                         return (
-                          <div key={role.id} className={`flex items-start justify-between p-2.5 rounded-xl border text-xs gap-2 ${isFilled ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-slate-200'}`}>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-1">
-                                <span className="font-black text-slate-800 truncate">{role.role_name}</span>
+                          <div key={role.id} className={`flex items-start justify-between p-3.5 rounded-xl border text-xs gap-3 transition-colors ${isFilled ? 'bg-slate-50 border-slate-200/60' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className={`font-black truncate ${isFilled ? 'text-slate-500' : 'text-slate-800 text-sm'}`}>{role.role_name}</span>
                                 <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 ${
-                                  role.priority === 'high' ? 'bg-red-50 text-red-600 border border-red-100' :
-                                  role.priority === 'medium' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                                  'bg-slate-100 text-slate-500 border border-slate-200'
-                                }`}>{role.priority}</span>
+                                  role.priority === 'high' ? 'bg-red-50 text-red-650 border border-red-150' :
+                                  role.priority === 'medium' ? 'bg-amber-50 text-amber-650 border border-amber-150' :
+                                  'bg-slate-100 text-slate-550 border border-slate-250'
+                                }`}>{role.priority} priority</span>
                               </div>
-                              <p className="text-[10px] text-slate-500 mt-0.5">
-                                {role.slots_filled}/{role.slots_needed} filled {isFilled ? '✓' : '· open'}
-                              </p>
+                              
+                              <div className="space-y-1">
+                                <div className="flex justify-between items-center text-[10px] font-bold">
+                                  <span className="text-slate-500 uppercase tracking-wider">Fill Status</span>
+                                  <span className={isFilled ? 'text-emerald-600' : 'text-indigo-600'}>
+                                    {role.slots_filled || 0} / {role.slots_needed} slots
+                                  </span>
+                                </div>
+                                <div className="w-full bg-slate-150 rounded-full h-1.5 overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all duration-500 ${isFilled ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
+                                    style={{ width: `${fillPercentage}%` }}
+                                  ></div>
+                                </div>
+                              </div>
                             </div>
-                            <div className="flex gap-1 shrink-0">
+                            
+                            <div className="flex flex-col gap-1.5 shrink-0 pt-0.5">
                               <button
                                 onClick={() => startEditRole(role)}
-                                className="px-1.5 py-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded border border-slate-200 transition-colors"
+                                className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-650 rounded border border-slate-200 transition-colors shadow-sm"
                                 title="Edit role"
                               >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                               </button>
                               <button
                                 onClick={() => handleDeleteRole(role.id, role.role_name)}
                                 disabled={(role.slots_filled || 0) > 0}
-                                className="px-1.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded border border-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="px-2 py-1 bg-white hover:bg-red-50 text-red-650 rounded border border-slate-200 hover:border-red-200 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-slate-200"
                                 title={(role.slots_filled || 0) > 0 ? 'Cannot delete — role has active members' : 'Delete role'}
                               >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               </button>
                             </div>
                           </div>
@@ -3312,28 +3335,30 @@ export const ProjectMatePage: React.FC = () => {
 
                     {/* Add Role Form */}
                     {isAddingRole && (
-                      <form onSubmit={handleAddRoleSubmit} className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 text-xs">
-                        <p className="font-black text-indigo-800 text-xs uppercase tracking-wider">Add New Role</p>
-                        <input required value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="Role name (e.g. UI Designer)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                        <input value={newRoleDescription} onChange={e => setNewRoleDescription(e.target.value)} placeholder="Short description (optional)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
-                        <input value={newRoleSkills} onChange={e => setNewRoleSkills(e.target.value)} placeholder="Required skills (comma-separated)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                      <form onSubmit={handleAddRoleSubmit} className="p-3 bg-indigo-50/50 border border-indigo-200 rounded-xl space-y-3 text-xs shadow-sm mt-3">
+                        <p className="font-black text-indigo-800 text-[10px] uppercase tracking-wider mb-1">Add New Role</p>
+                        <div className="space-y-2">
+                          <input required value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="Role name (e.g. UI Designer)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                          <input value={newRoleDescription} onChange={e => setNewRoleDescription(e.target.value)} placeholder="Short description (optional)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                          <input value={newRoleSkills} onChange={e => setNewRoleSkills(e.target.value)} placeholder="Required skills (comma-separated)" className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                        </div>
                         <div className="flex gap-2">
                           <div className="flex-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase">Slots Needed</label>
-                            <input type="number" min={1} max={10} value={newRoleSlots} onChange={e => setNewRoleSlots(Number(e.target.value))} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                            <input type="number" min={1} max={10} value={newRoleSlots} onChange={e => setNewRoleSlots(Number(e.target.value))} className="w-full mt-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
                           </div>
                           <div className="flex-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase">Priority</label>
-                            <select value={newRolePriority} onChange={e => setNewRolePriority(e.target.value as any)} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400">
+                            <select value={newRolePriority} onChange={e => setNewRolePriority(e.target.value as any)} className="w-full mt-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400">
                               <option value="low">Low</option>
                               <option value="medium">Medium</option>
                               <option value="high">High</option>
                             </select>
                           </div>
                         </div>
-                        <div className="flex gap-2 pt-1">
+                        <div className="flex gap-2 pt-2 border-t border-indigo-150">
                           <button type="submit" disabled={actionLoading} className="flex-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50">Add Role</button>
-                          <button type="button" onClick={() => setIsAddingRole(false)} className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg text-xs transition-colors">Cancel</button>
+                          <button type="button" onClick={() => setIsAddingRole(false)} className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-650 font-bold rounded-lg text-xs transition-colors">Cancel</button>
                         </div>
                       </form>
                     )}
