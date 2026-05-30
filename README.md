@@ -378,3 +378,13 @@ Learning Circles connect peer study groups, allowing collaborative resource shar
    - **Success Toast Messaging**: Post and comment removal toasts now explicitly communicate the temporary placeholder behavior and auto-cleanup timeline.
    - **Documentation Hardened**: `supabase/README.md` now documents the soft-delete data model, the `isDeletedRecently` rule table, moderation audit SQL queries, and the 4-hour window constant location. `docs/testing-checklist.md` includes a full Phase 5.6B test suite covering deletion lifecycle, content safety, stats accuracy, and regression tests.
    - **Current Status**: Phase 5.6B fully implemented, build verified (zero TypeScript errors, clean `npm run build`).
+
+12. **Phase 6.1: Find Teammates / Project Mate Finder Core System**:
+   - **Teammate Finder System**: Developed a high-fidelity team formation system for student group work, hackathons, and research projects.
+   - **Discover Board with Advanced Search**: Added a discover tab with instant filtering by category, project type, difficulty, work mode, open slots, beginner-friendly status, and hackathon tags.
+   - **Compatibility Match Scoring**: Implemented a deterministic compatibility scoring algorithm (0-100%) that matches project prerequisites against the current user's profile skills, department, and academic year.
+   - **Role Builder**: Built a custom role constructor allowing project creators to define title, description, skills, slot counts, and priority requirements for multiple team roles.
+   - **Private Coordination Gating**: Team credentials (`coordination_link`, `github_repo_url`, `shared_doc_url`, `private_notes`) are strictly gated at both the API query level and the JSX presentation level. Only the owner and accepted active members can access them.
+   - **Public-Safe Applicant Profiles**: Profile summaries shared with project owners strictly block private emails, phone numbers, WhatsApp links, and raw UUIDs, displaying academic qualifications and public GitHub/LinkedIn links safely.
+   - **Idempotent SQL Patch** (`supabase/phase6-project-mate-finder-core-patch.sql`): Created database models for `project_posts`, `project_roles`, `project_applications`, and `project_team_members` tables, complete with RLS security policies, updated_at triggers, and partial unique indices to prevent duplicate pending applications or duplicate active memberships.
+   - **Current Status**: Phase 6.1 core system fully implemented, build verified with zero TypeScript errors.

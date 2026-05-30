@@ -899,3 +899,118 @@ Use this checklist to perform regression testing and ensure full readiness of al
 - [ ] Reset filters button clears all active filters correctly.
 - [ ] Owner badge and You badge still render correctly on non-deleted posts/replies.
 - [ ] Real-time presence heartbeat and online dot still function on non-deleted posts.
+
+---
+
+## 🤝 15. Phase 6.1 — Find Teammates / Project Mate Finder Core System
+
+> **Requires Supabase Patch**: Run `supabase/phase6-project-mate-finder-core-patch.sql` in the SQL Editor before testing.
+
+### 1. Project Creation Workflow
+- [ ] **Create Project Modal validation**:
+  - Open **Find Teammates** tab. Click **+ Post Project Board**.
+  - Submit title shorter than 5 chars → verify warning: `"Title must be at least 5 characters long."`
+  - Submit description shorter than 20 chars → verify warning: `"Description must be at least 20 characters long."`
+  - Set Max Team Size < 2 or > 20 → verify validation blocks it.
+- [ ] **Role Builder constructor**:
+  - Click **+ Add Role Slot**. Define role names, prerequisite skills, slots count, description, and select priority.
+  - Verify that leaving optional description or skills empty does not block creation.
+- [ ] **HTTPS coordination links validation**:
+  - In coordination links, enter `http://google.com/meet` → verify warning: `"All external links must strictly use the https:// protocol."`
+  - Enter `javascript:alert(1)` or `data:text/html` → verify strict validation blocks submission.
+  - Enter valid URLs starting with strictly `https://` → verify successful creation.
+- [ ] **Project Owner bootstrap**:
+  - Once project is created, click **Manage Workspace** -> check **Team Roster** card.
+  - Verify that the creator has been automatically registered as a team member with role: `"Project Owner"`.
+
+### 2. Discover Projects & Filter Management
+- [ ] **Discover Projects card**:
+  - Open **Discover Projects** tab as a logged-in student.
+  - Verify that the newly created project card appears instantly, showing title, description, category, difficulty, work mode, owner, required skills, and team size.
+- [ ] **Match Score calculation**:
+  - Check the compatibility match score badge on the card.
+  - Verify it correctly computes a percentage based on:
+    * Skills overlap (50%): matching required skills in project/roles with your profile skills.
+    * Department preference (25%): matching project preferred department list with your department.
+    * Year preference (25%): matching project preferred years with your academic year of study.
+  - Verify that hovering or looking at matching preview lists the specific criteria matched.
+- [ ] **Active filters and reset**:
+  - Enter search query in input. Verify list filters.
+  - Select Category, Project Type, Difficulty, and Work Mode dropdowns. Verify cards update instantly.
+  - Check "Has Open Slots", "Beginner Friendly", or "Hackathon" checkboxes. Verify correct filtering.
+  - Click **Reset Filters**. Verify that all fields clear, all checkboxes reset, and the full projects list returns.
+
+### 3. Application Lifecycle (Non-Owner Flow)
+- [ ] **Owner self-apply blocked**:
+  - As the project creator, verify that no "Join Request" or "Apply" buttons are available on your own project cards in the discover list.
+- [ ] **Submit Application**:
+  - Log in with Student Account A (not project creator). Go to discover list.
+  - Click **Join Request** (or **Apply** next to a role). The **Submit Join Request** modal should open.
+  - Enter message shorter than 10 characters → submit → verify warning: `"Application message must be at least 10 characters."`
+  - Enter invalid portfolio URL (e.g. `http://portfolio.com`) → verify HTTPS block.
+  - Enter message >= 10 chars, safe portfolio URL (https://) and click Submit. Verify success toast and status indicator shows `"Applied (pending)"`.
+- [ ] **Duplicate pending application blocked**:
+  - Go back to the card. Try to apply again.
+  - Verify that no Apply actions are active, and attempting duplicate submissions is blocked by both frontend rules and database constraints.
+- [ ] **Withdraw Application**:
+  - Go to **My Applications** tab.
+  - Locate the pending application, click **Withdraw**.
+  - Confirm withdrawal. Verify status updates to `"withdrawn"`, and you can now click "Join Request" again on the discover page.
+
+### 4. Owner Review Queue & Safety Guards
+- [ ] **Applications Queue**:
+  - Log in as the Project Owner. Navigate to **Manage Workspace** on the project.
+  - In **Applications Queue** card, locate Student A's pending application.
+- [ ] **Safeguarded Profile Previews**:
+  - Click on Student A's name to view profile summary details.
+  - Verify it displays name, department, year, skills, headline, interests, learning goals, summary, and public social URLs.
+  - **CRITICAL PRIVACY AUDIT**: Verify that **no** private college emails, phone numbers, WhatsApp links, or database UUIDs are shown or leaked in the HTML.
+- [ ] **Owner Reject Decision**:
+  - Click **Reject** next to an application. The modal should prompt for response reasons.
+  - Type a decline reason and click Submit.
+  - Verify the application status updates, and **no** team member roster row is created.
+  - Log in as the rejected student. Verify that in **My Applications**, the request is labelled `"rejected"` and displays the owner's custom comment. Verify you can cleanly apply again.
+- [ ] **Owner Accept & Roster Upgrade**:
+  - Log in as Student B. Submit a join request.
+  - Log in as Owner. Open workspace. Click **Accept** next to Student B's application.
+  - Type a welcome comment and click Submit.
+  - Verify:
+    * Application status is updated to `"accepted"`.
+    * A new active team member row for Student B is inserted in `project_team_members`.
+    * `current_team_size` is incremented.
+    * The corresponding role's `slots_filled` is incremented.
+- [ ] **Capacity Over-limit Shield**:
+  - Simulate a full team (e.g. set max size to 2 and add a member).
+  - Attempt to accept another application.
+  - Verify that the action is blocked, showing a warning: `"Cannot accept: Project team has reached maximum capacity."`
+
+### 5. Private Coordination & Workspace Views
+- [ ] **Public / Non-Member Privacy Protection**:
+  - Log in as Student C (non-member, non-owner).
+  - Inspect the project card and project details.
+  - **CRITICAL SECURITY AUDIT**: Verify that `coordination_link`, `github_repo_url`, `shared_doc_url`, and `private_notes` are **completely hidden and return null** (non-accessible).
+- [ ] **Teammate Secure Coordination access**:
+  - Log in as Student B (accepted member). Go to the project workspace Overview.
+  - Verify that the **Secure Team Coordination** credentials card is fully visible, displaying active coordination meeting link, GitHub repository link, shared document link, and team tasks notes.
+  - Verify that Student B does **not** see "Edit Credentials" button.
+
+### 6. Team Exits & Management
+- [ ] **Member Voluntary Leave**:
+  - Log in as Student B (accepted member). Go to workspace.
+  - Click **Leave Team**. The modal should prompt for leave reasons.
+  - Type a reason and submit.
+  - Verify:
+    * Student B's roster listing shows `"Left / Removed"` with `left_at` timestamp.
+    * `current_team_size` is decremented.
+    * Role `slots_filled` is decremented.
+    * Student B loses workspace access immediately, and can request to join again cleanly.
+- [ ] **Owner Kick Member**:
+  - Log in as Project Owner. Open roster.
+  - Click **Kick** next to Student B. Modal prompts for removal reason.
+  - Type a reason and submit.
+  - Verify:
+    * Roster record shows `"Left / Removed"`.
+    * Team counts and role slots decrement safely.
+    * Student B loses access and can re-apply in the future.
+  - Verify that the project owner **cannot** kick themselves.
+

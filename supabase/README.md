@@ -407,3 +407,51 @@ ORDER BY deleted_at DESC;
 
 > [!NOTE]
 > The 4-hour window is defined solely in `isDeletedRecently` in `src/lib/learningCircles.ts`. To adjust the retention window, change the `4 * 60 * 60 * 1000` constant and rebuild.
+
+---
+
+## 🤝 Step 16: Phase 6.1 — Project Mate Finder SQL Patch
+
+To enable the Project Mate Finder (Find Teammates) module database core structures:
+
+1. Open the [Supabase Dashboard](https://supabase.com/dashboard) SQL Editor.
+2. Create a new query.
+3. Paste the entire contents of `supabase/phase6-project-mate-finder-core-patch.sql` and click **Run**.
+4. Confirm that the query finishes with `Success` or `Query returned no rows`.
+
+### ✅ Verify Phase 6.1 Tables
+
+Navigate to the **Table Editor** tab and verify the existence of the following 4 new tables:
+- `project_posts`: Stores project team listings, preferences, difficulty, capacity, and coordinates.
+- `project_roles`: Stores role profiles, priority level, slots needed, and filled slots.
+- `project_applications`: Stores student teammate applications, snapshots, availability, status, and owner replies.
+- `project_team_members`: Stores active roster of teammates with role titles.
+
+### ✅ Verify Phase 6.1 Security Policies (RLS)
+
+Check **Authentication -> Policies** in the sidebar. The following RLS rules should be successfully created:
+
+**`project_posts`** — 3 policies:
+- `Allow authenticated read project posts`: Select allowed for all logged-in students.
+- `Allow authenticated insert own project posts`: Creators can insert where `created_by = auth.uid()`.
+- `Allow owner to update own project posts`: Updates allowed where `created_by = auth.uid()`.
+
+**`project_roles`** — 2 policies:
+- `Allow authenticated read project roles`: R/O access for all authenticated students.
+- `Allow owner to manage project roles`: Insert, update, and delete only if creator of project.
+
+**`project_applications`** — 3 policies:
+- `Allow applicant or project owner to view applications`: Only applicant or project owner can read.
+- `Allow authenticated user to insert applications`: Only applicant can insert. Owner cannot self-apply.
+- `Allow applicant or owner to update applications`: Applicant can withdraw (status to withdrawn); owner can approve/reject.
+
+**`project_team_members`** — 3 policies:
+- `Allow members or owners to see roster`: Select is gated to team members or project owner only.
+- `Allow owner to insert team members`: Inserts allowed only by project owner.
+- `Allow owner or member to update membership`: Member can mark own `left_at`; owner can kick member.
+
+### ✅ DB Index Safeguards
+Partial indexes are configured to enforce business logic:
+- `unique_pending_project_applicant`: Enforces a maximum of one **pending** application per project and applicant, while allowing re-applications if previously rejected/withdrawn or left.
+- `unique_active_project_member`: Enforces that a user can have at most one **active** membership role in a specific project team (i.e. `left_at` is null).
+

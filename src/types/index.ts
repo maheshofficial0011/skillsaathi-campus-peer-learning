@@ -482,4 +482,128 @@ export interface LearningCircleJoinRequestWithProfile extends LearningCircleJoin
   requester_profile?: Profile | null;
 }
 
+// ==========================================
+// PHASE 6: PROJECT MATE FINDER TYPES
+// ==========================================
+
+export type ProjectPostStatus = 'recruiting' | 'in_progress' | 'team_full' | 'completed' | 'paused' | 'archived';
+export type ProjectDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
+export type ProjectWorkMode = 'Online' | 'Offline' | 'Hybrid' | 'Campus only';
+export type ProjectRolePriority = 'low' | 'medium' | 'high';
+export type ProjectApplicationStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+
+export interface ProjectPost {
+  id: string;
+  created_by: string;
+  title: string;
+  summary: string | null;
+  description: string;
+  category: string;
+  project_type: string;
+  difficulty_level: ProjectDifficulty;
+  required_skills: string[];
+  preferred_departments: string[];
+  preferred_years: string[];
+  work_mode: ProjectWorkMode;
+  expected_timeline: string | null;
+  meeting_preference: string | null;
+  max_team_size: number;
+  current_team_size: number;
+  status: ProjectPostStatus;
+  is_beginner_friendly: boolean;
+  is_hackathon: boolean;
+  deadline: string | null;
+  // Private team-only fields:
+  coordination_link: string | null;
+  github_repo_url: string | null;
+  shared_doc_url: string | null;
+  private_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectRole {
+  id: string;
+  project_id: string;
+  role_name: string;
+  description: string | null;
+  required_skills: string[];
+  slots_needed: number;
+  slots_filled: number;
+  priority: ProjectRolePriority;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectApplication {
+  id: string;
+  project_id: string;
+  applicant_id: string;
+  role_id: string | null;
+  role_interest: string | null;
+  message: string;
+  skills_snapshot: string[];
+  experience_summary: string | null;
+  portfolio_url: string | null;
+  availability: string | null;
+  expected_contribution: string | null;
+  status: ProjectApplicationStatus;
+  owner_response: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectApplicationWithProfile extends ProjectApplication {
+  applicant_profile?: {
+    full_name: string;
+    department: string;
+    year_of_study: string;
+    skills_known: string[];
+    headline?: string | null;
+    academic_interests?: string[];
+    learning_goals?: string | null;
+    qualification_summary?: string | null;
+    github_url?: string | null;
+    linkedin_url?: string | null;
+    portfolio_url?: string | null;
+  } | null;
+}
+
+export interface ProjectTeamMember {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role_id: string | null;
+  role_name: string | null;
+  joined_at: string;
+  added_by: string | null;
+  left_at: string | null;
+  leave_reason: string | null;
+  removed_by: string | null;
+  created_at: string;
+  profile?: {
+    full_name: string;
+    department: string;
+    year_of_study: string;
+  } | null;
+}
+
+export interface ProjectWithStats extends ProjectPost {
+  owner_profile?: {
+    full_name: string;
+    department: string;
+    year_of_study: string;
+  } | null;
+  roles?: ProjectRole[];
+  my_application_status?: ProjectApplicationStatus | null;
+  my_application_id?: string | null;
+  is_owner?: boolean;
+  is_member?: boolean;
+  match_score?: number;
+  match_reasons?: string[];
+}
+
+
 
