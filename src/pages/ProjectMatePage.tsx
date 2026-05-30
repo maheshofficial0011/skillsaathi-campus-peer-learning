@@ -187,6 +187,10 @@ export const ProjectMatePage: React.FC = () => {
   const [rolesLimit, setRolesLimit] = useState(3);
   const [applicantsLimit, setApplicantsLimit] = useState(3);
 
+  // Phase 6.3E local states for teammates filter & search
+  const [teammateSearch, setTeammateSearch] = useState('');
+  const [teammateRoleFilter, setTeammateRoleFilter] = useState('');
+
   // Discover Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -2372,55 +2376,100 @@ export const ProjectMatePage: React.FC = () => {
               
               {/* Workspace Main Details */}
               <div className="space-y-6">
-                <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                    <div>
-                      <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-150">
-                        Workspace
-                      </span>
-                      <h3 className="text-2xl font-black text-slate-800 leading-tight mt-1">{selectedProject.title}</h3>
-                    </div>
+                {(() => {
+                  const openRolesCount = selectedProject.roles
+                    ? selectedProject.roles.reduce((sum, r) => sum + Math.max(0, r.slots_needed - (r.slots_filled || 0)), 0)
+                    : 0;
 
-                    {selectedProject.is_owner && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-400">Update Status:</span>
-                        <select
-                          value={selectedProject.status}
-                          onChange={e => handleStatusUpdate(e.target.value)}
-                          className="px-2.5 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 focus:outline-none"
-                        >
-                          <option value="recruiting">Recruiting</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="team_full">Team Full</option>
-                          <option value="completed">Completed</option>
-                          <option value="paused">Paused</option>
-                          <option value="archived">Archived</option>
-                        </select>
+                  return (
+                    <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-5">
+                      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                        <div>
+                          <span className="text-[10px] font-black uppercase text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-150">
+                            Workspace
+                          </span>
+                          <h3 className="text-2xl font-black text-slate-800 leading-tight mt-1.5 break-words break-all">{selectedProject.title}</h3>
+                        </div>
+
+                        {selectedProject.is_owner ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-400">Update Status:</span>
+                            <select
+                              value={selectedProject.status}
+                              onChange={e => handleStatusUpdate(e.target.value)}
+                              className="px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs font-black bg-slate-50 text-slate-700 focus:outline-none focus:border-indigo-500 shadow-sm transition-all"
+                            >
+                              <option value="recruiting">Recruiting</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="team_full">Team Full</option>
+                              <option value="completed">Completed</option>
+                              <option value="paused">Paused</option>
+                              <option value="archived">Archived</option>
+                            </select>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-400">Status:</span>
+                            {(() => {
+                              const statusColors = {
+                                recruiting: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                                in_progress: 'bg-emerald-50 text-emerald-700 border-emerald-250',
+                                team_full: 'bg-amber-50 text-amber-700 border-amber-250',
+                                completed: 'bg-teal-50 text-teal-700 border-teal-250',
+                                paused: 'bg-slate-100 text-slate-650 border-slate-250',
+                                archived: 'bg-rose-50 text-rose-700 border-rose-250'
+                              };
+                              const statusLabels = {
+                                recruiting: 'Recruiting',
+                                in_progress: 'In Progress',
+                                team_full: 'Team Full',
+                                completed: 'Completed',
+                                paused: 'Paused',
+                                archived: 'Archived'
+                              };
+                              const cls = statusColors[selectedProject.status as keyof typeof statusColors] || 'bg-slate-100 text-slate-650 border-slate-200';
+                              const label = statusLabels[selectedProject.status as keyof typeof statusLabels] || selectedProject.status;
+                              return (
+                                <span className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase border tracking-wider ${cls}`}>
+                                  {label}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  <p className="text-sm text-slate-600 leading-relaxed">{selectedProject.description}</p>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl text-xs font-semibold">
-                    <div>
-                      <p className="text-slate-400 uppercase tracking-wider text-[10px]">Difficulty</p>
-                      <p className="text-slate-700 font-bold">{selectedProject.difficulty_level}</p>
+                      <p className="text-sm text-slate-600 leading-relaxed font-medium break-words">{selectedProject.description}</p>
+                      
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl text-xs font-bold border border-slate-150">
+                        <div className="p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
+                          <p className="text-slate-400 uppercase tracking-wider text-[10px] mb-0.5">Difficulty</p>
+                          <p className="text-slate-800 text-sm font-black">{selectedProject.difficulty_level}</p>
+                        </div>
+                        <div className="p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
+                          <p className="text-slate-400 uppercase tracking-wider text-[10px] mb-0.5">Work Mode</p>
+                          <p className="text-slate-800 text-sm font-black">{selectedProject.work_mode}</p>
+                        </div>
+                        <div className="p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
+                          <p className="text-slate-400 uppercase tracking-wider text-[10px] mb-0.5">Type</p>
+                          <p className="text-slate-800 text-sm font-black truncate" title={formatProjectDisplayType(selectedProject.project_type)}>
+                            {formatProjectDisplayType(selectedProject.project_type)}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
+                          <p className="text-slate-400 uppercase tracking-wider text-[10px] mb-0.5">Capacity</p>
+                          <p className="text-slate-800 text-sm font-black">{teamMembers.length} / {selectedProject.max_team_size}</p>
+                        </div>
+                        <div className="p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
+                          <p className="text-slate-400 uppercase tracking-wider text-[10px] mb-0.5">Open Roles</p>
+                          <p className={`text-slate-800 text-sm font-black ${openRolesCount > 0 ? 'text-indigo-600' : 'text-slate-500'}`}>
+                            {openRolesCount} {openRolesCount === 1 ? 'slot' : 'slots'}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-slate-400 uppercase tracking-wider text-[10px]">Work Mode</p>
-                      <p className="text-slate-700 font-bold">{selectedProject.work_mode}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 uppercase tracking-wider text-[10px]">Type</p>
-                      <p className="text-slate-700 font-bold">{formatProjectDisplayType(selectedProject.project_type)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 uppercase tracking-wider text-[10px]">Capacity</p>
-                      <p className="text-slate-700 font-bold">{selectedProject.current_team_size} / {selectedProject.max_team_size}</p>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Subtab Navigation Bar */}
                 <div className="flex border-b border-slate-200 bg-white p-2 rounded-2xl shadow-sm gap-2">
