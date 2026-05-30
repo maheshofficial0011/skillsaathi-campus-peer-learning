@@ -140,7 +140,7 @@ export async function getProjectPosts(
     const isOwner = currentUserId === post.created_by;
 
     const myApp = myApplications.find(a => a.project_id === post.id);
-    const isMember = myMemberships.some(m => m.project_id === post.id) || isOwner || (myApp && myApp.status === 'accepted');
+    const isMember = isOwner || myMemberships.some(m => m.project_id === post.id);
 
     // Enforce private collaboration fields gating
     const cleanPost = { ...post };
@@ -212,7 +212,7 @@ export async function getProjectById(
     .is('left_at', null);
 
   const isOwner = currentUserId === post.created_by;
-  const isMember = isOwner || (activeMembers && activeMembers.length > 0) || (myApp && myApp.status === 'accepted');
+  const isMember = isOwner || (activeMembers && activeMembers.length > 0);
 
   // Enforce private collaboration fields gating
   const cleanPost = { ...post };
@@ -475,6 +475,19 @@ export async function applyToProject(input: {
     throw new Error('You already have an active pending application for this project.');
   }
 
+  // Check if applicant is already an active member of the project team
+  const { data: activeMember } = await supabase
+    .from('project_team_members')
+    .select('id')
+    .eq('project_id', input.project_id)
+    .eq('user_id', input.applicant_id)
+    .is('left_at', null)
+    .maybeSingle();
+
+  if (activeMember) {
+    throw new Error('You are already an active team member of this project.');
+  }
+
   const { data: application, error } = await supabase
     .from('project_applications')
     .insert({
@@ -687,26 +700,29 @@ export async function getProjectTeamMembers(projectId: string): Promise<ProjectT
  * Member voluntarily leaves project.
  */
 export async function leaveProject(projectId: string, userId: string, reason: string): Promise<void> {
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+  const effectiveUserId = authUser ? authUser.id : userId;
+
   // Check membership exists
   const { data: member, error: findErr } = await supabase
     .from('project_team_members')
     .select('*')
     .eq('project_id', projectId)
-    .eq('user_id', userId)
+    .eq('user_id', effectiveUserId)
     .is('left_at', null)
-    .single();
+    .maybeSingle();
 
   if (findErr || !member) throw new Error('Active membership not found.');
 
   // Check if owner is trying to leave
   const { data: project } = await supabase
     .from('project_posts')
-    .select('created_by, current_team_size, status')
+    .select('created_by, current_team_size, status, max_team_size')
     .eq('id', projectId)
     .single();
 
-  if (project?.created_by === userId) {
-    throw new Error('Project owners cannot leave their own projects. Archive or complete the project instead.');
+  if (project?.created_by === effectiveUserId) {
+    throw new Error('Project owner cannot leave their own project. Archive the project or transfer ownership later.');
   }
 
   // Update membership status
@@ -722,7 +738,7 @@ export async function leaveProject(projectId: string, userId: string, reason: st
 
   // Decrement current_team_size and unlock status if it was full
   const newSize = Math.max(1, (project?.current_team_size || 2) - 1);
-  const newStatus = project?.status === 'team_full' ? 'recruiting' : project?.status;
+  const newStatus = (project?.status === 'team_full' && newSize < (project?.max_team_size || 4)) ? 'recruiting' : project?.status;
 
   await supabase
     .from('project_posts')
@@ -743,7 +759,7 @@ export async function leaveProject(projectId: string, userId: string, reason: st
     if (role && role.slots_filled > 0) {
       await supabase
         .from('project_roles')
-        .update({ slots_filled: role.slots_filled - 1 })
+        .update({ slots_filled: Math.max(0, role.slots_filled - 1) })
         .eq('id', member.role_id);
     }
   }
@@ -758,8 +774,22 @@ export async function removeProjectMember(
   removedByUserId: string,
   reason: string
 ): Promise<void> {
-  if (userId === removedByUserId) {
-    throw new Error('You cannot remove yourself. Use leave study group action instead.');
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+  const effectiveRemovedBy = authUser ? authUser.id : removedByUserId;
+
+  if (userId === effectiveRemovedBy) {
+    throw new Error('You cannot remove yourself. Use leave project action instead.');
+  }
+
+  // Fetch project details to check owner
+  const { data: project } = await supabase
+    .from('project_posts')
+    .select('created_by, current_team_size, status, max_team_size')
+    .eq('id', projectId)
+    .single();
+
+  if (project?.created_by !== effectiveRemovedBy) {
+    throw new Error('Only the project owner can remove team members.');
   }
 
   // Check membership exists
@@ -769,7 +799,7 @@ export async function removeProjectMember(
     .eq('project_id', projectId)
     .eq('user_id', userId)
     .is('left_at', null)
-    .single();
+    .maybeSingle();
 
   if (findErr || !member) throw new Error('Active membership not found.');
 
@@ -779,21 +809,15 @@ export async function removeProjectMember(
     .update({
       left_at: new Date().toISOString(),
       leave_reason: reason || 'Removed by project owner.',
-      removed_by: removedByUserId
+      removed_by: effectiveRemovedBy
     })
     .eq('id', member.id);
 
   if (updateErr) throw updateErr;
 
   // Decrement current_team_size
-  const { data: project } = await supabase
-    .from('project_posts')
-    .select('current_team_size, status')
-    .eq('id', projectId)
-    .single();
-
   const newSize = Math.max(1, (project?.current_team_size || 2) - 1);
-  const newStatus = project?.status === 'team_full' ? 'recruiting' : project?.status;
+  const newStatus = (project?.status === 'team_full' && newSize < (project?.max_team_size || 4)) ? 'recruiting' : project?.status;
 
   await supabase
     .from('project_posts')
@@ -814,8 +838,466 @@ export async function removeProjectMember(
     if (role && role.slots_filled > 0) {
       await supabase
         .from('project_roles')
-        .update({ slots_filled: role.slots_filled - 1 })
+        .update({ slots_filled: Math.max(0, role.slots_filled - 1) })
         .eq('id', member.role_id);
     }
   }
 }
+
+/**
+ * Fetch discussion posts for a project.
+ */
+export async function getProjectDiscussionPosts(
+  projectId: string
+): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('project_discussion_posts')
+    .select(`
+      *,
+      author_profile:profiles!project_discussion_posts_created_by_fkey(full_name)
+    `)
+    .eq('project_id', projectId)
+    .is('deleted_at', null)
+    .order('is_pinned', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  
+  const postsWithCounts = await Promise.all((data || []).map(async (post: any) => {
+    const { count: repliesCount } = await supabase
+      .from('project_discussion_replies')
+      .select('*', { count: 'exact', head: true })
+      .eq('post_id', post.id)
+      .is('deleted_at', null);
+
+    const { count: helpfulCount } = await supabase
+      .from('project_discussion_reactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('post_id', post.id)
+      .eq('reaction_type', 'helpful');
+
+    const { data: { user } } = await supabase.auth.getUser();
+    let reactedByMe = false;
+    if (user) {
+      const { data: reaction } = await supabase
+        .from('project_discussion_reactions')
+        .select('id')
+        .eq('post_id', post.id)
+        .eq('user_id', user.id)
+        .eq('reaction_type', 'helpful')
+        .maybeSingle();
+      reactedByMe = !!reaction;
+    }
+
+    return {
+      ...post,
+      replies_count: repliesCount || 0,
+      helpful_count: helpfulCount || 0,
+      reacted_by_me: reactedByMe
+    };
+  }));
+
+  return postsWithCounts;
+}
+
+/**
+ * Create a new project discussion post.
+ */
+export async function createProjectDiscussionPost(input: {
+  project_id: string;
+  created_by: string;
+  title: string;
+  body: string;
+  post_type: 'update' | 'question' | 'announcement' | 'task';
+  tags?: string[];
+}): Promise<any> {
+  if (input.title.length < 5) throw new Error('Post title must be at least 5 characters.');
+  if (input.body.length < 10) throw new Error('Post body must be at least 10 characters.');
+
+  const { data, error } = await supabase
+    .from('project_discussion_posts')
+    .insert({
+      project_id: input.project_id,
+      created_by: input.created_by,
+      title: input.title,
+      body: input.body,
+      post_type: input.post_type,
+      tags: input.tags || []
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Update an existing discussion post.
+ */
+export async function updateProjectDiscussionPost(
+  postId: string,
+  input: { title: string; body: string; post_type?: any; tags?: string[]; is_pinned?: boolean }
+): Promise<void> {
+  const { error } = await supabase
+    .from('project_discussion_posts')
+    .update({
+      ...input,
+      edited_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', postId);
+
+  if (error) throw error;
+}
+
+/**
+ * Soft delete a discussion post.
+ */
+export async function softDeleteProjectDiscussionPost(postId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  const { error } = await supabase
+    .from('project_discussion_posts')
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: user.id
+    })
+    .eq('id', postId);
+
+  if (error) throw error;
+}
+
+/**
+ * Fetch replies for a post.
+ */
+export async function getProjectDiscussionReplies(postId: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('project_discussion_replies')
+    .select(`
+      *,
+      author_profile:profiles!project_discussion_replies_created_by_fkey(full_name)
+    `)
+    .eq('post_id', postId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+
+  const repliesWithReactions = await Promise.all((data || []).map(async (reply: any) => {
+    const { count: helpfulCount } = await supabase
+      .from('project_discussion_reactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('reply_id', reply.id)
+      .eq('reaction_type', 'helpful');
+
+    const { data: { user } } = await supabase.auth.getUser();
+    let reactedByMe = false;
+    if (user) {
+      const { data: reaction } = await supabase
+        .from('project_discussion_reactions')
+        .select('id')
+        .eq('reply_id', reply.id)
+        .eq('user_id', user.id)
+        .eq('reaction_type', 'helpful')
+        .maybeSingle();
+      reactedByMe = !!reaction;
+    }
+
+    return {
+      ...reply,
+      helpful_count: helpfulCount || 0,
+      reacted_by_me: reactedByMe
+    };
+  }));
+
+  return repliesWithReactions;
+}
+
+/**
+ * Add a reply/comment to a discussion post.
+ */
+export async function addProjectDiscussionReply(
+  postId: string,
+  projectId: string,
+  body: string
+): Promise<any> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  if (body.length < 2) throw new Error('Comment must be at least 2 characters.');
+
+  const { data, error } = await supabase
+    .from('project_discussion_replies')
+    .insert({
+      post_id: postId,
+      project_id: projectId,
+      created_by: user.id,
+      body: body
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Soft delete a reply.
+ */
+export async function softDeleteProjectDiscussionReply(replyId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  const { error } = await supabase
+    .from('project_discussion_replies')
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: user.id
+    })
+    .eq('id', replyId);
+
+  if (error) throw error;
+}
+
+/**
+ * Toggle a reaction on a post or reply.
+ */
+export async function toggleProjectDiscussionHelpful(input: {
+  postId?: string;
+  replyId?: string;
+}): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  if (input.postId) {
+    const { data: existing } = await supabase
+      .from('project_discussion_reactions')
+      .select('id')
+      .eq('post_id', input.postId)
+      .eq('user_id', user.id)
+      .eq('reaction_type', 'helpful')
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from('project_discussion_reactions')
+        .delete()
+        .eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from('project_discussion_reactions')
+        .insert({
+          post_id: input.postId,
+          user_id: user.id,
+          reaction_type: 'helpful'
+        });
+      if (error) throw error;
+    }
+  } else if (input.replyId) {
+    const { data: existing } = await supabase
+      .from('project_discussion_reactions')
+      .select('id')
+      .eq('reply_id', input.replyId)
+      .eq('user_id', user.id)
+      .eq('reaction_type', 'helpful')
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from('project_discussion_reactions')
+        .delete()
+        .eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from('project_discussion_reactions')
+        .insert({
+          reply_id: input.replyId,
+          user_id: user.id,
+          reaction_type: 'helpful'
+        });
+      if (error) throw error;
+    }
+  }
+}
+
+/**
+ * Add verified resource link.
+ */
+export async function addProjectResource(input: {
+  project_id: string;
+  title: string;
+  description?: string;
+  resource_type: 'link' | 'file';
+  url?: string;
+  file_path?: string;
+  file_name?: string;
+  file_mime_type?: string;
+  file_size_bytes?: number;
+  storage_bucket?: string;
+}): Promise<any> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  if (input.title.length < 3) throw new Error('Title must be at least 3 characters.');
+  if (input.resource_type === 'link' && (!input.url || !input.url.startsWith('https://'))) {
+    throw new Error('Verified link resources must strictly use the https:// protocol.');
+  }
+
+  const { data: project } = await supabase
+    .from('project_posts')
+    .select('created_by')
+    .eq('id', input.project_id)
+    .single();
+
+  const isOwner = project?.created_by === user.id;
+  const status = isOwner ? 'verified' : 'pending_verification';
+
+  const { data, error } = await supabase
+    .from('project_resources')
+    .insert({
+      project_id: input.project_id,
+      uploaded_by: user.id,
+      title: input.title,
+      description: input.description || null,
+      resource_type: input.resource_type,
+      url: input.url || null,
+      file_path: input.file_path || null,
+      file_name: input.file_name || null,
+      file_mime_type: input.file_mime_type || null,
+      file_size_bytes: input.file_size_bytes || null,
+      storage_bucket: input.storage_bucket || null,
+      verification_status: status,
+      verified_by: isOwner ? user.id : null,
+      verified_at: isOwner ? new Date().toISOString() : null
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Get resources.
+ */
+export async function getProjectResources(projectId: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('project_resources')
+    .select(`
+      *,
+      uploader_profile:profiles!project_resources_uploaded_by_fkey(full_name)
+    `)
+    .eq('project_id', projectId)
+    .order('is_pinned', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Get pending verification resources.
+ */
+export async function getProjectResourceVerificationQueue(projectId: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('project_resources')
+    .select(`
+      *,
+      uploader_profile:profiles!project_resources_uploaded_by_fkey(full_name)
+    `)
+    .eq('project_id', projectId)
+    .eq('verification_status', 'pending_verification')
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Verify a resource.
+ */
+export async function verifyProjectResource(resourceId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  const { error } = await supabase
+    .from('project_resources')
+    .update({
+      verification_status: 'verified',
+      verified_by: user.id,
+      verified_at: new Date().toISOString(),
+      rejected_by: null,
+      rejected_at: null,
+      rejection_reason: null
+    })
+    .eq('id', resourceId);
+
+  if (error) throw error;
+}
+
+/**
+ * Reject a resource.
+ */
+export async function rejectProjectResource(resourceId: string, reason: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  if (!reason || reason.trim().length < 5) {
+    throw new Error('Please provide a specific rejection reason (at least 5 characters).');
+  }
+
+  const { error } = await supabase
+    .from('project_resources')
+    .update({
+      verification_status: 'rejected',
+      rejected_by: user.id,
+      rejected_at: new Date().toISOString(),
+      rejection_reason: reason
+    })
+    .eq('id', resourceId);
+
+  if (error) throw error;
+}
+
+/**
+ * Pin or unpin a resource.
+ */
+export async function pinProjectResource(resourceId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated.');
+
+  const { data: resource } = await supabase
+    .from('project_resources')
+    .select('is_pinned')
+    .eq('id', resourceId)
+    .single();
+
+  if (!resource) throw new Error('Resource not found.');
+
+  const { error } = await supabase
+    .from('project_resources')
+    .update({
+      is_pinned: !resource.is_pinned,
+      pinned_by: !resource.is_pinned ? user.id : null,
+      pinned_at: !resource.is_pinned ? new Date().toISOString() : null
+    })
+    .eq('id', resourceId);
+
+  if (error) throw error;
+}
+
+/**
+ * Delete a resource.
+ */
+export async function deleteProjectResource(resourceId: string): Promise<void> {
+  const { error } = await supabase
+    .from('project_resources')
+    .delete()
+    .eq('id', resourceId);
+
+  if (error) throw error;
+}
+

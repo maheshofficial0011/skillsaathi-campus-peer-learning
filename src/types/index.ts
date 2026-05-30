@@ -605,5 +605,86 @@ export interface ProjectWithStats extends ProjectPost {
   match_reasons?: string[];
 }
 
+export interface ProjectDiscussionPost {
+  id: string;
+  project_id: string;
+  created_by: string;
+  title: string;
+  body: string;
+  post_type: 'update' | 'question' | 'announcement' | 'task';
+  tags: string[];
+  is_pinned: boolean;
+  pinned_by: string | null;
+  pinned_at: string | null;
+  edited_at: string | null;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  created_at: string;
+  updated_at: string;
+  author_profile?: {
+    full_name: string;
+  } | null;
+  replies_count?: number;
+  helpful_count?: number;
+  reacted_by_me?: boolean;
+}
+
+export interface ProjectDiscussionReply {
+  id: string;
+  post_id: string;
+  project_id: string;
+  created_by: string;
+  body: string;
+  edited_at: string | null;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  created_at: string;
+  updated_at: string;
+  author_profile?: {
+    full_name: string;
+  } | null;
+  helpful_count?: number;
+  reacted_by_me?: boolean;
+}
+
+export interface ProjectDiscussionReaction {
+  id: string;
+  post_id: string | null;
+  reply_id: string | null;
+  user_id: string;
+  reaction_type: 'helpful';
+  created_at: string;
+}
+
+export interface ProjectResource {
+  id: string;
+  project_id: string;
+  uploaded_by: string;
+  title: string;
+  description: string | null;
+  resource_type: 'link' | 'file';
+  url: string | null;
+  file_path: string | null;
+  file_name: string | null;
+  file_mime_type: string | null;
+  file_size_bytes: number | null;
+  storage_bucket: string | null;
+  verification_status: 'pending_verification' | 'verified' | 'rejected';
+  verified_by: string | null;
+  verified_at: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  is_pinned: boolean;
+  pinned_by: string | null;
+  pinned_at: string | null;
+  created_at: string;
+  updated_at: string;
+  uploader_profile?: {
+    full_name: string;
+  } | null;
+}
+
+
 
 

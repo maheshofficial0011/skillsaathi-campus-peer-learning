@@ -1043,4 +1043,82 @@ limit 10;
 select * from public.project_team_members limit 5;
 ```
 
+---
+
+## 📋 Phase 6.2 — Project Mate Finder Lifecycle Polish, Discussion Board & Shared Resources
+
+> **Requires Supabase Patch**: Run `supabase/phase6-project-mate-workspace-polish-patch.sql` in the SQL Editor before testing.
+
+### 1. Active-Member Based Privacy Gating
+- [ ] **Lock Access Immediately on Exit**:
+  - Log in as Student B (accepted member). Verify you can see the **Secure Team Coordination** credentials, read/write to the **Team Discussion**, and access the **Shared Resources** library.
+  - Leave the team or have the owner kick you from the roster.
+  - Verify that the workspace tab closes instantly and you lose access to all credentials, discussion threads, and resources.
+  - Verify that gating is strictly database-driven (requires a `project_team_members` row with `left_at IS NULL`), not just checking if an accepted application exists.
+
+### 2. Role Slot & Team Capacity Enforcement
+- [ ] **Apply Modal Capability Checks**:
+  - In a project with multiple roles where one is fully staffed (e.g., `slots_filled >= slots_needed`) and others are open:
+  - Open the **Submit Join Request** modal.
+  - Verify that the fully staffed role is disabled and grayed out in the select dropdown.
+  - Verify you can successfully select and apply to any of the remaining open roles.
+  - If all roles are fully staffed or the team capacity `max_team_size` is reached, verify that the primary "Submit Application" button is disabled and a clear warning banner is shown.
+
+### 3. Application Grouping & Re-application UX
+- [ ] **Grouping in "My Applications"**:
+  - Navigate to **My Applications** tab.
+  - Verify that applications are neatly grouped into 5 distinct categories:
+    * **Active Teams**: Accepted applications where you are currently an active member.
+    * **Pending Applications**: Active requests waiting for owner review.
+    * **Rejected Applications**: Requests declined by the owner (displays rejection comment).
+    * **Withdrawn Applications**: Requests you cancelled.
+    * **Past Teams**: Accepted applications where you have since left or been removed.
+  - Verify that the **Open Team Workspace** action is displayed ONLY on Active Teams.
+  - Verify that **Apply Again** is displayed on Left, Rejected, and Withdrawn cards, and is fully active if the project capacity still has open slots.
+
+### 4. Owner Boundary Checks
+- [ ] **Owner Cannot Leave Own Project**:
+  - Log in as the project creator (Owner).
+  - Open the Team Roster list.
+  - Verify that your card does NOT render a "Leave Team" button.
+  - Verify that you cannot kick yourself.
+  - Verify you can pause, complete, or archive the project using the status settings dropdown instead of leaving.
+
+### 5. Private Team Discussion Board (Workspace Tab 2)
+- [ ] **Roster-Gated Read/Write**:
+  - Verify that only the owner and active team members (not left members or non-members) can read or publish discussion posts.
+- [ ] **Post Creation & Metadata**:
+  - Publish a new post. Verify you can select from four post types: `Update`, `Question`, `Announcement`, `Task`.
+  - Verify you can add comma-separated tags.
+  - Verify the post renders with uploader name, relative timestamp, type-colored badge, and tags.
+- [ ] **Reactions & Comment Replies Drawer**:
+  - Click `👍 Helpful` reaction button on a post. Verify it increments. Click again to toggle off.
+  - Click `Comments` to slide open the replies drawer.
+  - Add a reply. Verify it renders instantly and increments the comment counter.
+  - As the author, delete your comment. Verify it deletes safely and decrements the counter.
+- [ ] **Owner Controls & Soft Deletion**:
+  - As the Owner, verify you can pin critical posts. Pinned posts must stay anchored at the top of the discussion board.
+  - Verify that authors can delete their own posts, and owners can delete any post.
+
+### 6. Shared Resources Library (Workspace Tab 3)
+- [ ] **HTTPS Links Only**:
+  - Click **Share a Link**.
+  - Attempt to upload an insecure link (e.g. `http://...` or `javascript:...`). Verify it blocks with an explicit protocol validation error.
+  - Submit a valid `https://` link.
+- [ ] **Owner Auto-Verification vs Member Queue**:
+  - As the Owner, submit a resource link. Verify it is verified instantly and appears directly in the **Verified Material Library**.
+  - As a normal Member, submit a resource link. Verify it is sent to the pending verification list and shows in your **My Submitted Resources** dashboard as `⏳ Pending`.
+- [ ] **Verification Console Moderation**:
+  - Log in as Owner. Open the Shared Resources tab.
+  - Locate the **Material Verification Queue** containing the member's pending resource.
+  - Verify that if the URL ends in `.exe`, a prominent safety warning alerts you.
+  - Decline the material. Verify that a modal prompts you for a rejection reason.
+  - Type a rejection reason and save. Verify the resource is removed from the queue.
+  - Log in as the member. Verify that the resource shows in your dashboard with a red `❌ Rejected` badge and displays the owner's feedback comments.
+  - Approve a resource. Verify it is verified instantly, removed from the queue, and appears in the public **Verified Material Library** visible to all teammates.
+- [ ] **Uploader & Owner Pin Controls**:
+  - As the Owner, pin a verified resource. Verify a blue `📌 PINNED` badge appears and it floats to the top of the library.
+  - Verify that Owners and original uploaders can delete resources safely.
+
+
 

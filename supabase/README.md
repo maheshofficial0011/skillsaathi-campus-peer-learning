@@ -467,4 +467,27 @@ To resolve this and restore clean workspace loading instantly:
 3. Paste the contents of `supabase/phase6-project-team-members-rls-fix.sql` and click **Run**.
 4. This drops the recursive SELECT policy and replaces it with a clean, high-performance, non-recursive policy checking direct owner status via `project_posts` and active team status via `project_applications` table.
 
+---
+
+## 🔒 Step 18: Phase 6.2 — Project Mate Finder Lifecycle Polish & Workspace patch
+
+To implement Phase 6.2 secure workspace boards (Discussion Board & Shared Resource Library) and resolve infinite loops securely:
+
+1. Open the [Supabase Dashboard](https://supabase.com/dashboard) SQL Editor.
+2. Create a new query.
+3. Paste the entire contents of `supabase/phase6-project-mate-workspace-polish-patch.sql` and click **Run**.
+4. This adds high-performance `SECURITY DEFINER` non-recursive postgres helper functions, maps them to `project_team_members` SELECT RLS policies, and bootstraps 4 new tables:
+   - `project_discussion_posts`: Stores team board messages, categories, tags, pins, and soft-deletes.
+   - `project_discussion_replies`: Stores threaded posts replies.
+   - `project_discussion_reactions`: Stores upvote reaction rows (supports exactly `helpful` reactions).
+   - `project_resources`: Stores verified HTTPS resources coordinates, verify queue metrics, pinned badges, and moderation logs.
+
+### ✅ RLS Security Definer Gating
+
+Security policies are protected by non-recursive helper functions executing under standard superuser context to skip PostgreSQL policy evaluation:
+- `is_project_member(project_id, user_id)`: Checks if user has an active membership row where `left_at` is null.
+- `is_project_owner(project_id, user_id)`: Checks if user created the project post.
+- `can_access_project_workspace(project_id, user_id)`: Checks if user is owner OR an active member. Excludes left members and accepted applicants before roster entries.
+
+
 
