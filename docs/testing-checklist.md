@@ -1269,3 +1269,19 @@ select * from public.project_team_members limit 5;
 ### 5. Application Rule by Phase
 - [ ] View a completed project in Discover. Verify 'Apply' CTA is not shown (project completed).
 - [ ] View an archived project. Verify no apply button.
+
+### 6. Smart Section Scroll & Sorting
+- [ ] Add more than 3 members to a team. Open Team Roster on Workspace page. Verify max-height scrolling (max-h-64 overflow-y-auto) is applied to roster list.
+- [ ] Add more than 3 past members to a project. Expand Past Team History. Verify list has max-height scrolling (max-h-64) and is sorted by exit date (recent-first).
+- [ ] In Discover tab, view a project with > 3 required slots. Verify Required Slots list has max-height scrolling (max-h-60 overflow-y-auto).
+- [ ] Create > 3 pending applications for an owned project. Verify Applications Queue has max-height scrolling (max-h-64) and is sorted by application date (recent-first).
+- [ ] In My Projects tab, check Completed Projects and Archived Projects sections. Both should be collapsible and collapsed by default.
+
+### 7. Discover CTA Rules by Project Status
+- [ ] Mark a project Completed. Open Discover tab. Verify the project card action button shows "? Project Completed" badge instead of Apply/Apply Again.
+- [ ] Pause a project. Open Discover tab. Verify the project card action button shows "?? Project Paused" badge instead of Apply/Apply Again.
+- [ ] Archive a project. Open Discover tab. Verify the project card action button shows "?? Project Archived" badge instead of Apply/Apply Again.
+- [ ] View an In-Progress project. Verify the button shows "Apply to Running Project" with the italic note "Project is already in progress".
+
+### 8. Resource Layout & URL Overflow Styling
+- [ ] Submit a resource with an extremely long URL (e.g. > 100 characters). Verify that in My Submitted Materials panel, the URL breaks nicely (break-all class applied) and does not blow out the card or page layout.

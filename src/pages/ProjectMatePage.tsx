@@ -313,8 +313,9 @@ export const ProjectMatePage: React.FC = () => {
   const [projectToComplete, setProjectToComplete] = useState<string | null>(null);
   const [completionSummaryText, setCompletionSummaryText] = useState('');
 
-  // Phase 6.3C: Section collapse states (default collapsed for archived section)
+    // Phase 6.3C: Section collapse states (default collapsed for archived section)
   const [isArchivedSectionCollapsed, setIsArchivedSectionCollapsed] = useState(true);
+  const [isCompletedSectionCollapsed, setIsCompletedSectionCollapsed] = useState(true);
 
   // Phase 6.3C: Show More / Show Fewer states
   const [showMoreCompletedProjects, setShowMoreCompletedProjects] = useState(false);
@@ -1817,7 +1818,7 @@ export const ProjectMatePage: React.FC = () => {
                                           ({role.slots_filled}/{role.slots_needed} {isRoleFilled ? 'Full' : 'Open'})
                                         </span>
                                       </div>
-                                      {!isRoleFilled && !proj.is_owner && !proj.is_member && (
+                                                                            {!isRoleFilled && !proj.is_owner && !proj.is_member && proj.status !== 'completed' && proj.status !== 'paused' && proj.status !== 'archived' && (
                                         <button
                                           onClick={() => openApplyModal(proj.id, role)}
                                           className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded border border-indigo-150 transition-colors"
@@ -1858,6 +1859,30 @@ export const ProjectMatePage: React.FC = () => {
                                 rejectedApp ? 'rejected' :
                                 withdrawnApp ? 'withdrawn' : 'none';
 
+                                                            if (proj.status === 'completed' && stateType !== 'active') {
+                                return (
+                                  <span className="px-3.5 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-black rounded-lg border border-emerald-250 uppercase tracking-wide">
+                                    ✓ Project Completed
+                                  </span>
+                                );
+                              }
+
+                              if (proj.status === 'paused' && stateType !== 'active') {
+                                return (
+                                  <span className="px-3.5 py-1.5 bg-amber-50 text-amber-700 text-xs font-black rounded-lg border border-amber-250 uppercase tracking-wide">
+                                    ⏸️ Project Paused
+                                  </span>
+                                );
+                              }
+
+                              if (proj.status === 'archived' && stateType !== 'active') {
+                                return (
+                                  <span className="px-3.5 py-1.5 bg-slate-100 text-slate-500 text-xs font-black rounded-lg border border-slate-200 uppercase tracking-wide">
+                                    📁 Project Archived
+                                  </span>
+                                );
+                              }
+
                               if (stateType === 'active') {
                                 return (
                                   <button
@@ -1887,18 +1912,18 @@ export const ProjectMatePage: React.FC = () => {
                                 );
                               }
 
-                              if (stateType === 'left' || stateType === 'rejected' || stateType === 'withdrawn') {
+                                                            if (stateType === 'left' || stateType === 'rejected' || stateType === 'withdrawn') {
                                 return (
                                   <div className="flex items-center gap-2">
                                     <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg border uppercase tracking-wider ${
-                                      stateType === 'left' ? 'bg-slate-100 text-slate-500 border-slate-200' :
+                                      stateType === 'left' ? 'bg-slate-100 text-slate-505 border-slate-200' :
                                       stateType === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' :
-                                      'bg-slate-50 text-slate-500 border-slate-200'
+                                      'bg-slate-50 text-slate-550 border-slate-200'
                                     }`}>
                                       {stateType === 'left' ? 'LEFT TEAM' : stateType}
                                     </span>
                                     {isFull ? (
-                                      <span className="px-3.5 py-1.5 bg-red-50 text-red-650 text-xs font-bold rounded-lg border border-red-100">
+                                      <span className="px-3.5 py-1.5 bg-red-50 text-red-655 text-xs font-bold rounded-lg border border-red-100">
                                         Team Full
                                       </span>
                                     ) : (
@@ -1906,7 +1931,7 @@ export const ProjectMatePage: React.FC = () => {
                                         onClick={() => openApplyModal(proj.id)}
                                         className="px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-black rounded-lg border border-indigo-150 transition-all shadow-sm"
                                       >
-                                        Apply Again
+                                        {proj.status === 'in_progress' ? 'Apply to Running Project' : 'Apply Again'}
                                       </button>
                                     )}
                                   </div>
@@ -1914,16 +1939,21 @@ export const ProjectMatePage: React.FC = () => {
                               }
 
                               return isFull ? (
-                                <span className="px-3.5 py-1.5 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100">
+                                <span className="px-3.5 py-1.5 bg-red-50 text-red-655 text-xs font-bold rounded-lg border border-red-100">
                                   Team Full
                                 </span>
                               ) : (
-                                <button
-                                  onClick={() => openApplyModal(proj.id)}
-                                  className="px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-black rounded-lg border border-indigo-150 transition-all shadow-sm"
-                                >
-                                  Apply
-                                </button>
+                                <div className="flex flex-col items-end gap-1">
+                                  <button
+                                    onClick={() => openApplyModal(proj.id)}
+                                    className="px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-black rounded-lg border border-indigo-150 transition-all shadow-sm"
+                                  >
+                                    {proj.status === 'in_progress' ? 'Apply to Running Project' : 'Apply'}
+                                  </button>
+                                  {proj.status === 'in_progress' && (
+                                    <span className="text-[10px] text-slate-400 italic">Project is already in progress</span>
+                                  )}
+                                </div>
                               );
                             })()}
                           </div>
@@ -2106,9 +2136,9 @@ export const ProjectMatePage: React.FC = () => {
                       {actionBtn('Archive', () => handleArchiveProjectConfirm(proj.id), 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200')}
                     </>
                   ),
-                  undefined,
-                  undefined,
-                  undefined,
+                                    true,
+                  isCompletedSectionCollapsed,
+                  () => setIsCompletedSectionCollapsed(v => !v),
                   showMoreCompletedProjects,
                   () => setShowMoreCompletedProjects(v => !v)
                 )}
@@ -2934,13 +2964,15 @@ export const ProjectMatePage: React.FC = () => {
                           </span>
                         </h4>
 
-                        {pendingApplicants.length === 0 ? (
+                                                {pendingApplicants.length === 0 ? (
                           <p className="text-xs text-slate-400 italic text-center py-6">
                             No pending team applications yet.
                           </p>
                         ) : (
-                          <div className="space-y-4">
-                            {pendingApplicants.map(app => (
+                          <div className={`space-y-4 ${pendingApplicants.length > 3 ? 'max-h-64 overflow-y-auto pr-1' : ''}`}>
+                            {[...pendingApplicants]
+                              .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime())
+                              .map(app => (
                               <div key={app.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-150 space-y-3">
                                 <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200/60 pb-2.5 gap-2">
                                   <div>
@@ -4056,8 +4088,8 @@ export const ProjectMatePage: React.FC = () => {
                                       </h5>
                                       {res.file_path ? (
                                         <span className="text-[9px] text-slate-400 font-medium">💾 File Resource: {res.file_name}</span>
-                                      ) : (
-                                        <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-650 hover:underline line-clamp-1">{res.url}</a>
+                                                                            ) : (
+                                        <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-650 hover:underline line-clamp-1 break-all">{res.url}</a>
                                       )}
                                     </div>
                                     <span className={`px-2.5 py-0.5 rounded border text-[9px] font-black uppercase self-start sm:self-auto ${statusBadge}`}>
@@ -4233,7 +4265,7 @@ export const ProjectMatePage: React.FC = () => {
                     Team Roster ({teamMembers.length}/{selectedProject.max_team_size})
                   </h4>
 
-                  <div className="space-y-3.5 divide-y divide-slate-100">
+                                    <div className={`space-y-3.5 divide-y divide-slate-100 ${teamMembers.length > 3 ? 'max-h-64 overflow-y-auto pr-1' : ''}`}>
                     {(() => {
                       const activeMembersSorted = [...teamMembers].sort((a, b) => {
                         const isOwnerA = a.user_id === selectedProject.created_by;
@@ -4339,9 +4371,11 @@ export const ProjectMatePage: React.FC = () => {
                       <span>{isPastRosterOpen ? '▼' : '▶'}</span>
                     </button>
 
-                    {isPastRosterOpen && (
-                      <div className="divide-y divide-slate-200/60 pt-2 space-y-2.5">
-                        {pastTeamMembers.map((member, idx) => {
+                                        {isPastRosterOpen && (
+                      <div className={`divide-y divide-slate-200/60 pt-2 space-y-2.5 ${pastTeamMembers.length > 3 ? 'max-h-64 overflow-y-auto pr-1' : ''}`}>
+                        {[...pastTeamMembers]
+                          .sort((a, b) => new Date(b.left_at || '').getTime() - new Date(a.left_at || '').getTime())
+                          .map((member, idx) => {
                           const isRemoved = !!member.removed_by;
                           return (
                             <div key={member.id} className={`text-xs text-slate-500 space-y-1 ${idx > 0 ? 'pt-2.5' : ''}`}>
@@ -4381,8 +4415,8 @@ export const ProjectMatePage: React.FC = () => {
                 {/* Open positions info */}
                 {selectedProject.roles && selectedProject.roles.length > 0 && (
                   <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Required Slots</h4>
-                    <div className="space-y-2">
+                                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Required Slots</h4>
+                    <div className={`space-y-2 ${selectedProject.roles && selectedProject.roles.length > 3 ? 'max-h-60 overflow-y-auto pr-1' : ''}`}>
                       {selectedProject.roles.map(r => (
                         <div key={r.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
                           <div className="flex items-center justify-between">
