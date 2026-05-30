@@ -1384,7 +1384,6 @@ export const getCirclePosts = async (
     const { data: authData } = await supabase.auth.getUser();
     const currentUserId = authData?.user?.id;
 
-    // Fetch posts with author, replies count, and reactions
     const { data, error } = await supabase
       .from('learning_circle_posts')
       .select(`
@@ -1395,10 +1394,9 @@ export const getCirclePosts = async (
         replies:learning_circle_post_replies(id, deleted_at),
         reactions:learning_circle_post_reactions(user_id, reaction_type)
       `)
-      .eq('circle_id', circleId)
-      .is('deleted_at', null);
+      .eq('circle_id', circleId);
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
 
     const rawPosts = (data || []) as any[];
 
@@ -1715,7 +1713,7 @@ export const softDeleteCirclePost = async (postId: string): Promise<void> => {
       })
       .eq('id', postId);
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
   } catch (err) {
     console.error('softDeleteCirclePost error:', err);
     throw err;
@@ -1771,7 +1769,7 @@ export const togglePostPin = async (postId: string): Promise<void> => {
       })
       .eq('id', postId);
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
   } catch (err) {
     console.error('togglePostPin error:', err);
     throw err;
@@ -1828,7 +1826,7 @@ export const togglePostResolved = async (postId: string): Promise<void> => {
       })
       .eq('id', postId);
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
   } catch (err) {
     console.error('togglePostResolved error:', err);
     throw err;
@@ -1905,18 +1903,40 @@ export const addPostReply = async (postId: string, body: string): Promise<Learni
  */
 export const getPostReplies = async (postId: string): Promise<LearningCirclePostReply[]> => {
   try {
+    const { data: authData } = await supabase.auth.getUser();
+    const currentUserId = authData?.user?.id;
+
     const { data, error } = await supabase
       .from('learning_circle_post_replies')
       .select(`
         *,
-        author_profile:profiles!learning_circle_post_replies_created_by_fkey(full_name)
+        author_profile:profiles!learning_circle_post_replies_created_by_fkey(full_name),
+        reactions:learning_circle_post_reply_reactions(user_id, reaction_type)
       `)
       .eq('post_id', postId)
-      .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
-    if (error) throw error;
-    return (data || []) as unknown as LearningCirclePostReply[];
+    if (error) throw new Error(error.message);
+    const rawReplies = (data || []) as any[];
+
+    return rawReplies.map((r) => {
+      const helpfulReactions = (r.reactions || []).filter((react: any) => react.reaction_type === 'helpful');
+      return {
+        id: r.id,
+        post_id: r.post_id,
+        circle_id: r.circle_id,
+        created_by: r.created_by,
+        body: r.body,
+        edited_at: r.edited_at,
+        deleted_at: r.deleted_at,
+        deleted_by: r.deleted_by,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        author_profile: r.author_profile,
+        helpful_count: helpfulReactions.length,
+        reacted_by_me: currentUserId ? helpfulReactions.some((react: any) => react.user_id === currentUserId) : false,
+      } as LearningCirclePostReply;
+    });
   } catch (err) {
     console.error('getPostReplies error:', err);
     return [];
@@ -1967,7 +1987,7 @@ export const updatePostReply = async (replyId: string, body: string): Promise<Le
       `)
       .single();
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data as unknown as LearningCirclePostReply;
   } catch (err) {
     console.error('updatePostReply error:', err);
@@ -2018,7 +2038,7 @@ export const deletePostReply = async (replyId: string): Promise<void> => {
       })
       .eq('id', replyId);
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
   } catch (err) {
     console.error('deletePostReply error:', err);
     throw err;
@@ -2045,7 +2065,7 @@ export const togglePostHelpful = async (postId: string): Promise<void> => {
       .eq('reaction_type', 'helpful')
       .maybeSingle();
 
-    if (fetchErr) throw fetchErr;
+    if (fetchErr) throw new Error(fetchErr.message);
 
     if (existing) {
       // Unlike/Remove
@@ -2053,7 +2073,7 @@ export const togglePostHelpful = async (postId: string): Promise<void> => {
         .from('learning_circle_post_reactions')
         .delete()
         .eq('id', existing.id);
-      if (error) throw error;
+      if (error) throw new Error(error.message);
     } else {
       // Like/Add
       const { error } = await supabase
@@ -2063,10 +2083,56 @@ export const togglePostHelpful = async (postId: string): Promise<void> => {
           user_id: currentUserId,
           reaction_type: 'helpful',
         });
-      if (error) throw error;
+      if (error) throw new Error(error.message);
     }
   } catch (err) {
     console.error('togglePostHelpful error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Toggle the helpful reaction on a comment reply.
+ */
+export const toggleReplyHelpful = async (replyId: string): Promise<void> => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user?.id) {
+      throw new Error('Please sign in first.');
+    }
+    const currentUserId = authData.user.id;
+
+    // Check if helpful reaction already exists
+    const { data: existing, error: fetchErr } = await supabase
+      .from('learning_circle_post_reply_reactions')
+      .select('id')
+      .eq('reply_id', replyId)
+      .eq('user_id', currentUserId)
+      .eq('reaction_type', 'helpful')
+      .maybeSingle();
+
+    if (fetchErr) throw new Error(fetchErr.message);
+
+    if (existing) {
+      // Remove reaction
+      const { error } = await supabase
+        .from('learning_circle_post_reply_reactions')
+        .delete()
+        .eq('id', existing.id);
+      if (error) throw new Error(error.message);
+    } else {
+      // Add reaction
+      const { error } = await supabase
+        .from('learning_circle_post_reply_reactions')
+        .insert({
+          reply_id: replyId,
+          user_id: currentUserId,
+          reaction_type: 'helpful',
+        });
+      if (error) throw new Error(error.message);
+    }
+  } catch (err) {
+    console.error('toggleReplyHelpful error:', err);
     throw err;
   }
 };

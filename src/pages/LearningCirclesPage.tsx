@@ -41,6 +41,7 @@ import {
   updatePostReply,
   deletePostReply,
   togglePostHelpful,
+  toggleReplyHelpful,
   getDiscussionStats,
   updateCirclePresence,
   getCirclePresence,
@@ -926,6 +927,14 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   // Presence States (Phase 5.6 ADD-ON)
   const [presences, setPresences] = useState<LearningCirclePresence[]>([]);
 
+  // Pagination and delete confirm states (Phase 5.6A)
+  const [showAllPosts, setShowAllPosts] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    type: 'post' | 'reply';
+    id: string;
+    postId?: string;
+  } | null>(null);
+
   // Resource file mode
   const [resourceMode, setResourceMode] = useState<'link' | 'file'>('link');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -949,6 +958,12 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   ];
+
+  const isUserOwner = (userId: string) => {
+    if (userId === circle.created_by) return true;
+    const mem = members.find((m) => m.user_id === userId);
+    return mem?.role === 'owner';
+  };
 
   const loadMembers = useCallback(async () => {
     setLoadingMembers(true);
@@ -1009,6 +1024,11 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
       setLoadingPosts(false);
     }
   }, [circle.id, discFilters]);
+
+  // Reset show more pagination on filters update
+  useEffect(() => {
+    setShowAllPosts(false);
+  }, [discFilters]);
 
   useEffect(() => {
     if (tab === 'members') loadMembers();
@@ -1334,30 +1354,70 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     }
   };
 
-  const handleSoftDeletePost = async (id: string) => {
-    if (!window.confirm('Are you sure you want to remove this post? It will be archived and replaced by a moderator notice.')) {
-      return;
-    }
-    try {
-      await softDeleteCirclePost(id);
-      
-      // Update local state to reflect soft delete: set deleted_at and deleted_by
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === id
-            ? { ...p, deleted_at: new Date().toISOString(), deleted_by: currentUserId }
-            : p
-        )
-      );
+  const handleSoftDeletePost = (id: string) => {
+    setDeleteConfirm({ type: 'post', id });
+  };
 
-      toast.success('Post Removed', 'The post content has been moderated.');
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { type, id, postId } = deleteConfirm;
+    setDeleteConfirm(null);
 
-      // Refresh Stats
-      const stats = await getDiscussionStats(circle.id);
-      setDiscStats(stats);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not remove post.';
-      toast.error('Delete Failed', msg);
+    if (type === 'post') {
+      try {
+        await softDeleteCirclePost(id);
+        
+        // Update local state to reflect soft delete: set deleted_at and deleted_by
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === id
+              ? { ...p, deleted_at: new Date().toISOString(), deleted_by: currentUserId }
+              : p
+          )
+        );
+
+        toast.success('Post removed successfully.');
+
+        // Refresh Stats
+        const stats = await getDiscussionStats(circle.id);
+        setDiscStats(stats);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not remove post.';
+        toast.error('Action Failed', `Could not remove post: ${msg}`);
+      }
+    } else if (type === 'reply' && postId) {
+      try {
+        await deletePostReply(id);
+
+        // Update local state for reply to be soft-deleted instead of filtering it out
+        setRepliesByPost((prev) => {
+          const list = prev[postId] || [];
+          return {
+            ...prev,
+            [postId]: list.map((item) =>
+              item.id === id
+                ? { ...item, deleted_at: new Date().toISOString(), deleted_by: currentUserId }
+                : item
+            ),
+          };
+        });
+
+        // Update reply count locally in posts list IMMEDIATELY
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId ? { ...p, replies_count: Math.max(0, (p.replies_count ?? 1) - 1) } : p
+          )
+        );
+
+        toast.success('Comment removed successfully.');
+
+        // Refresh Stats
+        const stats = await getDiscussionStats(circle.id);
+        setDiscStats(stats);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not remove comment.';
+        toast.error('Action Failed', `Could not remove comment: ${msg}`);
+      }
     }
   };
 
@@ -1496,34 +1556,32 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
     }
   };
 
-  const handleDeleteReply = async (replyId: string, postId: string) => {
-    if (!window.confirm('Are you sure you want to remove this comment?')) {
-      return;
-    }
-    try {
-      await deletePostReply(replyId);
+  const handleDeleteReply = (replyId: string, postId: string) => {
+    setDeleteConfirm({ type: 'reply', id: replyId, postId });
+  };
 
-      // Remove from local list
+  const handleToggleReplyHelpful = async (replyId: string, postId: string) => {
+    try {
+      await toggleReplyHelpful(replyId);
       setRepliesByPost((prev) => {
         const list = prev[postId] || [];
-        return { ...prev, [postId]: list.filter((r) => r.id !== replyId) };
+        return {
+          ...prev,
+          [postId]: list.map((r) => {
+            if (r.id !== replyId) return r;
+            const prevReacted = !!r.reacted_by_me;
+            const prevCount = r.helpful_count ?? 0;
+            return {
+              ...r,
+              reacted_by_me: !prevReacted,
+              helpful_count: prevReacted ? Math.max(0, prevCount - 1) : prevCount + 1,
+            };
+          }),
+        };
       });
-
-      // Update reply count locally in posts list IMMEDIATELY
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId ? { ...p, replies_count: Math.max(0, (p.replies_count ?? 1) - 1) } : p
-        )
-      );
-
-      toast.success('Comment Removed');
-
-      // Refresh Stats
-      const stats = await getDiscussionStats(circle.id);
-      setDiscStats(stats);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Action failed.';
-      toast.error('Action Failed', msg);
+      const msg = err instanceof Error ? err.message : 'Could not react to comment.';
+      toast.error('Action Failed', `Could not react to comment: ${msg}`);
     }
   };
 
@@ -3162,6 +3220,19 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                     >
                       👤 My Posts
                     </button>
+
+                    {/* Reset Filters button — shown only when filters are active */}
+                    {(discFilters.search || discFilters.post_type !== 'All' || discFilters.mine || discFilters.resolved !== null) && (
+                      <button
+                        type="button"
+                        onClick={() => setDiscFilters({ post_type: 'All', search: '', mine: false, resolved: null })}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition flex items-center gap-1"
+                        id="reset-discussion-filters"
+                        title="Clear all filters"
+                      >
+                        ✕ Reset
+                      </button>
+                    )}
                   </div>
 
                   {/* Create Trigger */}
@@ -3176,6 +3247,48 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                     </button>
                   )}
                 </div>
+
+                {/* Active Filter Chips */}
+                {(discFilters.search || discFilters.post_type !== 'All' || discFilters.mine || discFilters.resolved !== null) && (
+                  <div className="flex flex-wrap gap-1.5 -mt-2">
+                    {discFilters.search && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition"
+                        onClick={() => setDiscFilters((prev) => ({ ...prev, search: '' }))}
+                        title="Clear search"
+                      >
+                        🔍 "{discFilters.search}" ✕
+                      </span>
+                    )}
+                    {discFilters.post_type !== 'All' && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 cursor-pointer hover:bg-slate-200 transition"
+                        onClick={() => setDiscFilters((prev) => ({ ...prev, post_type: 'All' }))}
+                        title="Clear type filter"
+                      >
+                        {discFilters.post_type === 'study_plan' ? '📅 Study Plan' : discFilters.post_type} ✕
+                      </span>
+                    )}
+                    {discFilters.mine && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition"
+                        onClick={() => setDiscFilters((prev) => ({ ...prev, mine: false }))}
+                        title="Clear my posts filter"
+                      >
+                        👤 My Posts ✕
+                      </span>
+                    )}
+                    {discFilters.resolved !== null && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-pointer hover:bg-emerald-100 transition"
+                        onClick={() => setDiscFilters((prev) => ({ ...prev, resolved: null }))}
+                        title="Clear resolved filter"
+                      >
+                        {discFilters.resolved ? '✅ Resolved' : '❓ Unresolved'} ✕
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Status Notice for Paused/Archived Circles (Requirement 10) */}
                 {(isArchived || isPaused) && (
@@ -3201,9 +3314,10 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                       </p>
                     </div>
                   </div>
-                ) : (
+) : (
                   <div className="space-y-3">
-                    {posts.map((p) => {
+                    {/* Show more/fewer pagination — default 3, expand on click */}
+                    {(showAllPosts ? posts : posts.slice(0, 3)).map((p) => {
                       const isPostOwner = p.created_by === currentUserId;
                       const isPostAnnouncement = p.post_type.toLowerCase() === 'announcement' || p.post_type === 'Announcement';
                       const isPostQuestion = p.post_type.toLowerCase() === 'question' || p.post_type === 'Question';
@@ -3214,11 +3328,13 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
 
                       // Check soft deleted state
                       if (p.deleted_at) {
+                        // Distinguish self-delete vs owner moderation
+                        const selfDeleted = p.deleted_by === p.created_by;
                         return (
                           <div key={p.id} className="p-3 bg-slate-50 border border-slate-200 border-dashed rounded-xl flex items-center justify-between text-left">
                             <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                               <span>🚫</span>
-                              <span>This post was removed by the owner.</span>
+                              <span>{selfDeleted ? 'This post was deleted.' : 'This post was removed by the owner.'}</span>
                             </div>
                             <span className="text-[10px] text-slate-400 font-normal">{formatRelativeTime(p.deleted_at)}</span>
                           </div>
@@ -3255,6 +3371,18 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                               <div>
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-xs font-bold text-slate-800">{p.author_profile?.full_name ?? 'Unknown'}</span>
+                                  {/* 👑 Owner Badge */}
+                                  {isUserOwner(p.created_by) && (
+                                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 shrink-0" title="Circle Owner">
+                                      👑 Owner
+                                    </span>
+                                  )}
+                                  {/* You Badge */}
+                                  {p.created_by === currentUserId && !isUserOwner(p.created_by) && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-200 shrink-0">
+                                      You
+                                    </span>
+                                  )}
                                   {p.is_pinned && (
                                     <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 flex items-center gap-0.5 shrink-0 select-none">
                                       📌 Pinned
@@ -3460,6 +3588,17 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                         <div className="flex-1 min-w-0">
                                           <div className="flex items-center gap-1.5 flex-wrap">
                                             <span className="text-[11px] font-bold text-slate-800">{r.author_profile?.full_name ?? 'Unknown'}</span>
+                                            {/* 👑 Owner/You badges for replies */}
+                                            {isUserOwner(r.created_by) && (
+                                              <span className="text-[8px] font-black px-1 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 shrink-0" title="Circle Owner">
+                                                👑 Owner
+                                              </span>
+                                            )}
+                                            {r.created_by === currentUserId && !isUserOwner(r.created_by) && (
+                                              <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-200 shrink-0">
+                                                You
+                                              </span>
+                                            )}
                                             <span className="text-[9px] text-slate-400">{formatRelativeTime(r.created_at)}</span>
                                             {r.edited_at && <span className="text-[8px] bg-slate-100 text-slate-400 px-0.5 rounded">(edited)</span>}
                                           </div>
@@ -3497,30 +3636,50 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                           )}
                                         </div>
 
-                                        {/* Reply Actions */}
-                                        {editingReply?.id !== r.id && !isArchived && !isPaused && (isReplyAuthor || isOwner) && (
-                                          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 self-start ml-2 transition">
-                                            {isReplyAuthor && (
-                                              <button
-                                                onClick={() => {
-                                                  setEditingReply(r);
-                                                  setEditingReplyBody(r.body);
-                                                }}
-                                                className="p-0.5 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 text-slate-400 hover:text-indigo-600 rounded transition"
-                                                title="Edit comment"
-                                                id={`edit-comment-${r.id}`}
-                                              >
-                                                ✏️
-                                              </button>
-                                            )}
+                                        {/* Reply Actions: helpful reaction + edit/delete */}
+                                        {editingReply?.id !== r.id && (
+                                          <div className="flex items-center gap-1.5 self-start ml-2 shrink-0">
+                                            {/* Helpful reaction for reply */}
                                             <button
-                                              onClick={() => handleDeleteReply(r.id, p.id)}
-                                              className="p-0.5 hover:bg-rose-50 border border-transparent hover:border-rose-200 text-slate-400 hover:text-rose-600 rounded transition"
-                                              title="Delete comment"
-                                              id={`delete-comment-${r.id}`}
+                                              onClick={() => handleToggleReplyHelpful(r.id, p.id)}
+                                              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[9px] font-bold transition active:scale-95 ${
+                                                r.reacted_by_me
+                                                  ? 'bg-rose-50 text-rose-600 border-rose-200'
+                                                  : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
+                                              }`}
+                                              title={r.reacted_by_me ? 'Remove helpful reaction' : 'Mark as helpful'}
+                                              id={`helpful-reply-${r.id}`}
                                             >
-                                              🗑️
+                                              <span>{r.reacted_by_me ? '❤️' : '👍'}</span>
+                                              <span>{r.helpful_count ?? 0}</span>
                                             </button>
+
+                                            {/* Edit/Delete — shown on hover for author/owner */}
+                                            {!isArchived && !isPaused && (isReplyAuthor || isOwner) && (
+                                              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition">
+                                                {isReplyAuthor && (
+                                                  <button
+                                                    onClick={() => {
+                                                      setEditingReply(r);
+                                                      setEditingReplyBody(r.body);
+                                                    }}
+                                                    className="p-0.5 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 text-slate-400 hover:text-indigo-600 rounded transition"
+                                                    title="Edit comment"
+                                                    id={`edit-comment-${r.id}`}
+                                                  >
+                                                    ✏️
+                                                  </button>
+                                                )}
+                                                <button
+                                                  onClick={() => handleDeleteReply(r.id, p.id)}
+                                                  className="p-0.5 hover:bg-rose-50 border border-transparent hover:border-rose-200 text-slate-400 hover:text-rose-600 rounded transition"
+                                                  title="Delete comment"
+                                                  id={`delete-comment-${r.id}`}
+                                                >
+                                                  🗑️
+                                                </button>
+                                              </div>
+                                            )}
                                           </div>
                                         )}
                                       </div>
@@ -3556,6 +3715,22 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                         </div>
                       );
                     })}
+
+                    {/* Show more/fewer toggle */}
+                    {posts.length > 3 && (
+                      <div className="flex justify-center pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowAllPosts((prev) => !prev)}
+                          className="px-5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-indigo-700 font-semibold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5 focus:outline-none active:scale-95"
+                          id="toggle-show-all-posts"
+                        >
+                          {showAllPosts
+                            ? '➖ Show fewer discussions'
+                            : `➕ Show more discussions (${posts.length - 3} more)`}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -4029,6 +4204,45 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-left border border-slate-100">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+              <span className="text-xl">🗑️</span>
+              <h3 className="text-sm font-bold text-slate-800">
+                {deleteConfirm.type === 'post' ? 'Remove Post?' : 'Remove Comment?'}
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-600 leading-relaxed bg-rose-50 p-3 rounded-lg border border-rose-100 text-rose-800">
+                {deleteConfirm.type === 'post'
+                  ? '⚠️ This will permanently hide the post. A placeholder message will be shown in its place. This action cannot be undone.'
+                  : '⚠️ This will permanently remove the comment. This action cannot be undone.'}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirm(null)}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                  id="cancel-delete-confirm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  className="flex-1 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors shadow-sm"
+                  id="confirm-delete-btn"
+                >
+                  🗑️ {deleteConfirm.type === 'post' ? 'Remove Post' : 'Remove Comment'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

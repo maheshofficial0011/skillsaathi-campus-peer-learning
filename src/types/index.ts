@@ -419,11 +419,21 @@ export interface LearningCirclePostReply {
   author_profile?: {
     full_name: string;
   } | null;
+  helpful_count?: number;
+  reacted_by_me?: boolean;
 }
 
 export interface LearningCirclePostReaction {
   id: string;
   post_id: string;
+  user_id: string;
+  reaction_type: 'helpful';
+  created_at: string;
+}
+
+export interface LearningCirclePostReplyReaction {
+  id: string;
+  reply_id: string;
   user_id: string;
   reaction_type: 'helpful';
   created_at: string;
