@@ -25,6 +25,7 @@ import {
   getProjectApplications,
   respondToProjectApplication,
   getProjectTeamMembers,
+  getProjectPastTeamMembers,
   leaveProject,
   removeProjectMember,
   getProjectDiscussionPosts,
@@ -86,6 +87,8 @@ export const ProjectMatePage: React.FC = () => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<ProjectWithStats | null>(null);
   const [teamMembers, setTeamMembers] = useState<ProjectTeamMember[]>([]);
+  const [pastTeamMembers, setPastTeamMembers] = useState<ProjectTeamMember[]>([]);
+  const [isPastRosterOpen, setIsPastRosterOpen] = useState(false);
   const [pendingApplicants, setPendingApplicants] = useState<ProjectApplicationWithProfile[]>([]);
 
   // Modals & Panels State
@@ -100,6 +103,16 @@ export const ProjectMatePage: React.FC = () => {
 
   // Profile View Modal
   const [selectedUserIdForProfile, setSelectedUserIdForProfile] = useState<string | null>(null);
+
+  // Workspace Setting Edit States
+  const [editStatus, setEditStatus] = useState<string>('recruiting');
+  const [editExpectedTimeline, setEditExpectedTimeline] = useState<string>('');
+  const [editMeetingPreference, setEditMeetingPreference] = useState<string>('');
+  const [editMaxTeamSize, setEditMaxTeamSize] = useState<number>(4);
+
+  // Discussion & Resource Paging States
+  const [discussionLimit, setDiscussionLimit] = useState(5);
+  const [resourcesLimit, setResourcesLimit] = useState(6);
 
   // Discover Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -247,12 +260,23 @@ export const ProjectMatePage: React.FC = () => {
       setWorkspaceSubTab('coordination');
       
       let roster: ProjectTeamMember[] = [];
+      let pastRoster: ProjectTeamMember[] = [];
       try {
         roster = await getProjectTeamMembers(projectId);
       } catch (rosterErr) {
         console.error('[ProjectMate] Failed to load team members:', rosterErr);
       }
+      
+      if (proj.is_owner) {
+        try {
+          pastRoster = await getProjectPastTeamMembers(projectId);
+        } catch (pastRosterErr) {
+          console.error('[ProjectMate] Failed to load past members:', pastRosterErr);
+        }
+      }
+      
       setTeamMembers(roster || []);
+      setPastTeamMembers(pastRoster || []);
 
       if (proj.is_owner) {
         let apps: ProjectApplicationWithProfile[] = [];
@@ -542,6 +566,24 @@ export const ProjectMatePage: React.FC = () => {
   const handleSaveCoordinates = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProjectId || !selectedProject) return;
+
+    // Helper validation for secure HTTPS links
+    const validateHttps = (url?: string) => {
+      if (!url || url.trim() === '') return true;
+      return url.trim().toLowerCase().startsWith('https://');
+    };
+
+    if (!validateHttps(editCoordLink) || !validateHttps(editGithubUrl) || !validateHttps(editSharedDocUrl)) {
+      toast.error('All external links must strictly use the https:// protocol.');
+      return;
+    }
+
+    // Capacity limit check: max_team_size cannot be lower than active roster count
+    if (editMaxTeamSize < teamMembers.length) {
+      toast.error(`Maximum team size cannot be less than the active member count (${teamMembers.length}).`);
+      return;
+    }
+
     setActionLoading(true);
     try {
       await updateProjectPost(selectedProjectId, {
@@ -555,10 +597,10 @@ export const ProjectMatePage: React.FC = () => {
         required_skills: selectedProject.required_skills,
         preferred_departments: selectedProject.preferred_departments,
         preferred_years: selectedProject.preferred_years,
-        expected_timeline: selectedProject.expected_timeline || undefined,
-        meeting_preference: selectedProject.meeting_preference || undefined,
-        max_team_size: selectedProject.max_team_size,
-        status: selectedProject.status,
+        expected_timeline: editExpectedTimeline || undefined,
+        meeting_preference: editMeetingPreference || undefined,
+        max_team_size: editMaxTeamSize,
+        status: editStatus as any,
         is_beginner_friendly: selectedProject.is_beginner_friendly,
         is_hackathon: selectedProject.is_hackathon,
         deadline: selectedProject.deadline || undefined,
@@ -568,7 +610,7 @@ export const ProjectMatePage: React.FC = () => {
         private_notes: editPrivateNotes || undefined
       });
 
-      toast.success('Collaboration links updated.');
+      toast.success('Workspace settings updated successfully.');
       setIsEditingLinks(false);
       loadWorkspace(selectedProjectId);
     } catch (err: any) {
@@ -586,6 +628,12 @@ export const ProjectMatePage: React.FC = () => {
     setEditGithubUrl(selectedProject.github_repo_url || '');
     setEditSharedDocUrl(selectedProject.shared_doc_url || '');
     setEditPrivateNotes(selectedProject.private_notes || '');
+    
+    setEditStatus(selectedProject.status);
+    setEditExpectedTimeline(selectedProject.expected_timeline || '');
+    setEditMeetingPreference(selectedProject.meeting_preference || '');
+    setEditMaxTeamSize(selectedProject.max_team_size);
+    
     setIsEditingLinks(true);
   };
 
@@ -1262,43 +1310,91 @@ export const ProjectMatePage: React.FC = () => {
                           </div>
 
                           <div className="flex gap-2">
-                            {proj.is_member ? (
-                              <button
-                                onClick={() => loadWorkspace(proj.id)}
-                                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition-all"
-                              >
-                                {proj.is_owner ? 'Manage Settings' : 'Open Workspace'}
-                              </button>
-                            ) : proj.my_application_status ? (
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${
-                                  proj.my_application_status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                                  proj.my_application_status === 'accepted' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                                  'bg-slate-100 text-slate-600 border border-slate-200'
-                                }`}>
-                                  Applied ({proj.my_application_status})
-                                </span>
-                                {proj.my_application_status === 'pending' && (
+                            {(() => {
+                              const myProjMemberships = userMemberships.filter(m => m.project_id === proj.id);
+                              const isActiveMember = proj.is_owner || myProjMemberships.some(m => m.left_at === null);
+                              
+                              const projApps = myApplications.filter(a => a.project_id === proj.id);
+                              const pendingApp = projApps.find(a => a.status === 'pending');
+                              const rejectedApp = projApps.find(a => a.status === 'rejected');
+                              const withdrawnApp = projApps.find(a => a.status === 'withdrawn');
+                              const hasLeftMembership = !isActiveMember && myProjMemberships.some(m => m.left_at !== null);
+                              
+                              const stateType = 
+                                isActiveMember ? 'active' :
+                                pendingApp ? 'pending' :
+                                hasLeftMembership ? 'left' :
+                                rejectedApp ? 'rejected' :
+                                withdrawnApp ? 'withdrawn' : 'none';
+
+                              if (stateType === 'active') {
+                                return (
                                   <button
-                                    onClick={() => proj.my_application_id && handleWithdraw(proj.my_application_id)}
-                                    className="px-2.5 py-1 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-150"
+                                    onClick={() => loadWorkspace(proj.id)}
+                                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition-all"
                                   >
-                                    Withdraw
+                                    {proj.is_owner ? 'Manage Settings' : 'Open Workspace'}
                                   </button>
-                                )}
-                              </div>
-                            ) : isFull ? (
-                              <span className="px-3.5 py-1.5 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100">
-                                Team Full
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => openApplyModal(proj.id)}
-                                className="px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-black rounded-lg border border-indigo-150 transition-all shadow-sm"
-                              >
-                                Join Request
-                              </button>
-                            )}
+                                );
+                              }
+
+                              if (stateType === 'pending') {
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-50 text-amber-700 border border-amber-250 uppercase">
+                                      Applied (pending)
+                                    </span>
+                                    {pendingApp && (
+                                      <button
+                                        onClick={() => handleWithdraw(pendingApp.id)}
+                                        className="px-2.5 py-1 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-150 animate-fade-in"
+                                      >
+                                        Withdraw
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              if (stateType === 'left' || stateType === 'rejected' || stateType === 'withdrawn') {
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg border uppercase tracking-wider ${
+                                      stateType === 'left' ? 'bg-slate-100 text-slate-500 border-slate-200' :
+                                      stateType === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' :
+                                      'bg-slate-50 text-slate-500 border-slate-200'
+                                    }`}>
+                                      {stateType === 'left' ? 'LEFT TEAM' : stateType}
+                                    </span>
+                                    {isFull ? (
+                                      <span className="px-3.5 py-1.5 bg-red-50 text-red-650 text-xs font-bold rounded-lg border border-red-100">
+                                        Team Full
+                                      </span>
+                                    ) : (
+                                      <button
+                                        onClick={() => openApplyModal(proj.id)}
+                                        className="px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-black rounded-lg border border-indigo-150 transition-all shadow-sm"
+                                      >
+                                        Apply Again
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              return isFull ? (
+                                <span className="px-3.5 py-1.5 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100">
+                                  Team Full
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => openApplyModal(proj.id)}
+                                  className="px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-black rounded-lg border border-indigo-150 transition-all shadow-sm"
+                                >
+                                  Join Request
+                                </button>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1435,62 +1531,81 @@ export const ProjectMatePage: React.FC = () => {
                               <p className="text-slate-500 italic">"{app.owner_response}"</p>
                             </div>
                           )}
-
-                          {/* Action footer context */}
                           <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                            {type === 'active' ? (
-                              <>
-                                <p className="text-xs font-semibold text-emerald-600">
-                                  🎉 You're on this team. Open the workspace to coordinate securely.
+                            {(() => {
+                              const hasPendingAppForThisProj = myApplications.some(a => a.project_id === app.project_id && a.status === 'pending');
+                              const isActiveMemberOfThisProj = projects.find(p => p.id === app.project_id)?.is_member || userMemberships.some(m => m.project_id === app.project_id && m.left_at === null);
+
+                              if (type === 'active') {
+                                return (
+                                  <>
+                                    <p className="text-xs font-semibold text-emerald-600">
+                                      🎉 You're on this team. Open the workspace to coordinate securely.
+                                    </p>
+                                    <button
+                                      onClick={() => loadWorkspace(app.project_id)}
+                                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition-colors whitespace-nowrap self-start sm:self-auto"
+                                    >
+                                      Open Team Workspace
+                                    </button>
+                                  </>
+                                );
+                              }
+
+                              if (type === 'left') {
+                                return (
+                                  <>
+                                    <p className="text-xs font-semibold text-slate-500">
+                                      🚪 You left this project team.
+                                    </p>
+                                    {!hasPendingAppForThisProj && !isActiveMemberOfThisProj && (
+                                      isFull ? (
+                                        <span className="px-2.5 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-100">
+                                          Team Full
+                                        </span>
+                                      ) : (
+                                        <button
+                                          onClick={() => openApplyModal(app.project_id)}
+                                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded-lg border border-indigo-150 transition-colors text-xs self-start sm:self-auto"
+                                        >
+                                          Apply Again
+                                        </button>
+                                      )
+                                    )}
+                                  </>
+                                );
+                              }
+
+                              if (type === 'rejected' || type === 'withdrawn') {
+                                return (
+                                  <>
+                                    <p className="text-xs font-semibold text-slate-400">
+                                      {type === 'rejected' ? 'Application was not selected.' : 'You withdrew this application.'}
+                                    </p>
+                                    {!hasPendingAppForThisProj && !isActiveMemberOfThisProj && (
+                                      isFull ? (
+                                        <span className="px-2.5 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-100">
+                                          Team Full
+                                        </span>
+                                      ) : (
+                                        <button
+                                          onClick={() => openApplyModal(app.project_id)}
+                                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded-lg border border-indigo-150 transition-colors text-xs self-start sm:self-auto"
+                                        >
+                                          Apply Again
+                                        </button>
+                                      )
+                                    )}
+                                  </>
+                                );
+                              }
+
+                              return (
+                                <p className="text-xs text-slate-400 font-medium">
+                                  ⌛ Waiting for project owner review.
                                 </p>
-                                <button
-                                  onClick={() => loadWorkspace(app.project_id)}
-                                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition-colors whitespace-nowrap self-start sm:self-auto"
-                                >
-                                  Open Team Workspace
-                                </button>
-                              </>
-                            ) : type === 'left' ? (
-                              <>
-                                <p className="text-xs font-semibold text-slate-500">
-                                  🚪 You left this project team.
-                                </p>
-                                {isFull ? (
-                                  <span className="px-2.5 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-100">
-                                    Team Full
-                                  </span>
-                                ) : (
-                                  <button
-                                    onClick={() => openApplyModal(app.project_id)}
-                                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded-lg border border-indigo-150 transition-colors text-xs self-start sm:self-auto"
-                                  >
-                                    Apply Again
-                                  </button>
-                                )}
-                              </>
-                            ) : (type === 'rejected' || type === 'withdrawn') ? (
-                              <>
-                                <p className="text-xs font-semibold text-slate-400">
-                                  {type === 'rejected' ? 'Application was not selected.' : 'You withdrew this application.'}
-                                </p>
-                                {isFull ? (
-                                  <span className="px-2.5 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-100">
-                                    Team Full
-                                  </span>
-                                ) : (
-                                  <button
-                                    onClick={() => openApplyModal(app.project_id)}
-                                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded-lg border border-indigo-150 transition-colors text-xs self-start sm:self-auto"
-                                  >
-                                    Apply Again
-                                  </button>
-                                )}
-                              </>
-                            ) : (
-                              <p className="text-xs text-slate-400 font-medium">
-                                ⌛ Waiting for project owner review.
-                              </p>
-                            )}
+                              );
+                            })()}
                           </div>
                         </div>
                       );
@@ -1525,9 +1640,8 @@ export const ProjectMatePage: React.FC = () => {
               </div>
             );
           })()}
-
           {/* TAB 4: TEAM WORKSPACE */}
-          {activeTab === 'workspace' && selectedProject && (
+          {activeTab === 'workspace' && selectedProject && (selectedProject.is_owner || selectedProject.is_member) && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
               {/* Workspace Main Details */}
@@ -1653,61 +1767,121 @@ export const ProjectMatePage: React.FC = () => {
                       </p>
 
                       {isEditingLinks ? (
-                        <form onSubmit={handleSaveCoordinates} className="space-y-3 pt-2 text-xs">
-                          <div>
-                            <label className="block font-bold text-slate-300 mb-1">Coordination Link (Google Meet, WhatsApp Group, etc.)</label>
-                            <input
-                              type="text"
-                              value={editCoordLink}
-                              onChange={e => setEditCoordLink(e.target.value)}
-                              placeholder="https://..."
-                              className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
-                            />
+                        <form onSubmit={handleSaveCoordinates} className="space-y-4 pt-2 text-xs">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                            <div>
+                              <label className="block font-bold text-slate-300 mb-1">Coordination Link (Meet, Zoom, WhatsApp, Discord)</label>
+                              <input
+                                type="text"
+                                value={editCoordLink}
+                                onChange={e => setEditCoordLink(e.target.value)}
+                                placeholder="https://..."
+                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                              />
+                              <span className="text-[10px] text-slate-400 mt-0.5 block">Must be an https:// URL.</span>
+                            </div>
+                            
+                            <div>
+                              <label className="block font-bold text-slate-300 mb-1">GitHub Repository Link</label>
+                              <input
+                                type="text"
+                                value={editGithubUrl}
+                                onChange={e => setEditGithubUrl(e.target.value)}
+                                placeholder="https://github.com/..."
+                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                              />
+                              <span className="text-[10px] text-slate-400 mt-0.5 block">Must be an https:// URL.</span>
+                            </div>
+
+                            <div>
+                              <label className="block font-bold text-slate-300 mb-1">Shared Workspace Document</label>
+                              <input
+                                type="text"
+                                value={editSharedDocUrl}
+                                onChange={e => setEditSharedDocUrl(e.target.value)}
+                                placeholder="https://docs.google.com/..."
+                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                              />
+                              <span className="text-[10px] text-slate-400 mt-0.5 block">Must be an https:// URL.</span>
+                            </div>
+
+                            <div>
+                              <label className="block font-bold text-slate-300 mb-1">Project Status</label>
+                              <select
+                                value={editStatus}
+                                onChange={e => setEditStatus(e.target.value)}
+                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                              >
+                                <option value="recruiting">Recruiting</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="team_full">Team Full</option>
+                                <option value="completed">Completed</option>
+                                <option value="paused">Paused</option>
+                                <option value="archived">Archived</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block font-bold text-slate-300 mb-1">Expected Timeline</label>
+                              <input
+                                type="text"
+                                value={editExpectedTimeline}
+                                onChange={e => setEditExpectedTimeline(e.target.value)}
+                                placeholder="e.g. 4-6 weeks, Hackathon weekend"
+                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block font-bold text-slate-300 mb-1">Meeting Preference</label>
+                              <input
+                                type="text"
+                                value={editMeetingPreference}
+                                onChange={e => setEditMeetingPreference(e.target.value)}
+                                placeholder="e.g. Tuesdays at 7 PM, hybrid checkins"
+                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block font-bold text-slate-300 mb-1">Maximum Team Size (Capacity limit)</label>
+                              <input
+                                type="number"
+                                min={Math.max(2, teamMembers.length)}
+                                max={20}
+                                value={editMaxTeamSize}
+                                onChange={e => setEditMaxTeamSize(Number(e.target.value))}
+                                className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
+                              />
+                              <span className="text-[10px] text-slate-400 mt-0.5 block">Cannot be lower than active roster count ({teamMembers.length}).</span>
+                            </div>
                           </div>
+
                           <div>
-                            <label className="block font-bold text-slate-300 mb-1">GitHub Repository Link</label>
-                            <input
-                              type="text"
-                              value={editGithubUrl}
-                              onChange={e => setEditGithubUrl(e.target.value)}
-                              placeholder="https://github.com/..."
-                              className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block font-bold text-slate-300 mb-1">Shared Workspace Document</label>
-                            <input
-                              type="text"
-                              value={editSharedDocUrl}
-                              onChange={e => setEditSharedDocUrl(e.target.value)}
-                              placeholder="https://docs.google.com/..."
-                              className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block font-bold text-slate-300 mb-1">Private Team Notes</label>
+                            <label className="block font-bold text-slate-300 mb-1">Private Tasks &amp; Notes</label>
                             <textarea
                               rows={3}
                               value={editPrivateNotes}
                               onChange={e => setEditPrivateNotes(e.target.value)}
-                              placeholder="Add passwords, milestones, task assignments..."
+                              placeholder="Add task lists, milestones, API credentials safely..."
                               className="w-full px-3 py-2 bg-slate-850 border border-slate-750 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500"
                             />
                           </div>
+                          
                           <div className="flex gap-2 justify-end pt-2">
                             <button
                               type="button"
                               onClick={() => setIsEditingLinks(false)}
-                              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold rounded-lg"
+                              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold rounded-lg transition-colors"
                             >
                               Cancel
                             </button>
                             <button
                               type="submit"
                               disabled={actionLoading}
-                              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow"
+                              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow transition-colors"
                             >
-                              {actionLoading ? 'Saving...' : 'Save Collaboration links'}
+                              {actionLoading ? 'Saving...' : 'Save Settings'}
                             </button>
                           </div>
                         </form>
@@ -1886,12 +2060,87 @@ export const ProjectMatePage: React.FC = () => {
                         )}
                       </div>
                     )}
+
+                    {/* Project Team Guide Section */}
+                    <div className="p-6 bg-gradient-to-br from-indigo-900 to-indigo-950 text-white rounded-3xl shadow-xl space-y-4 border border-indigo-850">
+                      <h4 className="text-lg font-black tracking-tight flex items-center gap-2">
+                        <span className="text-indigo-400 shrink-0">📖</span>
+                        <span>Project Team Guide &amp; Code of Conduct</span>
+                      </h4>
+                      <p className="text-xs text-indigo-205 leading-relaxed">
+                        To maintain a professional, high-impact collaboration workspace, all teammates are expected to adhere to our standard role capability and safety boundaries.
+                      </p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        <div className="p-4 bg-indigo-950/40 rounded-2xl border border-indigo-800/40 space-y-2.5">
+                          <h5 className="text-xs font-black uppercase tracking-wider text-indigo-400">👑 Project Owner / Lead</h5>
+                          <ul className="text-[11px] text-indigo-200 space-y-1.5 list-disc pl-4 leading-relaxed">
+                            <li>Controls overall team capacity bounds and project recruiting status settings.</li>
+                            <li>Vets, approves, or declines all submitted study coordinate resource materials.</li>
+                            <li>Maintains security coordinates (Google Meet rooms, Discord keys, repo URLs).</li>
+                            <li>Responsible for keeping secure link fields fully clean and valid.</li>
+                          </ul>
+                        </div>
+
+                        <div className="p-4 bg-indigo-950/40 rounded-2xl border border-indigo-800/40 space-y-2.5">
+                          <h5 className="text-xs font-black uppercase tracking-wider text-indigo-400">🛡️ Teammates &amp; Specialists</h5>
+                          <ul className="text-[11px] text-indigo-200 space-y-1.5 list-disc pl-4 leading-relaxed">
+                            <li>Engage in team workspace discussions, ask questions, and log updates.</li>
+                            <li>Upload study resources or materials to the leader verification queue.</li>
+                            <li>Voluntarily leave the team at any time with an explicit exit reason.</li>
+                            <li>Never share private project notes, WhatsApp details, or credentials externally.</li>
+                          </ul>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] text-red-200 leading-relaxed flex items-start gap-2">
+                        <span className="shrink-0 mt-0.5">⚠️</span>
+                        <div>
+                          <strong className="font-extrabold block text-red-300 mb-0.5">Secure Credentials Security Protocol</strong>
+                          Always ensure secure links utilize the strict `https://` protocol signature. Never upload executable binary formats (`.exe`) to resources as they trigger active security warnings. Protect raw UUIDs, emails, and phone coordinates from leakage.
+                        </div>
+                      </div>
+                    </div>
                   </>
                 )}
 
                 {/* Team Discussion Subtab View */}
                 {workspaceSubTab === 'discussion' && (
                   <div className="space-y-6">
+                    {/* Stats Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-650 shrink-0 font-bold text-sm">💬</div>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Threads</p>
+                          <p className="text-lg font-black text-slate-800">{discussionPosts.length}</p>
+                        </div>
+                      </div>
+                      <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-amber-650 shrink-0 font-bold text-sm">📌</div>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pinned Posts</p>
+                          <p className="text-lg font-black text-slate-800">{discussionPosts.filter(p => p.is_pinned).length}</p>
+                        </div>
+                      </div>
+                      <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-rose-650 shrink-0 font-bold text-sm">📢</div>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Announcements</p>
+                          <p className="text-lg font-black text-slate-800">{discussionPosts.filter(p => p.post_type === 'announcement').length}</p>
+                        </div>
+                      </div>
+                      <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-650 shrink-0 font-bold text-sm">👍</div>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Helpful Reacts</p>
+                          <p className="text-lg font-black text-slate-800">
+                            {discussionPosts.reduce((sum, p) => sum + (p.helpful_count || 0), 0)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Header action bar */}
                     <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
                       <div className="flex flex-1 gap-2 w-full">
@@ -1997,8 +2246,8 @@ export const ProjectMatePage: React.FC = () => {
 
                     {/* Posts List */}
                     <div className="space-y-4">
-                      {discussionPosts
-                        .filter(post => {
+                      {(() => {
+                        const filtered = discussionPosts.filter(post => {
                           if (discussionSearchQuery.trim() !== '') {
                             const q = discussionSearchQuery.toLowerCase();
                             const matchTitle = post.title.toLowerCase().includes(q);
@@ -2007,100 +2256,157 @@ export const ProjectMatePage: React.FC = () => {
                           }
                           if (discussionTypeFilter && post.post_type !== discussionTypeFilter) return false;
                           return true;
-                        })
-                        .map(post => {
-                          const typeColors =
-                            post.post_type === 'announcement' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                            post.post_type === 'question' ? 'bg-violet-50 text-violet-700 border-violet-200' :
-                            post.post_type === 'task' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                            'bg-indigo-50 text-indigo-700 border-indigo-250';
+                        });
 
+                        // Sort Pinned first, then by date descending
+                        const sorted = [...filtered].sort((a, b) => {
+                          if (a.is_pinned && !b.is_pinned) return -1;
+                          if (!a.is_pinned && b.is_pinned) return 1;
+                          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                        });
+
+                        const sliced = sorted.slice(0, discussionLimit);
+
+                        if (sorted.length === 0) {
                           return (
-                            <div key={post.id} className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3 relative hover:shadow-md transition-shadow">
-                              {post.is_pinned && (
-                                <div className="absolute right-4 top-4 flex items-center gap-1 text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                                  <span>📌 Pinned</span>
-                                </div>
-                              )}
-                              
-                              <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-black text-slate-700">
-                                  {post.author_profile?.full_name ? post.author_profile.full_name[0].toUpperCase() : 'SS'}
-                                </div>
-                                <div>
-                                  <span className="text-xs font-bold text-slate-800">{post.author_profile?.full_name || 'Teammate'}</span>
-                                  <span className="text-[10px] text-slate-400 block">{new Date(post.created_at).toLocaleString()}</span>
-                                </div>
-                                <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded border ml-2 ${typeColors}`}>
-                                  {post.post_type}
-                                </span>
-                              </div>
-
-                              <div className="space-y-1.5 pt-1">
-                                <h4 className="text-base font-black text-slate-850">{post.title}</h4>
-                                <p className="text-xs text-slate-650 leading-relaxed whitespace-pre-wrap">{post.body}</p>
-                              </div>
-
-                              {post.tags && post.tags.length > 0 && (
-                                <div className="flex flex-wrap gap-1 pt-1">
-                                  {post.tags.map((t: string) => (
-                                    <span key={t} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-semibold border border-slate-200/50">
-                                      #{t}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-
-                              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-4 text-xs font-semibold text-slate-500">
-                                <div className="flex items-center gap-3">
-                                  <button
-                                    onClick={() => handleTogglePostHelpful(post.id)}
-                                    className={`flex items-center gap-1 py-1 px-2.5 rounded-lg border transition-colors ${
-                                      post.reacted_by_me
-                                        ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
-                                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                                    }`}
-                                  >
-                                    <span>👍</span>
-                                    <span>Helpful ({post.helpful_count})</span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleLoadReplies(post)}
-                                    className="flex items-center gap-1 py-1 px-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors"
-                                  >
-                                    <span>💬</span>
-                                    <span>Comments ({post.replies_count})</span>
-                                  </button>
-                                </div>
-
-                                <div className="flex gap-2">
-                                  {selectedProject.is_owner && (
-                                    <button
-                                      onClick={() => handleTogglePinPost(post)}
-                                      className={`p-1.5 border rounded-lg transition-colors ${
-                                        post.is_pinned
-                                          ? 'bg-amber-50 border-amber-200 text-amber-600'
-                                          : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                                      }`}
-                                      title={post.is_pinned ? 'Unpin Post' : 'Pin Post'}
-                                    >
-                                      📌
-                                    </button>
-                                  )}
-                                  {(post.created_by === user?.id || selectedProject.is_owner) && (
-                                    <button
-                                      onClick={() => handleDeletePost(post.id)}
-                                      className="p-1.5 border border-red-150 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
-                                      title="Delete Post"
-                                    >
-                                      🗑️
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
+                            <p className="text-xs text-slate-400 italic text-center py-10 bg-white border border-slate-200 rounded-2xl">
+                              No discussion posts found. Click "New Post" to publish the first one!
+                            </p>
                           );
-                        })}
+                        }
+
+                        return (
+                          <>
+                            {sliced.map(post => {
+                              const isAnnouncement = post.post_type === 'announcement';
+                              const typeColors =
+                                post.post_type === 'announcement' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                post.post_type === 'question' ? 'bg-violet-50 text-violet-700 border-violet-200' :
+                                post.post_type === 'task' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                'bg-indigo-50 text-indigo-700 border-indigo-250';
+
+                              return (
+                                <div
+                                  key={post.id}
+                                  className={`p-5 border rounded-2xl shadow-sm space-y-3 relative hover:shadow-md transition-shadow ${
+                                    isAnnouncement 
+                                      ? 'bg-rose-50/20 border-rose-250 border-l-4 border-l-rose-500' 
+                                      : 'bg-white border-slate-200'
+                                  }`}
+                                >
+                                  {isAnnouncement && (
+                                    <div className="absolute right-4 top-4 flex items-center gap-1 text-[9px] text-rose-700 bg-rose-50 border border-rose-150 px-2 py-0.5 rounded-full font-bold">
+                                      <span>📢 TEAM ANNOUNCEMENT</span>
+                                    </div>
+                                  )}
+                                  
+                                  {post.is_pinned && !isAnnouncement && (
+                                    <div className="absolute right-4 top-4 flex items-center gap-1 text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                      <span>📌 Pinned</span>
+                                    </div>
+                                  )}
+                                  
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-black text-slate-700">
+                                      {post.author_profile?.full_name ? post.author_profile.full_name[0].toUpperCase() : 'SS'}
+                                    </div>
+                                    <div>
+                                      <span className="text-xs font-bold text-slate-800">{post.author_profile?.full_name || 'Teammate'}</span>
+                                      <span className="text-[10px] text-slate-400 block">{new Date(post.created_at).toLocaleString()}</span>
+                                    </div>
+                                    <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded border ml-2 ${typeColors}`}>
+                                      {post.post_type}
+                                    </span>
+                                  </div>
+
+                                  <div className="space-y-1.5 pt-1">
+                                    <h4 className="text-base font-black text-slate-850">{post.title}</h4>
+                                    <p className="text-xs text-slate-655 leading-relaxed whitespace-pre-wrap">{post.body}</p>
+                                  </div>
+
+                                  {post.tags && post.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 pt-1">
+                                      {post.tags.map((t: string) => (
+                                        <span key={t} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-semibold border border-slate-200/50">
+                                          #{t}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-4 text-xs font-semibold text-slate-500">
+                                    <div className="flex items-center gap-3">
+                                      <button
+                                        onClick={() => handleTogglePostHelpful(post.id)}
+                                        className={`flex items-center gap-1 py-1 px-2.5 rounded-lg border transition-colors ${
+                                          post.reacted_by_me
+                                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                                            : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                                        }`}
+                                      >
+                                        <span>👍</span>
+                                        <span>Helpful ({post.helpful_count})</span>
+                                      </button>
+                                      <button
+                                        onClick={() => handleLoadReplies(post)}
+                                        className="flex items-center gap-1 py-1 px-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors"
+                                      >
+                                        <span>💬</span>
+                                        <span>Comments ({post.replies_count})</span>
+                                      </button>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                      {selectedProject.is_owner && (
+                                        <button
+                                          onClick={() => handleTogglePinPost(post)}
+                                          className={`p-1.5 border rounded-lg transition-colors ${
+                                            post.is_pinned
+                                              ? 'bg-amber-50 border-amber-200 text-amber-600'
+                                              : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                                          }`}
+                                          title={post.is_pinned ? 'Unpin Post' : 'Pin Post'}
+                                        >
+                                          📌
+                                        </button>
+                                      )}
+                                      {(post.created_by === user?.id || selectedProject.is_owner) && (
+                                        <button
+                                          onClick={() => handleDeletePost(post.id)}
+                                          className="p-1.5 border border-red-150 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
+                                          title="Delete Post"
+                                        >
+                                          🗑️
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {/* Paging Footer */}
+                            <div className="flex justify-center gap-2 pt-2">
+                              {sorted.length > discussionLimit && (
+                                <button
+                                  onClick={() => setDiscussionLimit(prev => prev + 5)}
+                                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+                                >
+                                  Show More Posts
+                                </button>
+                              )}
+                              {discussionLimit > 5 && (
+                                <button
+                                  onClick={() => setDiscussionLimit(5)}
+                                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all"
+                                >
+                                  Show Fewer
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
@@ -2202,7 +2508,7 @@ export const ProjectMatePage: React.FC = () => {
                         ) : (
                           <div className="space-y-3">
                             {verificationQueue.map(res => {
-                              const isExe = res.url?.toLowerCase().endsWith('.exe');
+                              const isExe = res.url?.toLowerCase().endsWith('.exe') || res.url?.toLowerCase().includes('.exe');
                               return (
                                 <div key={res.id} className="p-4 bg-white border border-amber-200/80 rounded-xl space-y-3 shadow-sm text-xs">
                                   {isExe && (
@@ -2212,15 +2518,15 @@ export const ProjectMatePage: React.FC = () => {
                                   )}
                                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-2 gap-2">
                                     <div>
-                                      <h5 className="font-extrabold text-slate-800 text-sm">{res.title}</h5>
+                                      <h5 className="font-extrabold text-slate-850 text-sm">{res.title}</h5>
                                       <span className="text-[10px] text-slate-400">Uploaded by {res.uploader_profile?.full_name} on {new Date(res.created_at).toLocaleDateString()}</span>
                                     </div>
-                                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline flex items-center gap-1 font-semibold self-start sm:self-auto">
+                                    <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-indigo-650 hover:underline flex items-center gap-1 font-semibold self-start sm:self-auto">
                                       <span>Open Link Coordinates</span>
                                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                                     </a>
                                   </div>
-                                  {res.description && <p className="text-slate-500 italic">"{res.description}"</p>}
+                                  {res.description && <p className="text-slate-500 italic text-[11px]">"{res.description}"</p>}
                                   <div className="flex gap-2 justify-end pt-1">
                                     <button
                                       onClick={() => {
@@ -2251,76 +2557,132 @@ export const ProjectMatePage: React.FC = () => {
                     <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
                       <h4 className="text-sm font-black text-slate-800 border-b border-slate-100 pb-2">Verified Material Library</h4>
                       
-                      {resources.filter(r => r.verification_status === 'verified').length === 0 ? (
-                        <p className="text-xs text-slate-400 italic text-center py-8">No verified materials found in the library yet. Click "Share a Link" to get started.</p>
-                      ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {resources
-                            .filter(r => r.verification_status === 'verified')
-                            .map(res => (
-                              <div key={res.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between space-y-3 relative hover:shadow-sm transition-shadow text-xs">
-                                {res.is_pinned && (
-                                  <div className="absolute right-3 top-3 flex items-center gap-0.5 text-[9px] font-black text-indigo-700 bg-indigo-50 border border-indigo-150 px-1.5 py-0.5 rounded-md">
-                                    <span>📌 PINNED</span>
-                                  </div>
-                                )}
-                                <div className="space-y-1.5">
-                                  <h5 className="font-extrabold text-slate-850 text-sm pr-12 line-clamp-1">{res.title}</h5>
-                                  <p className="text-[10px] text-slate-400">Uploaded by <span className="font-semibold text-slate-600">{res.uploader_profile?.full_name || 'Teammate'}</span> · {new Date(res.created_at).toLocaleDateString()}</p>
-                                  {res.description && <p className="text-slate-500 italic pr-2 line-clamp-2">"{res.description}"</p>}
-                                </div>
-                                <div className="pt-2.5 border-t border-slate-200 flex items-center justify-between gap-3">
-                                  <a href={res.url} target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm">
-                                    <span>Open Link</span>
-                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                  </a>
-                                  
-                                  <div className="flex gap-1.5">
-                                    {selectedProject.is_owner && (
-                                      <button
-                                        onClick={() => handleTogglePinResource(res.id)}
-                                        className={`p-1.5 border rounded-lg transition-colors ${
-                                          res.is_pinned
-                                            ? 'bg-amber-50 border-amber-200 text-amber-600'
-                                            : 'bg-white border-slate-200 hover:bg-slate-100'
-                                        }`}
-                                        title={res.is_pinned ? 'Unpin Material' : 'Pin Material'}
-                                      >
-                                        📌
-                                      </button>
+                      {(() => {
+                        const verifiedList = resources.filter(r => r.verification_status === 'verified');
+                        
+                        // Sort pinned first, then by date descending
+                        const sorted = [...verifiedList].sort((a, b) => {
+                          if (a.is_pinned && !b.is_pinned) return -1;
+                          if (!a.is_pinned && b.is_pinned) return 1;
+                          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                        });
+
+                        const sliced = sorted.slice(0, resourcesLimit);
+
+                        if (verifiedList.length === 0) {
+                          return (
+                            <p className="text-xs text-slate-400 italic text-center py-8">
+                              No verified materials found in the library yet. Click "Share a Link" to get started.
+                            </p>
+                          );
+                        }
+
+                        return (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {sliced.map(res => {
+                                const isExe = res.url?.toLowerCase().endsWith('.exe') || res.url?.toLowerCase().includes('.exe');
+                                return (
+                                  <div key={res.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between space-y-3 relative hover:shadow-md transition-shadow text-xs">
+                                    {res.is_pinned && (
+                                      <div className="absolute right-3 top-3 flex items-center gap-0.5 text-[9px] font-black text-indigo-700 bg-indigo-50 border border-indigo-150 px-1.5 py-0.5 rounded-md">
+                                        <span>📌 PINNED</span>
+                                      </div>
                                     )}
-                                    {(res.uploaded_by === user?.id || selectedProject.is_owner) && (
-                                      <button
-                                        onClick={() => handleDeleteResourceAction(res.id)}
-                                        className="p-1.5 border border-red-150 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
-                                        title="Remove Material"
-                                      >
-                                        🗑️
-                                      </button>
-                                    )}
+                                    <div className="space-y-1.5">
+                                      <h5 className="font-extrabold text-slate-850 text-sm pr-12 line-clamp-1">{res.title}</h5>
+                                      <p className="text-[10px] text-slate-400">Uploaded by <span className="font-semibold text-slate-600">{res.uploader_profile?.full_name || 'Teammate'}</span> · {new Date(res.created_at).toLocaleDateString()}</p>
+                                      {res.description && <p className="text-slate-505 italic pr-2 line-clamp-2">"{res.description}"</p>}
+                                      
+                                      {isExe && (
+                                        <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-[9px] text-red-700 font-semibold leading-relaxed flex items-start gap-1 mt-1.5">
+                                          <span>⚠️ Safety warning: hazardous file signature (.exe) detected.</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="pt-2.5 border-t border-slate-200 flex items-center justify-between gap-3">
+                                      <a href={res.url} target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm">
+                                        <span>Open Link</span>
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                      </a>
+                                      
+                                      <div className="flex gap-1.5">
+                                        {selectedProject.is_owner && (
+                                          <button
+                                            onClick={() => handleTogglePinResource(res.id)}
+                                            className={`p-1.5 border rounded-lg transition-colors ${
+                                              res.is_pinned
+                                                ? 'bg-amber-50 border-amber-200 text-amber-600'
+                                                : 'bg-white border-slate-200 hover:bg-slate-100'
+                                            }`}
+                                            title={res.is_pinned ? 'Unpin Material' : 'Pin Material'}
+                                          >
+                                            📌
+                                          </button>
+                                        )}
+                                        {(res.uploaded_by === user?.id || selectedProject.is_owner) && (
+                                          <button
+                                            onClick={() => handleDeleteResourceAction(res.id)}
+                                            className="p-1.5 border border-red-150 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
+                                            title="Remove Material"
+                                          >
+                                            🗑️
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
-                            ))}
-                        </div>
-                      )}
+                                );
+                              })}
+                            </div>
+
+                            {/* Paging Footer */}
+                            <div className="flex justify-center gap-2 pt-2">
+                              {sorted.length > resourcesLimit && (
+                                <button
+                                  onClick={() => setResourcesLimit(prev => prev + 6)}
+                                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+                                >
+                                  Show More Materials
+                                </button>
+                              )}
+                              {resourcesLimit > 6 && (
+                                <button
+                                  onClick={() => setResourcesLimit(6)}
+                                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all"
+                                >
+                                  Show Fewer
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
 
                     {/* My Submitted Resources Panel */}
                     <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
                       <h4 className="text-sm font-black text-slate-800 border-b border-slate-100 pb-2">My Submitted Materials</h4>
                       
-                      {resources.filter(r => r.uploaded_by === user?.id).length === 0 ? (
-                        <p className="text-xs text-slate-400 italic text-center py-6">You have not submitted any resource materials yet.</p>
-                      ) : (
-                        <div className="space-y-3">
-                          {resources
-                            .filter(r => r.uploaded_by === user?.id)
-                            .map(res => {
+                      {(() => {
+                        const mySubmitted = resources.filter(r => r.uploaded_by === user?.id);
+                        
+                        if (mySubmitted.length === 0) {
+                          return (
+                            <p className="text-xs text-slate-400 italic text-center py-6">
+                              You have not submitted any resource materials yet.
+                            </p>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-3">
+                            {mySubmitted.map(res => {
                               const statusBadge =
                                 res.verification_status === 'verified' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                 res.verification_status === 'pending_verification' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                 'bg-red-50 text-red-700 border-red-200';
+                              const isExe = res.url?.toLowerCase().endsWith('.exe') || res.url?.toLowerCase().includes('.exe');
 
                               return (
                                 <div key={res.id} className="p-3.5 bg-slate-50 border border-slate-150 rounded-xl flex flex-col justify-between space-y-2 text-xs font-semibold text-slate-600">
@@ -2336,6 +2698,12 @@ export const ProjectMatePage: React.FC = () => {
                                   
                                   {res.description && <p className="text-slate-500 italic font-normal">"{res.description}"</p>}
                                   
+                                  {isExe && (
+                                    <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-[9px] text-red-700 font-semibold leading-relaxed flex items-start gap-1">
+                                      <span>⚠️ Warning: hazardous executable file link (.exe) registered. Proceed with caution.</span>
+                                    </div>
+                                  )}
+
                                   {res.verification_status === 'rejected' && res.rejection_reason && (
                                     <div className="p-2.5 bg-red-50 border border-red-150 rounded-lg text-[10px] text-red-800 font-semibold">
                                       <span className="font-black block mb-0.5">Leader Rejection Comments:</span>
@@ -2345,51 +2713,55 @@ export const ProjectMatePage: React.FC = () => {
                                 </div>
                               );
                             })}
-                        </div>
-                      )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
-              </div>
-
               {/* Roster & Left Bar settings */}
               <div className="space-y-6">
-                
-                {/* Active Roster List */}
+                 {/* Active Roster List */}
                 <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
                   <h4 className="text-md font-black text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-1.5">
                     <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                    Team Roster ({selectedProject.current_team_size}/{selectedProject.max_team_size})
+                    Team Roster ({teamMembers.length}/{selectedProject.max_team_size})
                   </h4>
 
                   <div className="divide-y divide-slate-100">
-                    {teamMembers.map(member => {
-                      const isActive = !member.left_at;
-                      return (
+                    {(() => {
+                      const activeMembersSorted = [...teamMembers].sort((a, b) => {
+                        const isOwnerA = a.user_id === selectedProject.created_by;
+                        const isOwnerB = b.user_id === selectedProject.created_by;
+                        if (isOwnerA) return -1;
+                        if (isOwnerB) return 1;
+                        const nameA = a.profile?.full_name || '';
+                        const nameB = b.profile?.full_name || '';
+                        return nameA.localeCompare(nameB);
+                      });
+
+                      return activeMembersSorted.map(member => (
                         <div key={member.id} className="py-3 flex items-center justify-between gap-3 text-xs">
                           <div>
                             <button
                               type="button"
                               onClick={() => setSelectedUserIdForProfile(member.user_id)}
-                              className="font-bold text-slate-800 hover:text-indigo-600 hover:underline block"
+                              className="font-bold text-slate-800 hover:text-indigo-600 hover:underline block text-left"
                             >
                               {member.profile?.full_name}
                             </button>
                             <span className="text-[10px] text-slate-400 block mt-0.5">
                               {member.profile?.department} ({member.profile?.year_of_study})
                             </span>
-                            <span className="text-[10px] font-semibold text-slate-500 mt-1 block">
-                              Role: <span className="font-bold text-indigo-600">{member.role_name || 'Team Member'}</span>
-                            </span>
-                            {!isActive && (
-                              <span className="text-[9px] font-bold text-red-500 uppercase block mt-0.5">
-                                Left / Removed
+                            <span className="text-[10px] font-semibold text-slate-505 mt-1 block">
+                              Role: <span className="font-bold text-indigo-600">
+                                {member.user_id === selectedProject.created_by ? '👑 Project Lead' : (member.role_name || 'Team Member')}
                               </span>
-                            )}
+                            </span>
                           </div>
 
                           <div className="flex gap-1">
-                            {isActive && selectedProject.is_owner && member.user_id !== user?.id && (
+                            {selectedProject.is_owner && member.user_id !== user?.id && (
                               <button
                                 onClick={() => {
                                   setExitingMemberId(member.user_id);
@@ -2401,7 +2773,7 @@ export const ProjectMatePage: React.FC = () => {
                               </button>
                             )}
                             
-                            {isActive && !selectedProject.is_owner && member.user_id === user?.id && (
+                            {!selectedProject.is_owner && member.user_id === user?.id && (
                               <button
                                 onClick={() => setIsLeaveModalOpen(true)}
                                 className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded border border-red-150 transition-colors"
@@ -2411,10 +2783,56 @@ export const ProjectMatePage: React.FC = () => {
                             )}
                           </div>
                         </div>
-                      );
-                    })}
+                      ));
+                    })()}
                   </div>
                 </div>
+
+                {/* Past Members Section (Owner Only) */}
+                {selectedProject.is_owner && pastTeamMembers.length > 0 && (
+                  <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm space-y-3">
+                    <button
+                      onClick={() => setIsPastRosterOpen(!isPastRosterOpen)}
+                      className="w-full flex items-center justify-between text-xs font-black text-slate-500 uppercase tracking-wider focus:outline-none"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span>⌛ Past Members / Team History</span>
+                        <span className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full text-[10px] font-bold">
+                          {pastTeamMembers.length}
+                        </span>
+                      </span>
+                      <span>{isPastRosterOpen ? '▼' : '▶'}</span>
+                    </button>
+
+                    {isPastRosterOpen && (
+                      <div className="divide-y divide-slate-205 pt-2">
+                        {pastTeamMembers.map(member => {
+                          const isRemoved = !!member.removed_by;
+                          return (
+                            <div key={member.id} className="py-2.5 text-xs text-slate-500 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-750">{member.profile?.full_name}</span>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+                                  isRemoved ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-100 text-slate-500 border-slate-200'
+                                }`}>
+                                  {isRemoved ? 'Removed' : 'Left'}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400">
+                                Role: {member.role_name || 'Team Member'} · Exit: {new Date(member.left_at!).toLocaleDateString()}
+                              </p>
+                              {member.leave_reason && (
+                                <p className="text-[10px] italic text-slate-500 bg-white/70 p-1.5 rounded border border-slate-150 mt-0.5">
+                                  "Reason: {member.leave_reason}"
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Open positions info */}
                 {selectedProject.roles && selectedProject.roles.length > 0 && (
@@ -2437,6 +2855,25 @@ export const ProjectMatePage: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+          {activeTab === 'workspace' && selectedProject && !(selectedProject.is_owner || selectedProject.is_member) && (
+            <div className="p-8 bg-white border border-slate-200 rounded-3xl shadow-sm max-w-xl mx-auto text-center space-y-4 my-8">
+              <div className="w-16 h-16 bg-red-50 text-red-650 rounded-2xl flex items-center justify-center text-2xl mx-auto border border-red-100">
+                🔒
+              </div>
+              <h3 className="text-xl font-black text-slate-800 tracking-tight">Workspace Access Denied</h3>
+              <p className="text-sm text-slate-500 leading-relaxed font-medium">
+                This private workspace is reserved strictly for active team members and the project lead. Former members or pending applicants do not have permission to view discussions, shared resources, or secure credentials.
+              </p>
+              <button
+                onClick={() => setActiveTab('discover')}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition-all hover:shadow-indigo-100"
+              >
+                Return to Discover Page
+              </button>
             </div>
           )}
         </div>
@@ -2899,7 +3336,11 @@ export const ProjectMatePage: React.FC = () => {
           ? currentProjectForApply.roles.every(r => r.slots_filled >= r.slots_needed)
           : false;
 
-        const cannotApply = isTeamFull || (hasRoles && allRolesFull && !selectedRoleForApply);
+        const myProjMemberships = userMemberships.filter(m => m.project_id === applyProjectId);
+        const isActiveMember = currentProjectForApply?.is_owner || myProjMemberships.some(m => m.left_at === null);
+        const hasPendingApp = myApplications.some(app => app.project_id === applyProjectId && app.status === 'pending');
+
+        const cannotApply = isTeamFull || (hasRoles && allRolesFull && !selectedRoleForApply) || isActiveMember || hasPendingApp;
 
         return (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -2921,10 +3362,24 @@ export const ProjectMatePage: React.FC = () => {
               </div>
 
               <div className="p-6 overflow-y-auto space-y-4 text-sm">
-                {cannotApply && (
+                {isTeamFull && (
                   <div className="p-4 bg-red-50 border border-red-150 rounded-2xl text-xs text-red-700 font-semibold leading-relaxed flex items-start gap-2">
                     <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                     <span>This team is full. You can apply when the owner increases capacity or a role opens.</span>
+                  </div>
+                )}
+
+                {isActiveMember && (
+                  <div className="p-4 bg-amber-50 border border-amber-150 rounded-2xl text-xs text-amber-700 font-semibold leading-relaxed flex items-start gap-2">
+                    <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <span>You are already an active member of this project team. You cannot submit another application.</span>
+                  </div>
+                )}
+
+                {hasPendingApp && (
+                  <div className="p-4 bg-amber-50 border border-amber-150 rounded-2xl text-xs text-amber-700 font-semibold leading-relaxed flex items-start gap-2">
+                    <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <span>You already have an active pending application for this project team. Please wait for the owner review.</span>
                   </div>
                 )}
 

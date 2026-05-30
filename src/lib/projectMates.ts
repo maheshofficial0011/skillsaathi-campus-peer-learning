@@ -676,7 +676,7 @@ export async function respondToProjectApplication(
 }
 
 /**
- * Fetch all roster members for a project.
+ * Fetch all active roster members for a project (left_at IS NULL).
  */
 export async function getProjectTeamMembers(projectId: string): Promise<ProjectTeamMember[]> {
   const { data, error } = await supabase
@@ -690,11 +690,35 @@ export async function getProjectTeamMembers(projectId: string): Promise<ProjectT
       )
     `)
     .eq('project_id', projectId)
+    .is('left_at', null)
     .order('joined_at', { ascending: true });
 
   if (error) throw error;
   return (data || []) as ProjectTeamMember[];
 }
+
+/**
+ * Fetch all past roster members for a project (left_at IS NOT NULL).
+ */
+export async function getProjectPastTeamMembers(projectId: string): Promise<ProjectTeamMember[]> {
+  const { data, error } = await supabase
+    .from('project_team_members')
+    .select(`
+      *,
+      profile:profiles!project_team_members_user_id_fkey(
+        full_name,
+        department,
+        year_of_study
+      )
+    `)
+    .eq('project_id', projectId)
+    .not('left_at', 'is', null)
+    .order('left_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []) as ProjectTeamMember[];
+}
+
 
 /**
  * Member voluntarily leaves project.
