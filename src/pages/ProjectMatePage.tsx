@@ -42,29 +42,47 @@ import {
   verifyProjectResource,
   rejectProjectResource,
   pinProjectResource,
-  deleteProjectResource
+  deleteProjectResource,
+  syncProjectTeamMetrics
 } from '../lib/projectMates';
 
 const CATEGORIES = [
+  'AI & Machine Learning',
   'Web Development',
   'Mobile App',
-  'AI & Machine Learning',
   'Data Science',
-  'Blockchain',
   'Cybersecurity',
-  'IoT & Robotics',
-  'AR/VR',
+  'IoT / Hardware',
   'UI/UX Design',
+  'Research',
+  'Hackathon',
+  'Open Source',
   'Other'
 ];
 
 const PROJECT_TYPES = [
-  { id: 'portfolio_project', label: 'Portfolio Project' },
-  { id: 'hackathon_project', label: 'Hackathon Project' },
-  { id: 'academic_term_project', label: 'Academic Term Project' },
-  { id: 'open_source_contribution', label: 'Open Source Contribution' },
-  { id: 'other', label: 'Other Project' }
+  { id: 'Portfolio Project', label: 'Portfolio Project' },
+  { id: 'College Project', label: 'College Project' },
+  { id: 'Hackathon', label: 'Hackathon' },
+  { id: 'Research Project', label: 'Research Project' },
+  { id: 'Startup Idea', label: 'Startup Idea' },
+  { id: 'Open Source', label: 'Open Source' },
+  { id: 'Competition Project', label: 'Competition Project' },
+  { id: 'Learning Project', label: 'Learning Project' },
+  { id: 'Other', label: 'Other' }
 ];
+
+export function formatProjectDisplayType(type: string): string {
+  if (!type) return '';
+  const mapping: Record<string, string> = {
+    portfolio_project: 'Portfolio Project',
+    hackathon_project: 'Hackathon Project',
+    academic_term_project: 'Academic Term Project',
+    open_source_contribution: 'Open Source Contribution',
+    other: 'Other'
+  };
+  return mapping[type] || type;
+}
 
 const DIFFICULTIES: ProjectDifficulty[] = ['Beginner', 'Intermediate', 'Advanced'];
 const WORK_MODES: ProjectWorkMode[] = ['Online', 'Offline', 'Hybrid', 'Campus only'];
@@ -82,6 +100,28 @@ export const ProjectMatePage: React.FC = () => {
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [myApplications, setMyApplications] = useState<any[]>([]);
   const [ownedProjects, setOwnedProjects] = useState<ProjectWithStats[]>([]);
+
+  // Dynamically discover unique categories and project types for filters
+  const discoveredCategories = React.useMemo(() => {
+    const base = [...CATEGORIES];
+    const customs = projects
+      .map(p => p.category)
+      .filter(cat => cat && cat.trim() !== '' && !base.includes(cat));
+    const uniqueCustoms = Array.from(new Set(customs)).sort((a, b) => a.localeCompare(b));
+    return [...base, ...uniqueCustoms];
+  }, [projects]);
+
+  const discoveredTypes = React.useMemo(() => {
+    const defaultLabels = PROJECT_TYPES.map(t => t.label);
+    const defaultIds = PROJECT_TYPES.map(t => t.id);
+    const customs = projects
+      .map(p => formatProjectDisplayType(p.project_type))
+      .filter(type => type && type.trim() !== '' && !defaultLabels.includes(type) && !defaultIds.includes(type));
+    const uniqueCustoms = Array.from(new Set(customs)).sort((a, b) => a.localeCompare(b));
+    
+    const defaults = PROJECT_TYPES.map(t => t.label);
+    return [...defaults, ...uniqueCustoms];
+  }, [projects]);
   
   // Selected Project for Workspace or Manage
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -141,6 +181,8 @@ export const ProjectMatePage: React.FC = () => {
   const [newDeadline, setNewDeadline] = useState('');
   const [newBeginnerFriendly, setNewBeginnerFriendly] = useState(false);
   const [newHackathon, setNewHackathon] = useState(false);
+  const [customCategory, setCustomCategory] = useState('');
+  const [customProjectType, setCustomProjectType] = useState('');
   
   // Create Project Private coordination links
   const [newCoordLink, setNewCoordLink] = useState('');
@@ -253,6 +295,11 @@ export const ProjectMatePage: React.FC = () => {
     try {
       setIsLoading(true);
       console.log('[ProjectMate] entering workspace for project:', projectId);
+      try {
+        await syncProjectTeamMetrics(projectId);
+      } catch (syncErr) {
+        console.error('Failed to sync project team metrics:', syncErr);
+      }
       const proj = await getProjectById(projectId, user.id, userProfile);
       setSelectedProject(proj);
       setSelectedProjectId(projectId);
@@ -365,6 +412,25 @@ export const ProjectMatePage: React.FC = () => {
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    let finalCategory = newCategory;
+    if (newCategory === 'Other') {
+      if (!customCategory || customCategory.trim().length < 2) {
+        toast.error('Custom Category must be at least 2 characters.');
+        return;
+      }
+      finalCategory = customCategory.trim();
+    }
+
+    let finalType = newType;
+    if (newType === 'Other' || newType === 'other') {
+      if (!customProjectType || customProjectType.trim().length < 2) {
+        toast.error('Custom Project Type must be at least 2 characters.');
+        return;
+      }
+      finalType = customProjectType.trim();
+    }
+
     setActionLoading(true);
     try {
       // Validate Roles Builder payload
@@ -383,8 +449,8 @@ export const ProjectMatePage: React.FC = () => {
         title: newTitle,
         summary: newSummary || undefined,
         description: newDescription,
-        category: newCategory,
-        project_type: newType,
+        category: finalCategory,
+        project_type: finalType,
         difficulty_level: newDifficulty,
         work_mode: newWorkMode,
         required_skills: newRequiredSkills ? newRequiredSkills.split(',').map(s => s.trim()) : [],
@@ -410,6 +476,10 @@ export const ProjectMatePage: React.FC = () => {
       setNewTitle('');
       setNewSummary('');
       setNewDescription('');
+      setNewCategory(CATEGORIES[0]);
+      setNewType(PROJECT_TYPES[0].id);
+      setCustomCategory('');
+      setCustomProjectType('');
       setNewRequiredSkills('');
       setNewPreferredDepartments([]);
       setNewPreferredYears([]);
@@ -918,7 +988,7 @@ export const ProjectMatePage: React.FC = () => {
     if (selectedCategory && p.category !== selectedCategory) return false;
 
     // 3. Project Type
-    if (selectedType && p.project_type !== selectedType) return false;
+    if (selectedType && formatProjectDisplayType(p.project_type) !== selectedType) return false;
 
     // 4. Difficulty
     if (selectedDifficulty && p.difficulty_level !== selectedDifficulty) return false;
@@ -1086,7 +1156,7 @@ export const ProjectMatePage: React.FC = () => {
                     className="px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500"
                   >
                     <option value="">All Categories</option>
-                    {CATEGORIES.map(c => (
+                    {discoveredCategories.map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
@@ -1097,8 +1167,8 @@ export const ProjectMatePage: React.FC = () => {
                     className="px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500"
                   >
                     <option value="">All Types</option>
-                    {PROJECT_TYPES.map(t => (
-                      <option key={t.id} value={t.id}>{t.label}</option>
+                    {discoveredTypes.map(t => (
+                      <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
 
@@ -1333,7 +1403,7 @@ export const ProjectMatePage: React.FC = () => {
                                     onClick={() => loadWorkspace(proj.id)}
                                     className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition-all"
                                   >
-                                    {proj.is_owner ? 'Manage Settings' : 'Open Workspace'}
+                                    {proj.is_owner ? 'Manage Workspace' : 'Open Workspace'}
                                   </button>
                                 );
                               }
@@ -1342,7 +1412,7 @@ export const ProjectMatePage: React.FC = () => {
                                 return (
                                   <div className="flex items-center gap-2">
                                     <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-50 text-amber-700 border border-amber-250 uppercase">
-                                      Applied (pending)
+                                      Pending Review
                                     </span>
                                     {pendingApp && (
                                       <button
@@ -1391,7 +1461,7 @@ export const ProjectMatePage: React.FC = () => {
                                   onClick={() => openApplyModal(proj.id)}
                                   className="px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-black rounded-lg border border-indigo-150 transition-all shadow-sm"
                                 >
-                                  Join Request
+                                  Apply
                                 </button>
                               );
                             })()}
@@ -1687,7 +1757,7 @@ export const ProjectMatePage: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-slate-400 uppercase tracking-wider text-[10px]">Type</p>
-                      <p className="text-slate-700 font-bold capitalize">{selectedProject.project_type.replace('_', ' ')}</p>
+                      <p className="text-slate-700 font-bold">{formatProjectDisplayType(selectedProject.project_type)}</p>
                     </div>
                     <div>
                       <p className="text-slate-400 uppercase tracking-wider text-[10px]">Capacity</p>
@@ -2961,6 +3031,19 @@ export const ProjectMatePage: React.FC = () => {
                           <option key={c} value={c}>{c}</option>
                         ))}
                       </select>
+                      {newCategory === 'Other' && (
+                        <div className="mt-2 animate-fade-in">
+                          <label className="block text-[11px] font-bold text-indigo-600 mb-0.5">Custom Category Name *</label>
+                          <input
+                            type="text"
+                            required
+                            value={customCategory}
+                            onChange={e => setCustomCategory(e.target.value)}
+                            placeholder="e.g. Bio-Informatics"
+                            className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 text-xs"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -2974,6 +3057,19 @@ export const ProjectMatePage: React.FC = () => {
                           <option key={t.id} value={t.id}>{t.label}</option>
                         ))}
                       </select>
+                      {(newType === 'Other' || newType === 'other') && (
+                        <div className="mt-2 animate-fade-in">
+                          <label className="block text-[11px] font-bold text-indigo-600 mb-0.5">Custom Project Type *</label>
+                          <input
+                            type="text"
+                            required
+                            value={customProjectType}
+                            onChange={e => setCustomProjectType(e.target.value)}
+                            placeholder="e.g. Graduation Capstone"
+                            className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 text-xs"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     <div>

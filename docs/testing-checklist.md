@@ -1116,9 +1116,46 @@ select * from public.project_team_members limit 5;
   - Type a rejection reason and save. Verify the resource is removed from the queue.
   - Log in as the member. Verify that the resource shows in your dashboard with a red `❌ Rejected` badge and displays the owner's feedback comments.
   - Approve a resource. Verify it is verified instantly, removed from the queue, and appears in the public **Verified Material Library** visible to all teammates.
-- [ ] **Uploader & Owner Pin Controls**:
+- [ ] **Owner & Uploader Pin Controls**:
   - As the Owner, pin a verified resource. Verify a blue `📌 PINNED` badge appears and it floats to the top of the library.
   - Verify that Owners and original uploaders can delete resources safely.
+
+---
+
+## 📋 Phase 6.3A — Project Formation Count Sync, Self-Healing DB Updates, and Custom Category/Type Support
+
+### 1. Roster & Live Team Count Sync
+- [ ] **Active Count Live Truth**:
+  - Go to **Discover Projects**. Locate a project team where a member has voluntarily left or was kicked.
+  - Verify that the Discover project card displays `Team Size: activeCount / max_team_size` where `activeCount` strictly represents active members (`left_at IS NULL`). Departed members must not be counted.
+  - Verify that the **My Projects** dashboard card displays `Members: activeCount / max_team_size` correctly.
+  - Open the **Workspace** for that project. Verify that the **Capacity** value in the header metadata bar displays `activeCount / max_team_size`.
+  - Verify that the **Team Roster** section header displays `Team Roster (activeCount / max_team_size)` accurately.
+
+### 2. Role Slot & Team Capacity Enforcement
+- [ ] **Reopening Roles on Departure**:
+  - As a member who occupies a crucial role slot (e.g. Presenter), voluntarily leave the project team or have the owner remove you.
+  - Check the project card as a non-member. Verify that the role slot count decrements instantly (e.g. Presenter changes from `1/1 Full` to `0/1 Open` or similar), and the role displays as open.
+  - Open the **Submit Join Request** modal. Verify that the Presenter role is fully enabled and selectable.
+  - As the project owner, accept a new applicant for the open role. Verify that the role slot increment is captured, and the project capacity limits self-heal immediately in the database and UI.
+
+### 3. "Other" Custom Category & Project Type Support
+- [ ] **Create Project modal with custom inputs**:
+  - Open the **Start a Project** modal.
+  - In the **Category** dropdown, select the `"Other"` option. Verify that a text input labeled `"Custom Category Name *"` appears.
+  - Leave it blank or type a single character and click submit. Verify that a validation toast blocks submission: `"Custom Category must be at least 2 characters."`
+  - Fill it with `"Bio-Informatics"` (length >= 2).
+  - In the **Project Type** dropdown, select the `"Other"` option. Verify that a text input labeled `"Custom Project Type *"` appears.
+  - Fill it with `"Graduation Capstone"` and complete the form. Submit.
+  - Verify that the project is created successfully and displays the category `"Bio-Informatics"` and project type `"Graduation Capstone"` clearly on the card and workspace details.
+  - Open the **Discover Projects** tab. Locate the **Category** and **Project Type** filter dropdowns.
+  - Verify that `"Bio-Informatics"` and `"Graduation Capstone"` are automatically discovered and listed alphabetically at the end of the default choices!
+  - Select `"Bio-Informatics"` from the filter. Verify that the project filters instantly.
+
+### 4. Database Self-Healing Repair Query
+- [ ] **Verification of Repair Query**:
+  - If cached values inside `project_posts.current_team_size` or `project_roles.slots_filled` become desynchronized, run the idempotent sync SQL script in the Supabase SQL Editor.
+  - Verify that all counts self-heal to match active memberships (`left_at IS NULL`) exactly, without destroying historical logs or applications.
 
 
 

@@ -489,5 +489,64 @@ Security policies are protected by non-recursive helper functions executing unde
 - `is_project_owner(project_id, user_id)`: Checks if user created the project post.
 - `can_access_project_workspace(project_id, user_id)`: Checks if user is owner OR an active member. Excludes left members and accepted applicants before roster entries.
 
+---
+
+## 🛠️ Step 19: Phase 6.3A — Live Capacity Sync & Self-Healing Database Metrics
+
+In Phase 6.3A, the active team members roster (`project_team_members` where `left_at IS NULL`) serves as the single source of truth for all teammate counts and capacity metrics. Cached database columns (`project_posts.current_team_size` and `project_roles.slots_filled`) may occasionally become stale due to historical application actions or manual updates.
+
+### 🔄 DB Self-Healing Synchronization
+An automated helper `syncProjectTeamMetrics(projectId)` is called dynamically inside `respondToProjectApplication` (accept), `leaveProject` (voluntarily depart), `removeProjectMember` (kick), and `loadWorkspace` (viewing project settings). 
+
+This helper executes the following steps:
+1. Counts active members where `left_at IS NULL` for the project.
+2. Updates `project_posts.current_team_size` with this active count (minimum of 1).
+3. If active count >= `max_team_size`, automatically updates status to `'team_full'`.
+4. If active count < `max_team_size` and status was `'team_full'`, automatically reverts status to `'recruiting'`.
+5. Iterates through each role defined for the project, counts active members assigned to that specific `role_id` (`left_at IS NULL`), and updates `project_roles.slots_filled` with the live count.
+
+### 🔍 Manual SQL Database Repair Query
+If you notice any stale counts across your project tables in Supabase, you can run this safe idempotent SQL script in the **SQL Editor** to manually repair and synchronize all project posts and role slots filled:
+
+```sql
+-- 1. Sync project posts current_team_size with active roster count
+UPDATE public.project_posts p
+SET current_team_size = COALESCE(
+  (
+    SELECT COUNT(*)::int
+    FROM public.project_team_members m
+    WHERE m.project_id = p.id
+      AND m.left_at IS NULL
+  ),
+  1
+);
+
+-- 2. Automatically heal status tags based on max team sizes
+UPDATE public.project_posts
+SET status = 'team_full'
+WHERE current_team_size >= max_team_size;
+
+UPDATE public.project_posts
+SET status = 'recruiting'
+WHERE current_team_size < max_team_size
+  AND status = 'team_full';
+
+-- 3. Sync project roles slots_filled with active roster role assignments
+UPDATE public.project_roles r
+SET slots_filled = COALESCE(
+  (
+    SELECT COUNT(*)::int
+    FROM public.project_team_members m
+    WHERE m.project_id = r.project_id
+      AND m.role_id = r.id
+      AND m.left_at IS NULL
+  ),
+  0
+);
+```
+
+> [!TIP]
+> This query is completely safe to run and does not delete history, applications, or depart active members. It simply aligns cache metrics with the active roster realities.
+
 
 

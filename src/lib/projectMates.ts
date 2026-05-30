@@ -88,6 +88,108 @@ export function calculateProjectMatchScore(
 }
 
 /**
+ * Fetch all active roster members for a project (left_at IS NULL).
+ */
+export async function getActiveProjectMembers(projectId: string): Promise<ProjectTeamMember[]> {
+  const { data, error } = await supabase
+    .from('project_team_members')
+    .select(`
+      *,
+      profile:profiles!project_team_members_user_id_fkey(
+        full_name,
+        department,
+        year_of_study
+      )
+    `)
+    .eq('project_id', projectId)
+    .is('left_at', null)
+    .order('joined_at', { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as ProjectTeamMember[];
+}
+
+/**
+ * Returns active team count.
+ */
+export async function deriveActiveTeamSize(projectId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('project_team_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('project_id', projectId)
+    .is('left_at', null);
+
+  if (error) throw error;
+  return Math.max(1, count || 1);
+}
+
+/**
+ * Synchronizes the cached metrics inside project_posts and project_roles with active team memberships.
+ */
+export async function syncProjectTeamMetrics(projectId: string): Promise<void> {
+  try {
+    // 1. Fetch active team members
+    const { data: activeMembers, error: membersErr } = await supabase
+      .from('project_team_members')
+      .select('id, role_id, user_id')
+      .eq('project_id', projectId)
+      .is('left_at', null);
+
+    if (membersErr) throw membersErr;
+    const activeCount = Math.max(1, activeMembers ? activeMembers.length : 1);
+
+    // 2. Fetch project details
+    const { data: project, error: projErr } = await supabase
+      .from('project_posts')
+      .select('status, max_team_size')
+      .eq('id', projectId)
+      .single();
+
+    if (projErr) throw projErr;
+
+    // Determine status
+    let newStatus = project.status;
+    if (activeCount >= project.max_team_size) {
+      newStatus = 'team_full';
+    } else if (activeCount < project.max_team_size && project.status === 'team_full') {
+      newStatus = 'recruiting';
+    }
+
+    // 3. Update project_posts
+    const { error: updateProjErr } = await supabase
+      .from('project_posts')
+      .update({
+        current_team_size: activeCount,
+        status: newStatus
+      })
+      .eq('id', projectId);
+
+    if (updateProjErr) throw updateProjErr;
+
+    // 4. Fetch roles
+    const { data: roles, error: rolesErr } = await supabase
+      .from('project_roles')
+      .select('id')
+      .eq('project_id', projectId);
+
+    if (rolesErr) throw rolesErr;
+
+    // 5. Update slots_filled for each role
+    if (roles && roles.length > 0) {
+      for (const role of roles) {
+        const roleFilled = activeMembers ? activeMembers.filter(m => m.role_id === role.id).length : 0;
+        await supabase
+          .from('project_roles')
+          .update({ slots_filled: roleFilled })
+          .eq('id', role.id);
+      }
+    }
+  } catch (err) {
+    console.error(`[ProjectMate] syncProjectTeamMetrics failed for ${projectId}:`, err);
+  }
+}
+
+/**
  * Fetch all discoverable project posts with stats, roles, and current user status.
  */
 export async function getProjectPosts(
@@ -113,6 +215,14 @@ export async function getProjectPosts(
 
   if (rolesError) throw rolesError;
 
+  // Fetch all active team members in bulk to overwrite current_team_size and slots_filled
+  const { data: allActiveMembers, error: activeMembersError } = await supabase
+    .from('project_team_members')
+    .select('id, project_id, role_id, user_id')
+    .is('left_at', null);
+
+  if (activeMembersError) throw activeMembersError;
+
   // Fetch current user applications and team memberships if logged in
   let myApplications: any[] = [];
   let myMemberships: any[] = [];
@@ -136,14 +246,27 @@ export async function getProjectPosts(
 
   // Combine data
   return posts.map((post: any) => {
-    const projectRoles = (allRoles || []).filter(r => r.project_id === post.id);
-    const isOwner = currentUserId === post.created_by;
+    const projectActiveMembers = (allActiveMembers || []).filter(m => m.project_id === post.id);
+    const activeCount = Math.max(1, projectActiveMembers.length);
 
+    const projectRoles = (allRoles || []).filter(r => r.project_id === post.id).map(role => {
+      const roleActive = projectActiveMembers.filter(m => m.role_id === role.id).length;
+      return {
+        ...role,
+        slots_filled: roleActive,
+        live_slots_filled: roleActive
+      };
+    });
+
+    const isOwner = currentUserId === post.created_by;
     const myApp = myApplications.find(a => a.project_id === post.id);
     const isMember = isOwner || myMemberships.some(m => m.project_id === post.id);
 
     // Enforce private collaboration fields gating
-    const cleanPost = { ...post };
+    const cleanPost = { 
+      ...post,
+      current_team_size: activeCount
+    };
     if (!isOwner && !isMember) {
       cleanPost.coordination_link = null;
       cleanPost.github_repo_url = null;
@@ -186,11 +309,30 @@ export async function getProjectById(
 
   if (postError) throw postError;
 
+  // Fetch all active team members for this project
+  const { data: allActiveMembers, error: activeMembersError } = await supabase
+    .from('project_team_members')
+    .select('id, role_id, user_id')
+    .eq('project_id', projectId)
+    .is('left_at', null);
+
+  if (activeMembersError) throw activeMembersError;
+  const activeCount = Math.max(1, allActiveMembers ? allActiveMembers.length : 1);
+
   // Roles
   const { data: roles } = await supabase
     .from('project_roles')
     .select('*')
     .eq('project_id', projectId);
+
+  const cleanRoles = (roles || []).map(role => {
+    const roleActive = allActiveMembers ? allActiveMembers.filter(m => m.role_id === role.id).length : 0;
+    return {
+      ...role,
+      slots_filled: roleActive,
+      live_slots_filled: roleActive
+    };
+  });
 
   // Application
   const { data: apps } = await supabase
@@ -203,19 +345,14 @@ export async function getProjectById(
 
   const myApp = apps && apps.length > 0 ? apps[0] : null;
 
-  // Memberships to check access
-  const { data: activeMembers } = await supabase
-    .from('project_team_members')
-    .select('*')
-    .eq('project_id', projectId)
-    .eq('user_id', currentUserId)
-    .is('left_at', null);
-
   const isOwner = currentUserId === post.created_by;
-  const isMember = isOwner || (activeMembers && activeMembers.length > 0);
+  const isMember = isOwner || (allActiveMembers && allActiveMembers.some(m => m.user_id === currentUserId));
 
   // Enforce private collaboration fields gating
-  const cleanPost = { ...post };
+  const cleanPost = { 
+    ...post,
+    current_team_size: activeCount
+  };
   if (!isOwner && !isMember) {
     cleanPost.coordination_link = null;
     cleanPost.github_repo_url = null;
@@ -223,11 +360,11 @@ export async function getProjectById(
     cleanPost.private_notes = null;
   }
 
-  const match = calculateProjectMatchScore(cleanPost, roles || [], userProfile);
+  const match = calculateProjectMatchScore(cleanPost, cleanRoles, userProfile);
 
   return {
     ...cleanPost,
-    roles: roles || [],
+    roles: cleanRoles,
     is_owner: isOwner,
     is_member: isMember,
     my_application_status: myApp ? myApp.status : null,
@@ -597,8 +734,39 @@ export async function respondToProjectApplication(
   if (projError || !project) throw new Error('Project not found.');
 
   if (action === 'accepted') {
+    // 0. Duplicate Membership Guard
+    const { data: existingActiveMember, error: activeCheckErr } = await supabase
+      .from('project_team_members')
+      .select('id')
+      .eq('project_id', app.project_id)
+      .eq('user_id', app.applicant_id)
+      .is('left_at', null)
+      .maybeSingle();
+
+    if (activeCheckErr) throw activeCheckErr;
+    if (existingActiveMember) {
+      // User is already active. Just update application status to accepted.
+      const { error: updateAppErr } = await supabase
+        .from('project_applications')
+        .update({
+          status: 'accepted',
+          owner_response: ownerResponse || 'Approved by project owner (already in team).',
+          reviewed_by: project.created_by,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', applicationId);
+
+      if (updateAppErr) throw updateAppErr;
+      
+      await syncProjectTeamMetrics(app.project_id);
+      return;
+    }
+
+    // Fetch live active roster members to make sure we don't exceed max capacity
+    const activeCount = await deriveActiveTeamSize(app.project_id);
+
     // 1. Check capacity
-    if (project.current_team_size >= project.max_team_size) {
+    if (activeCount >= project.max_team_size) {
       throw new Error('Cannot accept: Project team has reached maximum capacity.');
     }
 
@@ -611,12 +779,13 @@ export async function respondToProjectApplication(
         .single();
 
       if (role) {
-        if (role.slots_filled >= role.slots_needed) {
+        const liveRoleFilled = role.slots_filled; // Overwritten live by sync if stale
+        if (liveRoleFilled >= role.slots_needed) {
           throw new Error(`Cannot accept: The selected role "${role.role_name}" is already fully staffed.`);
         }
         await supabase
           .from('project_roles')
-          .update({ slots_filled: role.slots_filled + 1 })
+          .update({ slots_filled: liveRoleFilled + 1 })
           .eq('id', app.role_id);
       }
     }
@@ -647,17 +816,8 @@ export async function respondToProjectApplication(
 
     if (memberErr) throw memberErr;
 
-    // 5. Update team size and check if team is full
-    const newTeamSize = project.current_team_size + 1;
-    const newStatus = newTeamSize >= project.max_team_size ? 'team_full' : project.status;
-
-    await supabase
-      .from('project_posts')
-      .update({
-        current_team_size: newTeamSize,
-        status: newStatus
-      })
-      .eq('id', app.project_id);
+    // 5. Update team size and sync project team metrics
+    await syncProjectTeamMetrics(app.project_id);
 
   } else {
     // Action: rejected
@@ -741,7 +901,7 @@ export async function leaveProject(projectId: string, userId: string, reason: st
   // Check if owner is trying to leave
   const { data: project } = await supabase
     .from('project_posts')
-    .select('created_by, current_team_size, status, max_team_size')
+    .select('created_by')
     .eq('id', projectId)
     .single();
 
@@ -760,33 +920,8 @@ export async function leaveProject(projectId: string, userId: string, reason: st
 
   if (updateErr) throw updateErr;
 
-  // Decrement current_team_size and unlock status if it was full
-  const newSize = Math.max(1, (project?.current_team_size || 2) - 1);
-  const newStatus = (project?.status === 'team_full' && newSize < (project?.max_team_size || 4)) ? 'recruiting' : project?.status;
-
-  await supabase
-    .from('project_posts')
-    .update({
-      current_team_size: newSize,
-      status: newStatus
-    })
-    .eq('id', projectId);
-
-  // Decrement role spots if needed
-  if (member.role_id) {
-    const { data: role } = await supabase
-      .from('project_roles')
-      .select('slots_filled')
-      .eq('id', member.role_id)
-      .single();
-
-    if (role && role.slots_filled > 0) {
-      await supabase
-        .from('project_roles')
-        .update({ slots_filled: Math.max(0, role.slots_filled - 1) })
-        .eq('id', member.role_id);
-    }
-  }
+  // Sync team count, role slots, and status
+  await syncProjectTeamMetrics(projectId);
 }
 
 /**
@@ -808,7 +943,7 @@ export async function removeProjectMember(
   // Fetch project details to check owner
   const { data: project } = await supabase
     .from('project_posts')
-    .select('created_by, current_team_size, status, max_team_size')
+    .select('created_by')
     .eq('id', projectId)
     .single();
 
@@ -839,33 +974,8 @@ export async function removeProjectMember(
 
   if (updateErr) throw updateErr;
 
-  // Decrement current_team_size
-  const newSize = Math.max(1, (project?.current_team_size || 2) - 1);
-  const newStatus = (project?.status === 'team_full' && newSize < (project?.max_team_size || 4)) ? 'recruiting' : project?.status;
-
-  await supabase
-    .from('project_posts')
-    .update({
-      current_team_size: newSize,
-      status: newStatus
-    })
-    .eq('id', projectId);
-
-  // Decrement role spots if needed
-  if (member.role_id) {
-    const { data: role } = await supabase
-      .from('project_roles')
-      .select('slots_filled')
-      .eq('id', member.role_id)
-      .single();
-
-    if (role && role.slots_filled > 0) {
-      await supabase
-        .from('project_roles')
-        .update({ slots_filled: Math.max(0, role.slots_filled - 1) })
-        .eq('id', member.role_id);
-    }
-  }
+  // Sync team count, role slots, and status
+  await syncProjectTeamMetrics(projectId);
 }
 
 /**

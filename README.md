@@ -388,3 +388,22 @@ Learning Circles connect peer study groups, allowing collaborative resource shar
    - **Public-Safe Applicant Profiles**: Profile summaries shared with project owners strictly block private emails, phone numbers, WhatsApp links, and raw UUIDs, displaying academic qualifications and public GitHub/LinkedIn links safely.
    - **Idempotent SQL Patch** (`supabase/phase6-project-mate-finder-core-patch.sql`): Created database models for `project_posts`, `project_roles`, `project_applications`, and `project_team_members` tables, complete with RLS security policies, updated_at triggers, and partial unique indices to prevent duplicate pending applications or duplicate active memberships.
    - **Current Status**: Phase 6.1 core system fully implemented, build verified with zero TypeScript errors.
+
+---
+
+## 🚀 Completed Phase 6.3A: Project Formation Count Sync, Self-Healing DB Updates, and Custom Category/Type Support
+
+Phase 6.3A fixes all teammate/role slot count inconsistencies by declaring active roster members (`project_team_members` where `left_at IS NULL`) as the single live source of truth. It implements a self-healing database sync engine and launches a custom other category/type taxonomy.
+
+### Key Enhancements
+- **Live Active Roster Counts**: All capacity displays (Workspace header, My Projects cards, Discover cards, Team Roster headers) now dynamically compute member counts using active roster members (`left_at IS NULL`), completely bypassing any stale cached metrics in the database.
+- **Self-Healing Sync Engine (`syncProjectTeamMetrics`)**:
+  - Automatically computes active roster counts and active assignments per role.
+  - Heals `project_posts.current_team_size` and `project_roles.slots_filled` dynamically in the database.
+  - Adjusts project status from `'team_full'` back to `'recruiting'` if a slot opens up, and vice versa.
+  - Triggered automatically after a member leaves, is kicked, an application is accepted, and whenever a workspace is opened in the frontend.
+- **Reopening Roles & Capacity**: Voluntarily leaving or being removed from a project team instantly decrements active counts, reopening team capacity and freeing role slots. The Apply modal instantly enables previously filled roles once they reopen.
+- **Duplicate Membership Guard**: Check if applicant is already an active member before accepting, preventing duplicate active roster rows.
+- **Custom "Other" Taxonomy input**: Category and Project Type select dropdowns now support a custom `"Other"` option. Selecting `"Other"` dynamically displays a text input with min 2 characters validation, storing the custom trimmed string directly in the database.
+- **Backward Compatibility mapping (`formatProjectDisplayType`)**: Translates old database snake_case IDs (`portfolio_project`, `academic_term_project`) into user-friendly labels beautifully, ensuring old data matches new custom entries.
+- **Dynamic Discover Filters**: Discover page filters dynamically extract and list unique custom category and project type strings from existing projects list, sorted alphabetically and appended after the default choices.
