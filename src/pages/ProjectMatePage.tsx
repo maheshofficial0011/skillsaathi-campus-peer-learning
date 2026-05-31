@@ -2697,7 +2697,7 @@ export const ProjectMatePage: React.FC = () => {
 
                 {/* Subtab Content */}
                                 {workspaceSubTab === 'coordination' && (
-                  <div className="grid w-full max-w-full min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] gap-6">
+                  <div className="grid w-full max-w-full min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(340px,380px)] gap-6">
                     <div className="min-w-0 max-w-full space-y-6">
 
                     {/* PHASE 6.3C: Completed Project Summary Banner */}
@@ -3581,7 +3581,7 @@ export const ProjectMatePage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className={`w-full min-w-0 max-w-full space-y-3.5 divide-y divide-slate-100 pr-1 ${teamMembers.length > 4 ? 'max-h-[360px] overflow-y-auto thin-scrollbar' : ''}`}>
+                  <div className={`w-full min-w-0 max-w-full space-y-3.5 divide-y divide-slate-100 pr-1 ${teamMembers.length > 4 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {(() => {
                       let filteredMembers = [...teamMembers];
                       
@@ -3776,15 +3776,15 @@ export const ProjectMatePage: React.FC = () => {
                             No team history recorded.
                           </p>
                         ) : (
-                          <div className={`divide-y divide-slate-200/60 pr-1 ${pastTeamMembers.length > 3 ? 'max-h-[200px] overflow-y-auto thin-scrollbar' : ''}`}>
+                          <div className={`divide-y divide-slate-200/60 pr-1 ${pastTeamMembers.length > 3 ? 'max-h-[360px] overflow-y-auto thin-scrollbar' : ''}`}>
                             {[...pastTeamMembers]
                               .sort((a, b) => new Date(b.left_at || '').getTime() - new Date(a.left_at || '').getTime())
                               .map((member, idx) => {
                                 const isRemoved = !!member.removed_by;
                                 return (
-                                  <div key={member.id} className={`text-xs text-slate-500 space-y-1.5 pb-3 ${idx > 0 ? 'pt-3' : ''}`}>
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-extrabold text-slate-800">{member.profile?.full_name}</span>
+                                  <div key={member.id} className={`min-w-0 overflow-hidden text-xs text-slate-500 space-y-1.5 pb-3 ${idx > 0 ? 'pt-3' : ''}`}>
+                                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
+                                      <span className="min-w-0 break-words font-extrabold text-slate-800">{member.profile?.full_name}</span>
                                       <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
                                         isRemoved ? 'bg-red-50 text-red-650 border-red-200' : 'bg-slate-100 text-slate-500 border-slate-200'
                                       }`}>
@@ -3797,7 +3797,7 @@ export const ProjectMatePage: React.FC = () => {
                                     {member.leave_reason && (
                                       <div className="bg-white p-2 rounded-lg border border-slate-150 shadow-xs mt-1 relative">
                                         <div className="absolute top-0 left-0 w-1 h-full bg-slate-300 rounded-l-lg"></div>
-                                        <p className="text-[10px] italic text-slate-550 leading-relaxed pl-1.5">
+                                        <p className="text-[10px] italic text-slate-550 leading-relaxed break-words pl-1.5">
                                           "{member.leave_reason}"
                                         </p>
                                       </div>
@@ -3925,7 +3925,7 @@ export const ProjectMatePage: React.FC = () => {
                       <span>🏆</span>
                       <span>Member Task History</span>
                     </h4>
-                    <div className={`min-w-0 space-y-2 pr-1 ${teamMembers.length > 4 ? 'max-h-[300px] overflow-y-auto thin-scrollbar' : ''}`}>
+                    <div className={`min-w-0 space-y-2 pr-1 ${teamMembers.length > 4 ? 'max-h-[360px] overflow-y-auto thin-scrollbar' : ''}`}>
                       {teamMembers.map(member => {
                         const memberTasks = projectTasks.filter(t => t.assigned_to === member.user_id);
                         const verified = memberTasks.filter(t => t.status === 'verified').length;
@@ -3993,7 +3993,7 @@ export const ProjectMatePage: React.FC = () => {
                         All team positions have been filled! 🎉
                       </p>
                     ) : (
-                      <div className={`min-w-0 space-y-2 pr-1 ${selectedProject.roles.length > 4 ? 'max-h-[280px] overflow-y-auto thin-scrollbar' : ''}`}>
+                      <div className={`min-w-0 space-y-2 pr-1 ${selectedProject.roles.length > 4 ? 'max-h-[300px] overflow-y-auto thin-scrollbar' : ''}`}>
                         {[...selectedProject.roles]
                           .sort((a, b) => {
                             const aOpen = a.slots_needed - a.slots_filled > 0;
