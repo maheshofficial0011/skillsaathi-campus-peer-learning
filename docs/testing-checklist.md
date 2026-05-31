@@ -1,12 +1,12 @@
-# SkillSaathi — Final MVP Manual Testing Checklist (Phase 6.6)
+# SkillSaathi — Final MVP Manual Testing Checklist
 
-> **Live App:** https://skillsaathi-campus-peer-learning.vercel.app/
-> **Status:** MVP Complete ✅ — Phase 6.6 Final Polish
-> Use this checklist before every production release or demo presentation.
+**Live App:** https://skillsaathi-campus-peer-learning.vercel.app/
+**Status:** MVP Complete
+**Purpose:** Use this checklist before every production release or demo.
 
 ---
 
-## ⚡ Quick Smoke Test (Run First — 5 mins)
+## Quick Smoke Test (Run First — 5 mins)
 
 Run these checks immediately after any deployment to confirm core functionality:
 
@@ -25,7 +25,7 @@ Run these checks immediately after any deployment to confirm core functionality:
 
 ---
 
-## 🧪 Full MVP Regression Test Index
+## Full MVP Regression Test Index
 
 | Section | Module | Phase |
 |---|---|---|
@@ -58,7 +58,7 @@ Run these checks immediately after any deployment to confirm core functionality:
 
 ---
 
-## 🔐 Supabase Verification Checklist
+## Supabase Verification Checklist
 
 Run before first deployment or after any SQL patch:
 
@@ -73,7 +73,7 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## ☁️ Vercel Deployment Test
+## Vercel Deployment Test
 
 - [ ] Build passes: `npm run build` exits with code 0
 - [ ] TypeScript passes: `npx tsc -p tsconfig.app.json --noEmit` exits with 0 errors
@@ -85,7 +85,7 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## 🤝 Project Mate Deep Test
+## Project Mate Deep Test
 
 - [ ] Create a project post with 2+ role slots
 - [ ] Apply to a role from a second account
@@ -104,7 +104,7 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## 🎨 UI/UX Polish Test
+## UI/UX Polish Test
 
 - [ ] Landing page loads cleanly with hero, stats, and feature cards
 - [ ] CTA buttons (Get Started, Explore Dashboard) work
@@ -123,7 +123,7 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## 🛡️ Security/Privacy Test
+## Security/Privacy Test
 
 - [ ] Non-member cannot access project workspace data
 - [ ] Contact details hidden until request accepted
@@ -138,6 +138,7 @@ Run before first deployment or after any SQL patch:
 ---
 
 ## 1. Authentication & Route Protection
+
 - [ ] **Registration Flow**:
   - Visit the auth portal, toggle to "Create Campus Account".
   - Fill in all fields (Full Name, Email, Password, Department, Year, Section).
@@ -154,6 +155,7 @@ Run before first deployment or after any SQL patch:
 ---
 
 ## 2. Profile Page & Completeness Card
+
 - [ ] **Profile Completeness Calculations**:
   - Go to **My Profile**.
   - Count missing fields in the view panel.
@@ -173,6 +175,7 @@ Run before first deployment or after any SQL patch:
 ---
 
 ## 3. Peer Help Requests Board
+
 - [ ] **Creation Modal**:
   - Click **+ Create Help Request** on the Dashboard.
   - Fill in Title, Description, Category, Urgency, Skills, and optional Deadline.
@@ -190,6 +193,7 @@ Run before first deployment or after any SQL patch:
 ---
 
 ## 4. Anonymous Doubts Module
+
 - [ ] **Doubt Creation**:
   - Open **Anonymous Doubts** board.
   - Click **+ Ask a Doubt**.
@@ -213,6 +217,7 @@ Run before first deployment or after any SQL patch:
 ---
 
 ## 5. Mobile Responsiveness Polish
+
 - [ ] **Main Layout Sidebar**:
   - Open Developer Tools in your browser, switch to a mobile device view (e.g. iPhone SE / 375px width).
   - Verify that navigation sidebar items form a horizontal scrolling list at the top or bottom of the screen.
@@ -246,13 +251,13 @@ Run before first deployment or after any SQL patch:
 
 > **Requires Supabase patch**: Run `supabase/phase3-answer-reply-edit-delete-patch.sql`.
 
-- [ ] **Doubt creator can pin a reply**: Click **📌 Pin** on a reply → success toast → `📌 Pinned` amber badge appears.
+- [ ] **Doubt creator can pin a reply**: Click **[Pinned] Pin** on a reply → success toast → `[Pinned] Pinned` amber badge appears.
 - [ ] **Pinned reply floats to top**: Pinned reply appears before all un-pinned replies in the thread.
 - [ ] **Multiple pinned replies allowed**: Pin two replies. Both appear at the top with amber badges.
-- [ ] **Doubt creator can unpin**: Click **📌 Unpin** → badge disappears, reply sorts normally.
+- [ ] **Doubt creator can unpin**: Click **[Pinned] Unpin** → badge disappears, reply sorts normally.
 - [ ] **Non-creator cannot pin**: Log in as non-creator — no Pin button in reply action rows.
 - [ ] **Closed doubt — no pinning**: Close the doubt. Pin button disappears even for creator.
-- [ ] **Sort respects pinned first**: Toggle 🔥 Top / 🕒 Newest. Pinned replies always stay at the top.
+- [ ] **Sort respects pinned first**: Toggle [Top] Top / [Newest] Newest. Pinned replies always stay at the top.
 - [ ] **Reply author can edit pinned reply**: **Edit** button still visible; text saves; `(edited)` label appears.
 
 ---
@@ -262,10 +267,10 @@ Run before first deployment or after any SQL patch:
 > **Product rule**: Self-answering is allowed. Students can share their own solutions. But it is labelled and does not inflate stats.
 
 - [ ] **Doubt creator can post own answer**: While status is `open` or `answered`, creator submits an answer. Success toast fires.
-- [ ] **Own answer shows badge**: Creator's answer shows grey `🙋 Answered by asker` badge. Other users' answers do NOT show this badge.
+- [ ] **Own answer shows badge**: Creator's answer shows grey `[Owner] Answered by asker` badge. Other users' answers do NOT show this badge.
 - [ ] **Doubt creator cannot rate own answer**: No **⭐ Rate** button on the creator's own answer. Rating form is inaccessible.
 - [ ] **Doubt creator CAN rate other users' answers**: ⭐ Rate button appears on others' answers when status is `answered`/`solved`.
-- [ ] **Doubt creator can accept own answer**: ✅ Accept visible on own answer. After accepting: `✅ Accepted Answer` badge appears, status → `solved`.
+- [ ] **Doubt creator can accept own answer**: [Verified] Accept visible on own answer. After accepting: `[Verified] Accepted Answer` badge appears, status → `solved`.
 - [ ] **Own accepted answer does NOT inflate stat**: Go to **My Profile → Doubt Contribution**. Accepting own answer should NOT increment `Accepted Answers` count.
 - [ ] **External accepted answer DOES increment stat**: The answerer's profile `Accepted Answers` count increases after creator accepts their answer.
 - [ ] **Like button hidden for own content**: 👍 Like button not shown on own answers or replies. Count is still displayed as read-only text if others liked it.
@@ -293,7 +298,7 @@ Run before first deployment or after any SQL patch:
 - [ ] **Guidance Request Coordination Workflow**:
   - Log in with Student Account A. Go to **Senior Connect** → **Find Seniors**.
   - Locate Senior Mentor B. Click **Request Guidance**. Prevents requesting self (Senior Mentor B sees request modal blocked for their own profile).
-  - Submit request with topic, message, preferred mode, and time. Outgoing request appears in **My Requests** as `🕒 pending`.
+  - Submit request with topic, message, preferred mode, and time. Outgoing request appears in **My Requests** as `[Newest] pending`.
   - Log in as Senior Mentor B. Go to **Senior Connect** → **Mentor Dashboard**.
   - In **Incoming Guidance Requests**, locate Student A's request. Click **Accept**.
   - Verify the accept modal prompts for:
@@ -303,14 +308,14 @@ Run before first deployment or after any SQL patch:
     * Meeting/Contact Details (required text)
   - Fill these details and submit. Request moves to accepted.
   - Log back in as Student A. Check **My Requests**.
-  - Verify the request shows `✅ accepted` status and a dedicated **Session Coordination Details** panel appears:
+  - Verify the request shows `[Verified] accepted` status and a dedicated **Session Coordination Details** panel appears:
     * Displays selected Mode, Scheduled Time, and a clean copy-paste contact details card showing the Meet link or campus location shared by the senior.
-  - Senior marks the session as `completed`. Verify status changes to `🏆 completed` and statistics update.
+  - Senior marks the session as `completed`. Verify status changes to `[Completed] completed` and statistics update.
 
 - [ ] **Senior Mentor Impact stats**:
   - Log in as Senior Mentor B. View the **Mentor Dashboard**.
   - Verify that the stats grid lists 6 distinct counters: **Received, Pending, Accepted, Completed, Declined, Completion Rate (%)**.
-  - Open the **My Profile** page. Verify a dedicated **🏆 Senior Mentor Impact** section is rendered with Completed, Accepted, Pending, Declined, and Completion Rate counters, bio, topics of expertise, availability hours, and preference mode.
+  - Open the **My Profile** page. Verify a dedicated **[Completed] Senior Mentor Impact** section is rendered with Completed, Accepted, Pending, Declined, and Completion Rate counters, bio, topics of expertise, availability hours, and preference mode.
   - Click on Senior Mentor B's name from a Doubt post to open their `PublicProfileModal`.
   - Verify a premium **Senior Mentor** card is rendered containing their bio, expertise badges, availability details, and the 3-column stats panel (**Completed, Accepted, Completion Rate %**).
   - Double check that this section does NOT mix with Peer Help trust scores or Doubt rating stats.
@@ -330,9 +335,9 @@ Run before first deployment or after any SQL patch:
   - Locate the **Mentor Status** select dropdown (Accepting / Busy / Unavailable).
   - Select `Unavailable` and click **Save**.
   - Log in as a different student. Browse the mentor in **Find Seniors**.
-  - Verify that the card displays a clear `Unavailable` badge, a warning message `"⚠️ This mentor is not accepting requests right now"`, and the **Request Guidance** button is completely disabled.
+  - Verify that the card displays a clear `Unavailable` badge, a warning message `"[Warning] This mentor is not accepting requests right now"`, and the **Request Guidance** button is completely disabled.
   - Log back in as the mentor, change status to `Busy`, and save.
-  - Log in as the student, verify the card displays a `Busy` badge, shows a warning `"⚠️ Mentor is busy; response may be delayed"`, but the **Request Guidance** button is ENABLED and allows requests.
+  - Log in as the student, verify the card displays a `Busy` badge, shows a warning `"[Warning] Mentor is busy; response may be delayed"`, but the **Request Guidance** button is ENABLED and allows requests.
   - Set status to `Accepting`. Verify normal behavior.
 
 - [ ] **Guidance Feedback (Ratings & Reviews)**:
@@ -343,8 +348,8 @@ Run before first deployment or after any SQL patch:
     * Helpfulness Yes / No toggle buttons.
     * Comments textbox.
   - Select 5 stars, click "Yes, helpful", write a comment, and submit. Verify success toast.
-  - The button should now change to **✍️ Edit Review** and show a `✅ Reviewed` badge.
-  - Click **✍️ Edit Review**, change rating or comment, and save. Verify success toast.
+  - The button should now change to **[Review] Edit Review** and show a `[Verified] Reviewed` badge.
+  - Click **[Review] Edit Review**, change rating or comment, and save. Verify success toast.
   - Try logging in as the senior (Senior B). Try to review your own session. Verify RLS and UI prevent seniors from reviewing their own sessions.
 
 - [ ] **Public Profile Reviews Grid**:
@@ -434,25 +439,26 @@ Run before first deployment or after any SQL patch:
   - Edit your profile and go to the **Private Contact Sharing Settings** section.
   - Verify the explicit gating warnings are displayed:
     * `"🔑 Only visible after an accepted/completed connection."`
-    * `"✅ Only contact methods enabled by the user are shown."`
+    * `"[Verified] Only contact methods enabled by the user are shown."`
     * `"🚫 Private contact is never shown on public profiles."`
   - Open an accepted help request coordinate modal or guidance request coordination card.
   - Verify that the shared contact details card displays the same explicit gating warning copy consistently.
 
 - [ ] **Request Workflow Descriptions & Warnings**:
   - Verify that request status cards display status-specific descriptive workflow notes:
-    * **Pending**: `"🕒 Waiting for mentor response."` or `"🕒 Waiting for your response."`
-    * **Accepted**: `"✅ Session coordination is available below."` or `"✅ Session coordination is active below."`
-    * **Completed**: `"🏆 Guidance completed. You can review this mentor."` or `"🏆 Guidance completed."`
-    * **Declined**: `"❌ Mentor declined this request."` or `"❌ You declined this request."`
+    * **Pending**: `"[Newest] Waiting for mentor response."` or `"[Newest] Waiting for your response."`
+    * **Accepted**: `"[Verified] Session coordination is available below."` or `"[Verified] Session coordination is active below."`
+    * **Completed**: `"[Completed] Guidance completed. You can review this mentor."` or `"[Completed] Guidance completed."`
+    * **Declined**: `"[Rejected] Mentor declined this request."` or `"[Rejected] You declined this request."`
     * **Cancelled**: `"🚫 You cancelled this request."` or `"🚫 Student cancelled this request."`
   - Verify duplicate requests show descriptive info: `"ℹ️ You already have an active request with this mentor. New requests are allowed after completed, cancelled, or declined sessions."`
 
 ---
 
-## 🔵 13. Phase 5 — Learning Circles Module
+## 13. Phase 5 — Learning Circles Module
 
 ### Circle Discovery & Filters
+
 - [ ] **Discover Circles Tab**:
   - Navigate to Learning Circles → Discover tab.
   - Verify search bar filters circles by title, description, category, and department.
@@ -462,6 +468,7 @@ Run before first deployment or after any SQL patch:
   - Verify "View Details" button opens the Circle Workspace in Overview tab.
 
 ### Circle Creation
+
 - [ ] **Create Circle Modal**:
   - Click "Start a Circle" button.
   - Leave Title blank → submit → verify inline error "Title is required."
@@ -471,21 +478,23 @@ Run before first deployment or after any SQL patch:
   - Enter Meeting Location as `http://insecure.com` → verify error about https://.
   - Enter Meeting Location as plain text "Room 203 Block B" → verify accepted (no error).
   - Enter Meeting Location as `https://meet.google.com/xyz` → verify accepted.
-  - Fill all fields correctly → submit → verify success toast "Circle Created! 🏆".
-  - Verify circle appears in "My Circles" tab with "🙋 Owner" badge.
+  - Fill all fields correctly → submit → verify success toast "Circle Created! [Completed]".
+  - Verify circle appears in "My Circles" tab with "[Owner] Owner" badge.
   - Verify workspace opens automatically after creation.
 
 ### Join & Leave
+
 - [ ] **Join Circle**:
   - As a different user, find an active public circle.
-  - Click "+ Join" → verify success toast "Joined! 🏆".
-  - Verify "✅ Joined" badge appears on card.
+  - Click "+ Join" → verify success toast "Joined! [Completed]".
+  - Verify "[Verified] Joined" badge appears on card.
   - Verify "Open Workspace" button replaces "Join" button.
   - Try joining again → verify error "You are already a member of this circle."
   - Set max_members to current count → try to join → verify "This circle is full." error.
   - Archive the circle → try joining → verify "This circle is not accepting new members right now." error.
 
 ### Leave Circle
+
 - [ ] **Leave Circle**:
   - As a member (non-owner), click "Leave" button.
   - Verify "Left Circle" success toast.
@@ -493,6 +502,7 @@ Run before first deployment or after any SQL patch:
   - As the owner, verify no "Leave" button is shown (only "Open Workspace" action).
 
 ### Circle Workspace
+
 - [ ] **Overview Tab**:
   - Open a circle workspace → verify Overview shows description, category, difficulty, mode, schedule, location/link, creator, created date, member count, visibility.
   - If location is a URL (https://), verify it renders as a clickable link.
@@ -501,12 +511,14 @@ Run before first deployment or after any SQL patch:
   - If not a member, verify "You are not a member yet" info box appears.
 
 ### Members Tab
+
 - [ ] **Members Tab**:
   - Open Members tab → verify all members are listed with name, department, year, join date.
-  - Verify Owner has "🙋 Owner" badge, others have "Member" badge.
+  - Verify Owner has "[Owner] Owner" badge, others have "Member" badge.
   - Verify names do not expose raw UUIDs or emails.
 
 ### Resources Tab
+
 - [ ] **Resources Tab**:
   - As a member, click "Share a Resource".
   - Submit with empty Title → verify "Title is required."
@@ -520,6 +532,7 @@ Run before first deployment or after any SQL patch:
   - As an archived circle member, verify "Share a Resource" form is hidden.
 
 ### Discussion Tab
+
 - [ ] **Discussion Tab**:
   - As a member, post a message with type "Update".
   - Verify post appears at top with author name, time, type badge.
@@ -530,8 +543,9 @@ Run before first deployment or after any SQL patch:
   - As an archived circle member, verify post form is hidden.
 
 ### Archive / Restore
+
 - [ ] **Archive Circle (Owner only)**:
-  - In workspace header, click "📁 Archive".
+  - In workspace header, click "[Archive] Archive".
   - Verify success toast "Circle Archived".
   - Verify workspace header shows "archived" badge.
   - Verify "Archived" status badge appears on circle card.
@@ -540,13 +554,15 @@ Run before first deployment or after any SQL patch:
   - Click "♻️ Restore" → verify "Circle Restored" toast and active status restored.
 
 ### Profile Integration
+
 - [ ] **My Profile – Learning Circles Count**:
   - After joining 1+ circles, navigate to My Profile.
-  - Verify "🔵 Learning Circles" section appears below Doubts section.
+  - Verify " Learning Circles" section appears below Doubts section.
   - Verify the count displayed matches the number of circles joined/owned.
   - Verify the section is hidden if user has 0 circles.
 
 ### Security & Privacy
+
 - [ ] **URL Safety**:
   - Attempt to share a resource with URL `javascript:void(0)` → blocked.
   - Attempt to share a resource with URL `data:text/html,...` → blocked.
@@ -558,9 +574,10 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## 🔵 14. Phase 5.1 — Learning Circle Secure Resource Uploads & Owner Status Lock
+## 14. Phase 5.1 — Learning Circle Secure Resource Uploads & Owner Status Lock
 
 ### Secure File Uploads
+
 - [ ] **Segment Selector (Link vs File)**:
   - Visit the resources tab in an active workspace.
   - Verify the presence of the segmented control: "External HTTPS Link" and "Secure File Upload".
@@ -578,9 +595,10 @@ Run before first deployment or after any SQL patch:
 - [ ] **File Upload Submission**:
   - Add an optional description and submit the form.
   - Verify that the loading state triggers: "+ Uploading..." is displayed, and inputs are disabled.
-  - Once complete, verify that a success toast "File Uploaded! 🚀" is shown, and the new resource appears in the list with a beautiful "💾 [Size]" badge, original uploader name, and secure preview/download actions.
+  - Once complete, verify that a success toast "File Uploaded! 🚀" is shown, and the new resource appears in the list with a beautiful "[Size] [Size]" badge, original uploader name, and secure preview/download actions.
 
 ### Secure Preview Lightbox Modal
+
 - [ ] **PDF Interactive Preview**:
   - Locate a PDF resource and click **Preview**.
   - Verify that a secure signed URL is generated with 5-minute expiry.
@@ -595,16 +613,18 @@ Run before first deployment or after any SQL patch:
   - Click **Download File Securely**. Verify that the file downloads successfully.
 
 ### Status Lock Restrictions
+
 - [ ] **Upload Lock States**:
   - Log in as the Owner and go to the Overview tab.
-  - Select **🏗️ Pause Uploads** status.
+  - Select **[Pause] Pause Uploads** status.
   - Switch to the Resources tab as the Owner or a normal Member.
   - Verify that the "+ Share a Resource" button and form are replaced by: `"🔑 Resource uploads are disabled because this circle is currently paused."`
   - Verify that discussions and announcements still remain active.
-  - Select **📁 Archive** status.
+  - Select **[Archive] Archive** status.
   - Verify that both the resource upload form AND the discussion post forms are completely hidden.
 
 ### Secure Role Capabilities
+
 - [ ] **Role Guidelines Split Card**:
   - Go to the Overview tab of any circle.
   - Verify the split Capability Guidelines card displays clear details for Circle Owner and Circle Member permissions.
@@ -613,10 +633,10 @@ Run before first deployment or after any SQL patch:
   - Verify that normal Members can *only* delete resources they uploaded themselves, and see no trash icons on others' resources.
   - Verify that when a file resource is deleted, it is securely deleted from the private Supabase Storage bucket first before removing the row from PostgreSQL.
 
-
 ## 15. Phase 5.2 — Learning Circle Join Requests & Member Profile Verification
 
 ### Join Request Workflow
+
 - [ ] **Request to Join Button**:
   - Log in as a normal student (non-member, non-owner).
   - Open the **Discover Circles** explorer tab.
@@ -627,7 +647,7 @@ Run before first deployment or after any SQL patch:
   - Leave the application message blank or type less than 10 characters.
   - Click **Submit Application**. Verify that an error message: `"Please provide a message explaining why you want to join (minimum 10 characters)."` is displayed and submission is blocked.
   - Type a meaningful message (at least 10 characters) and submit.
-  - Verify that a success toast `"Request Submitted! ⌛"` is shown, the modal closes, and the button changes to `"⌛ Pending (Cancel)"`.
+  - Verify that a success toast `"Request Submitted! [Pending]"` is shown, the modal closes, and the button changes to `"[Pending] Pending (Cancel)"`.
 - [ ] **Pending Requests Summary & Cancellation**:
   - Navigate to the **My Circles** explorer tab.
   - Locate the **Pending Join Requests** dashboard panel.
@@ -638,6 +658,7 @@ Run before first deployment or after any SQL patch:
   - Verify that the "Request to Join" button is completely disabled or hidden, displaying `Paused` or `Archived`, and no new requests can be submitted.
 
 ### Owner Dashboard & Response Actions
+
 - [ ] **Pending Join Requests Tab**:
   - Log in as the Owner of the learning circle that has a pending request.
   - Open the **Manage Workspace** panel and switch to the **Join Requests** tab.
@@ -662,12 +683,12 @@ Run before first deployment or after any SQL patch:
   - Log in as the Owner and go to the **Join Requests** tab.
   - Click **Accept Application** (with or without a custom response message).
   - **NOTE**: The database RLS insert policy requires the join request to have status = `accepted` before the membership row can be inserted. Verify that the API executes the status update first, followed by the membership insert.
-  - Verify that a success toast `"Application Approved! 🏆"` is shown, and the request is removed from the list.
+  - Verify that a success toast `"Application Approved! [Completed]"` is shown, and the request is removed from the list.
   - Click the **Members** tab in the workspace. Verify that the accepted requester has been instantly added as a `member`.
   - Log in as the accepted student. Verify that you can now fully access the workspace, share resources, view files, and write discussion posts.
 
-
 ### Profile Custom Academic Links & URL Validation
+
 - [ ] **Optional Academic Fields during Editing**:
   - Navigate to your **Profile Page** and click **Edit Profile**.
   - Locate the **Academic & Learning Profile** section. Verify that all fields (Headline, Academic Interests, Learning Goals, Current Focus, Qualification Summary, GitHub URL, LinkedIn URL, Portfolio URL) are present and completely optional.
@@ -677,10 +698,10 @@ Run before first deployment or after any SQL patch:
   - Verify that an explicit error: `"GitHub URL must use the https:// protocol."` is triggered and saving is blocked.
   - Change all URL inputs to start with strictly `https://` (e.g., `https://github.com/user`, `https://linkedin.com/in/user`). Click **Save Changes**. Verify that saving succeeds without issue.
 
-
 ## Phase 5.3: Learning Circle Workflow Rules, Owner Management, Resource Ranking Polish
 
 ### 1. Private Meeting Coordinates Access
+
 - [ ] **Owner Setup**:
   - In your owner workspace, open the **Overview** tab and click **Manage Settings**.
   - Fill in the **Member-Only Meeting Link** (must strictly be an `https://` URL, e.g. `https://meet.google.com/abc-defg-hij`) and **Member-Only Password** (e.g. `secret123`).
@@ -693,6 +714,7 @@ Run before first deployment or after any SQL patch:
   - Verify that the private coordinates, meeting link, and password are **never** shown on discover cards, public circles list, or the non-member details view.
 
 ### 2. Cohort Capacity Constraints
+
 - [ ] **Settings Lower Bound Guard**:
   - As the Owner, go to **Manage Settings** and attempt to set the maximum capacity lower than 2, higher than 100, or lower than the current active member count.
   - Verify that saving is blocked, and an explicit validation error is displayed.
@@ -705,33 +727,37 @@ Run before first deployment or after any SQL patch:
   - Go to **Manage Settings**, increase the capacity, and verify that the warning banner disappears and the accept button becomes active.
 
 ### 3. Owner Roster Controls & Alphabetical Members List
+
 - [ ] **Roster Alphabetical Sorting**:
   - Open the **Members** tab in your workspace.
-  - Verify that the **Owner** is strictly pinned at the very top of the list with a `"🙋 Owner"` badge.
+  - Verify that the **Owner** is strictly pinned at the very top of the list with a `"[Owner] Owner"` badge.
   - Verify that all other members are sorted strictly **alphabetically** by their public full name.
 - [ ] **Member Removal**:
   - As the Owner, locate a standard member on the roster.
-  - Click the **❌ Remove** button next to their name and confirm the browser alert.
+  - Click the **[Rejected] Remove** button next to their name and confirm the browser alert.
   - Verify that the member is removed from the roster instantly, and the member count is decremented.
   - Log in as the removed member. Verify that you have lost access to the workspace, resources, and discussions, and can now cleanly submit a new join request.
 
 ### 4. Resource Pinning & Likes Interaction
+
 - [ ] **One Like Per User Constraint**:
   - Open the **Resources** tab as a member.
-  - Locate a resource and click the **👍 Like** button. Verify that the like count is incremented and the button changes to `❤️ Liked`.
+  - Locate a resource and click the **👍 Like** button. Verify that the like count is incremented and the button changes to `[Liked] Liked`.
   - Click the button again. Verify that it unlikes the resource, decrementing the count back to 0.
 - [ ] **Owner-only Resource Pinning**:
-  - As a circle owner, locate a resource. Click **📌 Pin**.
-  - Verify that a vibrant `📌 PINNED` badge is rendered, and the resource is instantly ranked at the very top of the list.
+  - As a circle owner, locate a resource. Click **[Pinned] Pin**.
+  - Verify that a vibrant `[Pinned] PINNED` badge is rendered, and the resource is instantly ranked at the very top of the list.
   - Verify that regular members **do not** see the pin/unpin action button.
 - [ ] **Resource Paging / Pagination**:
   - Upload 4 or more study resources.
   - Verify that initially only the top 3 resources are rendered.
-  - Verify that a **➕ Show more resources** button is rendered at the bottom of the list.
-  - Click the button. Verify that the list expands to show all remaining resources, and is replaced by a **➖ Show fewer resources** button to collapse it back.
+  - Verify that a **[Show more] Show more resources** button is rendered at the bottom of the list.
+  - Click the button. Verify that the list expands to show all remaining resources, and is replaced by a **[Show fewer] Show fewer resources** button to collapse it back.
+
 ## Phase 5.4: Learning Circle Exit Workflow & Resource Verification System
 
 ### 1. Leave Study Circle Exit Form
+
 - [ ] **Departing Member Flow**:
   - Log in as a regular member of a circle.
   - On the circle card (Discover/My Circles), click the **Leave** button.
@@ -742,9 +768,10 @@ Run before first deployment or after any SQL patch:
   - Verify that the owner **does not** see the old accepted request as `"Repair Needed"`.
 
 ### 2. Owner Remove Member custom form
+
 - [ ] **Roster Removal Flow**:
   - As the Owner, navigate to the **Members** tab.
-  - Click the **❌ Remove** button next to a standard member.
+  - Click the **[Rejected] Remove** button next to a standard member.
   - Verify that a premium looking **Remove Member: [Member Name]** modal is rendered.
   - Choose a reason (e.g., "Inactive member") and write a message: `"No updates in over 2 weeks. Removing to open slots."`.
   - Click **🚫 Remove Member** and confirm the success toast.
@@ -752,29 +779,32 @@ Run before first deployment or after any SQL patch:
   - Log in as the removed student. Verify that you can cleanly request to join again, and see the owner's custom removal reason.
 
 ### 3. Member Submitted Resources Dashboard
+
 - [ ] **Pending upload flow**:
   - Log in as a regular member of an active circle.
   - Click **+ Share a Resource / File** under the **Resources** tab.
   - Type a secure URL in link mode (e.g., `https://google.com/notes`). Note the live formatting verification alert.
   - Click **Share Resource**. Verify the success toast: `"Your shared material has been sent to the circle owner for verification."`
   - Verify that the link is **not** displayed in the Main Library Resources list yet.
-  - Locate the **My Submitted Resources** panel. Verify that the link is listed with an orange `🕒 Pending` badge.
+  - Locate the **My Submitted Resources** panel. Verify that the link is listed with an orange `[Newest] Pending` badge.
 
 ### 4. Owner Resource Verification Console & Safety Check
+
 - [ ] **Resource Approval Flow**:
   - Log in as the Owner of the circle. Open the **Resources** tab.
   - Locate the **Resource Verification Queue** console. Verify that the member's pending link is listed with uploader name, shared date, link coordinates, safety formats, and Decline/Approve buttons.
-  - Click **✅ Approve Only**. Verify that the resource is removed from the verification queue and added to the **Main Library Resources** list with a success toast.
+  - Click **[Verified] Approve Only**. Verify that the resource is removed from the verification queue and added to the **Main Library Resources** list with a success toast.
 - [ ] **Safety warning triggers**:
   - Log in as a member. Submit a resource URL targeting an executable file (e.g., `https://example.com/malicious.exe`).
   - Log in as the Owner. Locate the item in the verification queue.
   - Verify that a prominent amber safety warning is displayed: `"This link targets a file type (.exe) that can be executed."`
-  - Click **❌ Decline & Reject**.
+  - Click **[Rejected] Decline & Reject**.
   - Verify that a custom modal prompts you for a rejection reason.
   - Type `"Executable file formats are blocked for security."` (must be at least 5 chars). Click **Decline Material**.
-  - Log in as the member. Locate the item in **My Submitted Resources**. Verify that it has a red `❌ Rejected` badge and displays the owner's feedback reason inline.
+  - Log in as the member. Locate the item in **My Submitted Resources**. Verify that it has a red `[Rejected] Rejected` badge and displays the owner's feedback reason inline.
 
 ### 5. Roster Aggregate Stats and Owner Recommendation Ranking
+
 - [ ] **Members stats display**:
   - Open the **Members** tab as a member.
   - Verify that each member card displays inline aggregate metrics, e.g., `Shared: 2 | V: 1 | P: 1 | R: 0`.
@@ -786,6 +816,7 @@ Run before first deployment or after any SQL patch:
 ## 🛠️ Phase 5.4A: Leave Lifecycle Tracking and Old Accepted Request Cleanup
 
 ### 1. Old Accepted Request Filtering (Anti-"Repair Needed" check)
+
 - [ ] **False Repair Shield**:
   - Run the diagnostic query (from `supabase/README.md`) on the Supabase console. Confirm that any old accepted join requests that exist *without* a corresponding active `learning_circle_members` row (e.g. users who intentionally left before lifecycle logs existed) are correctly retrieved.
   - Log in as the Circle Owner. Navigate to the circle's **Requests** tab.
@@ -793,6 +824,7 @@ Run before first deployment or after any SQL patch:
   - Check that ONLY actual active pending requests OR true, broken accepted requests (`membership_created_at` is NOT null and `member_left_at` is null) appear.
 
 ### 2. Precise exit/kick logs tracking by ID
+
 - [ ] **Precise Leave Logs**:
   - Log in as a member and click **Leave**. Provide a reason and message.
   - Verify in the database (or via local UI checks) that the `member_left_at`, `leave_reason`, `leave_message`, and `left_by` fields are successfully saved **specifically on the single, latest accepted join request row** using its unique ID, and that previous historic join requests for that user are unaffected.
@@ -801,16 +833,18 @@ Run before first deployment or after any SQL patch:
   - Verify in the database (or via local UI checks) that the `member_left_at`, `leave_reason`, `leave_message`, and `removed_by` fields are successfully recorded on the latest accepted join request row by ID.
 
 ### 3. Request Again flow
+
 - [ ] **Re-Request lifecycle**:
   - Log in as a student who previously left or was removed from a circle.
   - Navigate to the **Discover** tab. Locate the circle card.
   - Verify that the card's join request button renders `"Request Again"`.
   - Click `"Request Again"`. Type a new application message (minimum 10 chars) and submit.
-  - Verify the application goes to pending status, and displays `"⌛ Pending (Cancel)"` to block duplicates.
+  - Verify the application goes to pending status, and displays `"[Pending] Pending (Cancel)"` to block duplicates.
 
 ## Phase 5.5: Learning Circles Final Polish & Stability Checklist
 
 ### 1. Verification Queue & Rejected Resource Polish
+
 - [ ] **Active Owner Verification Queue Filtering**:
   - Log in as the Owner. Navigate to the circle's **Resources** tab.
   - Verify that the active **Resource Verification Queue** shows ONLY resources with status `pending_verification`.
@@ -820,15 +854,16 @@ Run before first deployment or after any SQL patch:
   - Toggle the collapsible section open. Verify that historically rejected resources are displayed with their title, uploader name, rejected date, and rejection reason, and that **no** Accept/Decline action buttons are shown.
 - [ ] **Uploader-only Rejected Status Panel**:
   - Log in as the member whose resource was rejected.
-  - Verify that the rejected resource remains visible strictly inside **My Submitted Resources** dashboard panel, showing a red `❌ Rejected` badge and the owner's custom rejection feedback reason.
+  - Verify that the rejected resource remains visible strictly inside **My Submitted Resources** dashboard panel, showing a red `[Rejected] Rejected` badge and the owner's custom rejection feedback reason.
   - Verify that this rejected resource is completely invisible inside the **Main Library Resources** view.
 - [ ] **Empty Active Queue State**:
   - As the Owner, verify that if there are no pending resources waiting for review, the verification console renders a clean status label: `"No resources waiting for verification."`
 
 ### 2. Workspace Roster & Spacing Details
+
 - [ ] **Owner Roster Priority**:
   - Open the **Members** tab in the circle workspace.
-  - Verify that the Owner is strictly displayed at the very top of the list with a `"🙋 Owner"` badge.
+  - Verify that the Owner is strictly displayed at the very top of the list with a `"[Owner] Owner"` badge.
 - [ ] **Alphabetical Standard Members Sorting**:
   - Verify that all standard members are sorted strictly alphabetically by their full profile name.
 - [ ] **Tablet/Mobile Spacing and Joined Dates**:
@@ -838,27 +873,30 @@ Run before first deployment or after any SQL patch:
   - Verify that every member's roster listing displays their contribution metrics compactly (`Shared | V | P | R`) and that stats increment correctly on approvals/rejections.
 
 ### 3. Resource Ordering & Badges
+
 - [ ] **Tab Header Resource Counters**:
   - Verify that the tab header displays the exact current library resources count, e.g., `"Resources (3)"`.
 - [ ] **Main Library Badges**:
-  - Open the verified resources list. Verify that every resource renders a green `"✅ Verified by Owner"` badge.
-  - Verify that owner-pinned resources render `"📌 Pinned"` and owner-recommended resources render `"⭐ Owner Recommended"`.
+  - Open the verified resources list. Verify that every resource renders a green `"[Verified] Verified by Owner"` badge.
+  - Verify that owner-pinned resources render `"[Pinned] Pinned"` and owner-recommended resources render `"⭐ Owner Recommended"`.
   - Verify that likes display in a clean `"👍 X likes"` button format.
 - [ ] **Resource Slicing and Expansion Toggles**:
-  - Verify that if there are 4 or more verified resources, only the first 3 are rendered, with smooth `➕ Show more resources` and `➖ Show fewer resources` buttons to toggle expansion.
+  - Verify that if there are 4 or more verified resources, only the first 3 are rendered, with smooth `[Show more] Show more resources` and `[Show fewer] Show fewer resources` buttons to toggle expansion.
 - [ ] **Resource Sorting Hierarchy**:
   - Verify resources are ranked in the following exact hierarchy: `Pinned first -> Recommended second -> Likes count third -> Newest first`.
 
 ### 4. Meeting Privacy & Clipboard Copy Controls
+
 - [ ] **Meeting Details Access Rights**:
   - Log in as a non-member. Verify that no meeting coordinates or credentials are shown on discover cards or non-member views.
   - Log in as a member. Verify that the credentials card is titled `"Members-only meeting details"`.
   - Verify that if meeting details are empty, the coordinates container displays: `"Meeting details will be shared by the owner."`
 - [ ] **Clipboard Copy Triggers**:
-  - Click the **Copy (📋)** button next to the meeting link. Verify that it copies the URL to your clipboard and fires a success toast: `"Meeting link copied to clipboard."`
-  - Click the **Copy (📋)** button next to the meeting password. Verify that it copies the passcode to your clipboard and fires a success toast: `"Meeting password copied to clipboard."`
+  - Click the **Copy ()** button next to the meeting link. Verify that it copies the URL to your clipboard and fires a success toast: `"Meeting link copied to clipboard."`
+  - Click the **Copy ()** button next to the meeting password. Verify that it copies the passcode to your clipboard and fires a success toast: `"Meeting password copied to clipboard."`
 
 ### 5. Standard Empty States & Fallbacks
+
 - [ ] **Main Verified Resources Fallback**:
   - Verify that if there are no verified study materials shared yet, the view shows: `"No verified resources yet."`
 - [ ] **My Submitted Resources Fallback**:
@@ -869,6 +907,7 @@ Run before first deployment or after any SQL patch:
   - As the Owner, verify that if there are no pending join requests, the tab shows: `"No pending join requests."`
 
 ### 6. Cohort Capacity Bounds and request Again
+
 - [ ] **Discover Cards cohort limits**:
   - Locate a full circle. Verify that the card displays a red `"Full"` badge and shows members count as `C/M` (e.g. `20/20`).
   - Verify that the join button is active but displays a clear warning: `"Full — owner must increase capacity before accepting."`
@@ -878,9 +917,10 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## 🗣️ Phase 5.6: Professional Discussion Board, Moderation, Presence System & UX Polish
+## Phase 5.6: Professional Discussion Board, Moderation, Presence System & UX Polish
 
 ### 1. SQL Database Patch Verification
+
 - [ ] **Presence Table Created**:
   - In Supabase Table Editor, verify `public.learning_circle_presence` table exists with columns: `id`, `circle_id`, `user_id`, `last_seen_at`, `current_tab`, `created_at`, `updated_at`.
   - Verify the unique constraint `unique_circle_user` on `(circle_id, user_id)`.
@@ -892,6 +932,7 @@ Run before first deployment or after any SQL patch:
   - Verify `public.learning_circle_post_reactions` table exists.
 
 ### 2. Discussion Stats Dashboard
+
 - [ ] **Stat Cards Render**:
   - Navigate to the **Discussion** tab inside a circle workspace.
   - Verify 4 stat cards are displayed: `Total Posts`, `Open Questions`, `Announcements`, `Active Replies`.
@@ -901,10 +942,11 @@ Run before first deployment or after any SQL patch:
   - Delete a reply. Verify that `Active Replies` count decrements immediately.
 
 ### 3. New Post Composer Modal
+
 - [ ] **Open Composer**:
-  - Click `➕ New Post`. Verify the composer modal opens.
+  - Click `[Show more] New Post`. Verify the composer modal opens.
 - [ ] **Post Type Selection**:
-  - Verify the post type dropdown includes: `📢 Discussion`, `❓ Question`, `📣 Announcement` (owner only), `📅 Study Plan`.
+  - Verify the post type dropdown includes: `[Discussion] Discussion`, `[Open] Question`, `📣 Announcement` (owner only), `[Study Plan] Study Plan`.
   - As a non-owner, verify that the `Announcement` option is hidden or blocked.
 - [ ] **Character Counter Validation**:
   - Try submitting with an empty title or body. Verify inline error messages appear.
@@ -914,6 +956,7 @@ Run before first deployment or after any SQL patch:
   - Verify a success toast fires.
 
 ### 4. Post Card Features
+
 - [ ] **Post Type Badge**:
   - Verify that each post card renders a colored badge for its type (e.g., sky blue for Discussion, amber for Question, rose for Announcement, indigo for Study Plan).
 - [ ] **Announcement Glow Line**:
@@ -924,22 +967,25 @@ Run before first deployment or after any SQL patch:
   - As the owner, soft-delete a post. Verify the post renders a dashed placeholder: `"🚫 This post was removed by the owner."` instead of disappearing from the list.
 
 ### 5. Question Resolution
+
 - [ ] **Mark Resolved**:
-  - Create a `question` type post. Verify the `✅ Mark Resolved` button is present.
-  - Click it. Verify the post card shows a `✅ Resolved` badge.
+  - Create a `question` type post. Verify the `[Verified] Mark Resolved` button is present.
+  - Click it. Verify the post card shows a `[Verified] Resolved` badge.
 - [ ] **Filter by Resolved State**:
-  - In the filter bar, select the `❓ Questions` post type. Verify a new filter dropdown appears: `All Questions`, `❓ Open / Unresolved`, `✅ Resolved Only`.
+  - In the filter bar, select the `[Open] Questions` post type. Verify a new filter dropdown appears: `All Questions`, `[Open] Open / Unresolved`, `[Verified] Resolved Only`.
   - Toggle between states. Verify only matching posts appear in the list.
 
 ### 6. Post Pinning & Helpful Reactions
+
 - [ ] **Owner Pin Post**:
-  - As the circle owner, click the pin action on a post. Verify the post moves to the top of the list and shows a `📌 Pinned` indicator.
+  - As the circle owner, click the pin action on a post. Verify the post moves to the top of the list and shows a `[Pinned] Pinned` indicator.
 - [ ] **Helpful Reaction**:
   - Click `👍 Helpful` on a post. Verify the count increments.
   - Click again to undo. Verify the count decrements.
   - Verify users cannot react to their own posts (or that it handles gracefully).
 
 ### 7. Threaded Reply Drawer
+
 - [ ] **Expand Replies**:
   - Click on a post to expand the reply drawer. Verify existing replies load correctly.
 - [ ] **Add Reply**:
@@ -949,9 +995,10 @@ Run before first deployment or after any SQL patch:
   - As the reply author, click edit. Modify the text and save. Verify `(edited)` appears.
   - Delete the reply. Verify it disappears from the drawer and the post's reply count decrements.
 - [ ] **Author Online Dot**:
-  - If the post author is logged in concurrently, verify a small animated green dot 🟢 appears on their avatar.
+  - If the post author is logged in concurrently, verify a small animated green dot [Online] appears on their avatar.
 
 ### 8. Search & Filter Controls
+
 - [ ] **Search Input**:
   - Type a keyword in the search box. Verify only matching posts (by title or body) are shown.
   - Clear the search. Verify all posts return.
@@ -960,18 +1007,20 @@ Run before first deployment or after any SQL patch:
 - [ ] **Paused/Archived Read-Only Banner**:
   - As the owner, change the circle status to `Paused` or `Archived`.
   - Navigate to the Discussion tab. Verify the amber banner `"🔑 Discussions are read-only because this circle is currently paused/archived."` appears.
-  - Verify the `➕ New Post` button is hidden while in this state.
+  - Verify the `[Show more] New Post` button is hidden while in this state.
 
 ### 9. Lightweight Presence Bar
+
 - [ ] **Bar Renders for Members**:
   - As an accepted member, open a circle workspace. Verify the presence bar appears between the tab navigation and the tab content area.
 - [ ] **Presence Counts**:
-  - Verify the bar shows: 🟢 X online · 🟡 Y recently active · ⚫ Z offline.
+  - Verify the bar shows: [Online] X online · [Away] Y recently active · [Offline] Z offline.
   - Open the workspace from a second user account in a separate browser. Verify the online count updates on the next heartbeat (within ~60 seconds).
 - [ ] **Hidden for Non-Members**:
   - As a non-member or guest, verify the presence bar does not render.
 
 ### 10. Member Tab Presence Indicators
+
 - [ ] **Color-coded Status Dots**:
   - Navigate to the Members tab. Verify each member card shows a colored status dot: green for Online, amber for Recently active, and grey for Offline.
 - [ ] **"Last seen" Timestamp**:
@@ -981,38 +1030,47 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## 📋 Phase 5.6B — Discussion Auto-Cleanup & Deletion Lifecycle
+## Phase 5.6B — Discussion Auto-Cleanup & Deletion Lifecycle
 
 ### 1. Deleted Post Placeholder (4-Hour Window)
+
 - [ ] **Soft delete a post** as the author or owner. Verify:
   - The post's content (title, body, tags) is immediately hidden.
   - The placeholder shows `Visible for a few hours for context ? <relative time>`.
   - No helpful button, reply button, edit/delete actions, pin, or resolve controls are shown on the placeholder.
 - [ ] **Confirm delete modal** reads:
+
   `"This will soft-delete the post. The content will be hidden immediately. A placeholder will remain visible for up to 4 hours for context, then disappear automatically. The record is retained for moderation."`
+
 - [ ] **Success toast** after deletion reads:
+
   `"The post was removed. A placeholder will appear for up to 4 hours for context, then disappear automatically."`
 
 ### 2. Deleted Reply Placeholder (4-Hour Window)
+
 - [ ] **Delete a reply** in the threaded drawer. Verify:
   - The reply body, helpful buttons, and edit/delete actions are immediately hidden.
   - A `?? This comment was deleted by the author.` or `removed by the owner.` placeholder appears.
   - The placeholder shows `Visible temporarily for context ? <relative time>`.
 - [ ] **Success toast** after reply deletion reads:
+
   `"The comment was removed. A placeholder will appear for up to 4 hours for context, then disappear automatically."`
 
 ### 3. Automatic Expiry (After 4 Hours)
+
 - [ ] Simulate an expired deletion by temporarily editing `isDeletedRecently` to use a 0-second window in dev.
   - Verify deleted post/reply placeholders completely vanish from the UI (no empty slot, no placeholder card).
   - Verify the post/reply is absent from `posts` array and `repliesByPost` state after refresh.
 - [ ] Verify that expired deleted posts do NOT count in the `Show more/fewer` button count.
 
 ### 4. Show More / Fewer Accuracy
+
 - [ ] With >3 visible posts, verify the `? Show more discussions (N more)` button appears.
 - [ ] The count `N` should only include non-deleted posts and placeholders within the 4-hour window.
 - [ ] After all posts expire (or only ?3 remain visible), verify the button disappears entirely.
 
 ### 5. Content Safety ? No Leakage
+
 - [ ] Inspect the DOM on a deleted post placeholder. Verify:
   - No title, body, or tags text is rendered.
   - No author email or UUID is visible.
@@ -1021,6 +1079,7 @@ Run before first deployment or after any SQL patch:
 - [ ] Inspect the network response: verify deleted content body is returned by the API but never rendered in JSX.
 
 ### 6. Stats Accuracy
+
 - [ ] After deleting a post, verify the discussion stats bar updates:
   - `totalPosts` reflects only visible posts (non-deleted, or recently deleted within 4h).
   - `openQuestions` and `resolvedQuestions` only count non-deleted question posts.
@@ -1028,6 +1087,7 @@ Run before first deployment or after any SQL patch:
 - [ ] After 4 hours (simulate by mock or wait), re-fetch stats. Verify expired posts drop from all counts.
 
 ### 7. Regression ? Existing Features
+
 - [ ] Post create, edit, pin, resolve still work correctly.
 - [ ] Reply add, edit, helpful reaction still work correctly.
 - [ ] Filter by type, search, mine, resolved still work correctly.
@@ -1037,11 +1097,12 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## 🤝 Phase 6.1 — Find Teammates / Project Mate Finder Core System
+## Phase 6.1 — Find Teammates / Project Mate Finder Core System
 
 > **Requires Supabase Patch**: Run `supabase/phase6-project-mate-finder-core-patch.sql` in the SQL Editor before testing.
 
 ### 1. Project Creation Workflow
+
 - [ ] **Create Project Modal validation**:
   - Open **Find Teammates** tab. Click **+ Post Project Board**.
   - Submit title shorter than 5 chars → verify warning: `"Title must be at least 5 characters long."`
@@ -1059,6 +1120,7 @@ Run before first deployment or after any SQL patch:
   - Verify that the creator has been automatically registered as a team member with role: `"Project Owner"`.
 
 ### 2. Discover Projects & Filter Management
+
 - [ ] **Discover Projects card**:
   - Open **Discover Projects** tab as a logged-in student.
   - Verify that the newly created project card appears instantly, showing title, description, category, difficulty, work mode, owner, required skills, and team size.
@@ -1076,6 +1138,7 @@ Run before first deployment or after any SQL patch:
   - Click **Reset Filters**. Verify that all fields clear, all checkboxes reset, and the full projects list returns.
 
 ### 3. Application Lifecycle (Non-Owner Flow)
+
 - [ ] **Owner self-apply blocked**:
   - As the project creator, verify that no "Join Request" or "Apply" buttons are available on your own project cards in the discover list.
 - [ ] **Submit Application**:
@@ -1093,6 +1156,7 @@ Run before first deployment or after any SQL patch:
   - Confirm withdrawal. Verify status updates to `"withdrawn"`, and you can now click "Join Request" again on the discover page.
 
 ### 4. Owner Review Queue & Safety Guards
+
 - [ ] **Applications Queue**:
   - Log in as the Project Owner. Navigate to **Manage Workspace** on the project.
   - In **Applications Queue** card, locate Student A's pending application.
@@ -1120,6 +1184,7 @@ Run before first deployment or after any SQL patch:
   - Verify that the action is blocked, showing a warning: `"Cannot accept: Project team has reached maximum capacity."`
 
 ### 5. Private Coordination & Workspace Views
+
 - [ ] **Public / Non-Member Privacy Protection**:
   - Log in as Student C (non-member, non-owner).
   - Inspect the project card and project details.
@@ -1130,6 +1195,7 @@ Run before first deployment or after any SQL patch:
   - Verify that Student B does **not** see "Edit Credentials" button.
 
 ### 6. Team Exits & Management
+
 - [ ] **Member Voluntary Leave**:
   - Log in as Student B (accepted member). Go to workspace.
   - Click **Leave Team**. The modal should prompt for leave reasons.
@@ -1148,7 +1214,6 @@ Run before first deployment or after any SQL patch:
     * Team counts and role slots decrement safely.
     * Student B loses access and can re-apply in the future.
   - Verify that the project owner **cannot** kick themselves.
-
 
 ### 7. Supabase RLS Verification & Debugging Queries
 
@@ -1180,11 +1245,12 @@ select * from public.project_team_members limit 5;
 
 ---
 
-## 📋 Phase 6.2 — Project Mate Finder Lifecycle Polish, Discussion Board & Shared Resources
+## Phase 6.2 — Project Mate Finder Lifecycle Polish, Discussion Board & Shared Resources
 
 > **Requires Supabase Patch**: Run `supabase/phase6-project-mate-workspace-polish-patch.sql` in the SQL Editor before testing.
 
 ### 1. Active-Member Based Privacy Gating
+
 - [ ] **Lock Access Immediately on Exit**:
   - Log in as Student B (accepted member). Verify you can see the **Secure Team Coordination** credentials, read/write to the **Team Discussion**, and access the **Shared Resources** library.
   - Leave the team or have the owner kick you from the roster.
@@ -1192,6 +1258,7 @@ select * from public.project_team_members limit 5;
   - Verify that gating is strictly database-driven (requires a `project_team_members` row with `left_at IS NULL`), not just checking if an accepted application exists.
 
 ### 2. Role Slot & Team Capacity Enforcement
+
 - [ ] **Apply Modal Capability Checks**:
   - In a project with multiple roles where one is fully staffed (e.g., `slots_filled >= slots_needed`) and others are open:
   - Open the **Submit Join Request** modal.
@@ -1200,6 +1267,7 @@ select * from public.project_team_members limit 5;
   - If all roles are fully staffed or the team capacity `max_team_size` is reached, verify that the primary "Submit Application" button is disabled and a clear warning banner is shown.
 
 ### 3. Application Grouping & Re-application UX
+
 - [ ] **Grouping in "My Applications"**:
   - Navigate to **My Applications** tab.
   - Verify that applications are neatly grouped into 5 distinct categories:
@@ -1212,6 +1280,7 @@ select * from public.project_team_members limit 5;
   - Verify that **Apply Again** is displayed on Left, Rejected, and Withdrawn cards, and is fully active if the project capacity still has open slots.
 
 ### 4. Owner Boundary Checks
+
 - [ ] **Owner Cannot Leave Own Project**:
   - Log in as the project creator (Owner).
   - Open the Team Roster list.
@@ -1220,6 +1289,7 @@ select * from public.project_team_members limit 5;
   - Verify you can pause, complete, or archive the project using the status settings dropdown instead of leaving.
 
 ### 5. Private Team Discussion Board (Workspace Tab 2)
+
 - [ ] **Roster-Gated Read/Write**:
   - Verify that only the owner and active team members (not left members or non-members) can read or publish discussion posts.
 - [ ] **Post Creation & Metadata**:
@@ -1236,6 +1306,7 @@ select * from public.project_team_members limit 5;
   - Verify that authors can delete their own posts, and owners can delete any post.
 
 ### 6. Shared Resources Library (Workspace Tab 3)
+
 - [ ] **HTTPS Links Only**:
   - Click **Share a Link**.
   - Attempt to upload an insecure link (e.g. `http://...` or `javascript:...`). Verify it blocks with an explicit protocol validation error.
@@ -1249,17 +1320,18 @@ select * from public.project_team_members limit 5;
   - Verify that if the URL ends in `.exe`, a prominent safety warning alerts you.
   - Decline the material. Verify that a modal prompts you for a rejection reason.
   - Type a rejection reason and save. Verify the resource is removed from the queue.
-  - Log in as the member. Verify that the resource shows in your dashboard with a red `❌ Rejected` badge and displays the owner's feedback comments.
+  - Log in as the member. Verify that the resource shows in your dashboard with a red `[Rejected] Rejected` badge and displays the owner's feedback comments.
   - Approve a resource. Verify it is verified instantly, removed from the queue, and appears in the public **Verified Material Library** visible to all teammates.
 - [ ] **Owner & Uploader Pin Controls**:
-  - As the Owner, pin a verified resource. Verify a blue `📌 PINNED` badge appears and it floats to the top of the library.
+  - As the Owner, pin a verified resource. Verify a blue `[Pinned] PINNED` badge appears and it floats to the top of the library.
   - Verify that Owners and original uploaders can delete resources safely.
 
 ---
 
-## 📋 Phase 6.3A — Project Formation Count Sync, Self-Healing DB Updates, and Custom Category/Type Support
+## Phase 6.3A — Project Formation Count Sync, Self-Healing DB Updates, and Custom Category/Type Support
 
 ### 1. Roster & Live Team Count Sync
+
 - [ ] **Active Count Live Truth**:
   - Go to **Discover Projects**. Locate a project team where a member has voluntarily left or was kicked.
   - Verify that the Discover project card displays `Team Size: activeCount / max_team_size` where `activeCount` strictly represents active members (`left_at IS NULL`). Departed members must not be counted.
@@ -1268,6 +1340,7 @@ select * from public.project_team_members limit 5;
   - Verify that the **Team Roster** section header displays `Team Roster (activeCount / max_team_size)` accurately.
 
 ### 2. Role Slot & Team Capacity Enforcement
+
 - [ ] **Reopening Roles on Departure**:
   - As a member who occupies a crucial role slot (e.g. Presenter), voluntarily leave the project team or have the owner remove you.
   - Check the project card as a non-member. Verify that the role slot count decrements instantly (e.g. Presenter changes from `1/1 Full` to `0/1 Open` or similar), and the role displays as open.
@@ -1275,6 +1348,7 @@ select * from public.project_team_members limit 5;
   - As the project owner, accept a new applicant for the open role. Verify that the role slot increment is captured, and the project capacity limits self-heal immediately in the database and UI.
 
 ### 3. "Other" Custom Category & Project Type Support
+
 - [ ] **Create Project modal with custom inputs**:
   - Open the **Start a Project** modal.
   - In the **Category** dropdown, select the `"Other"` option. Verify that a text input labeled `"Custom Category Name *"` appears.
@@ -1288,15 +1362,17 @@ select * from public.project_team_members limit 5;
   - Select `"Bio-Informatics"` from the filter. Verify that the project filters instantly.
 
 ### 4. Database Self-Healing Repair Query
+
 - [ ] **Verification of Repair Query**:
   - If cached values inside `project_posts.current_team_size` or `project_roles.slots_filled` become desynchronized, run the idempotent sync SQL script in the Supabase SQL Editor.
   - Verify that all counts self-heal to match active memberships (`left_at IS NULL`) exactly, without destroying historical logs or applications.
 
 ---
 
-## 📋 Phase 6.3B — Project Mate Workspace Repairs & UX Polish
+## Phase 6.3B — Project Mate Workspace Repairs & UX Polish
 
 ### 1. One-User-One-Helpful-Reaction Toggling
+
 - [ ] **Single Helpful Vote**:
   - Log in as a member. Navigate to **Shared Resources**.
   - Click **👍 Helpful** on a verified resource. Verify the count increments from `0` to `1` and the button highlights as active.
@@ -1305,6 +1381,7 @@ select * from public.project_team_members limit 5;
   - Log in as the project owner. Verify that you see the updated reaction count, and clicking the button toggles your own individual upvote independently.
 
 ### 2. Lead Role Selection & Slot Reservation
+
 - [ ] **Dynamic Reservation during Project Creation**:
   - Open the **Post Teammate Search** modal.
   - Define three required open position slots under **4. Role-Specific Open Slots** (e.g. Backend Engineer, Frontend Wizard, UI Designer).
@@ -1317,6 +1394,7 @@ select * from public.project_team_members limit 5;
   - Type `"System Architect"`. Submit. Open roster. Verify your card displays the custom `"System Architect"` role badge cleanly.
 
 ### 3. Broader Settings Console Sidebar
+
 - [ ] **Pre-filled Settings Console**:
   - Open the **Coordination & Settings** subtab as the project owner.
   - Click **Edit Credentials** to open the Settings console form.
@@ -1332,6 +1410,7 @@ select * from public.project_team_members limit 5;
   - Set the capacity equal to or higher than 3. Verify it saves successfully.
 
 ### 4. Premium Team Roster & Privacy
+
 - [ ] **Active Members Roster & Profile Previews**:
   - Navigate to the **Members** list in your workspace.
   - Verify that the Owner is strictly pinned at the very top of the list with a `[Lead]` badge.
@@ -1345,6 +1424,7 @@ select * from public.project_team_members limit 5;
   - Verify that the past member card lists their name, role, exit date, exit reason, and a fully functional **View Profile** button safely gating contact fields.
 
 ### 5. Sandboxed Link-Based Sharing
+
 - [ ] **Folder Link & Repository URL Warnings**:
   - Click **Share Material** under the Shared Resources tab.
   - Click **Folder Link**. Verify that the form placeholder changes to an HTTPS URL guide, and a prominent yellow warning states that browser directory uploading is disabled for security sandboxing.
@@ -1358,15 +1438,12 @@ select * from public.project_team_members limit 5;
   - Verify that a **Cancel Submission & Delete** button is visible.
   - Click **Cancel Submission & Delete** and confirm the alert. Verify that the unverified resource is deleted successfully from both the list and database cache.
 
-
-
-
-
 ---
 
 ## Phase 6.3C: Project Lifecycle, Role Management & Completion Controls
 
 ### 1. My Projects ? Lifecycle Sections
+
 - [ ] Navigate to My Projects tab. Verify 4 lifecycle sections: Recruiting, Running, Completed, Archived & Paused.
 - [ ] Create a project. It appears in Recruiting section with correct quick action buttons.
 - [ ] Click 'Mark Running'. Project moves from Recruiting to Running section immediately.
@@ -1378,6 +1455,7 @@ select * from public.project_team_members limit 5;
 - [ ] Verify Completed section shows 'Show More' / 'Show Fewer' for > 3 projects.
 
 ### 2. Role Management Panel (Team Lead Console)
+
 - [ ] Open workspace for an owned project. Right sidebar shows 'Role Slots' panel.
 - [ ] Click '+ Add Role'. Inline form appears.
 - [ ] Fill in role name, description, skills, slots, priority. Click Add Role.
@@ -1389,6 +1467,7 @@ select * from public.project_team_members limit 5;
 - [ ] Verify new role appears in the Apply modal for external applicants.
 
 ### 3. Completed Project Summary Panel
+
 - [ ] Open workspace for a completed project. Coordination tab shows a green summary banner.
 - [ ] Verify: Completed At date, Team Lead Note, Members count, Resources count, Posts count.
 - [ ] Verify: Restore to Running and Archive buttons visible for owner.
@@ -1396,16 +1475,19 @@ select * from public.project_team_members limit 5;
 - [ ] For archived project, verify archived banner with Restore to Recruiting button.
 
 ### 4. Archive Confirm Modal
+
 - [ ] Click Archive on any project. Confirm modal appears with Archive Project / Cancel.
 - [ ] Click Cancel. Modal closes. Project status unchanged.
 - [ ] Click Archive Project. Project status changes to archived. Active workspace closes.
 - [ ] Archived project removed from Recruiting/Running/Completed sections.
 
 ### 5. Application Rule by Phase
+
 - [ ] View a completed project in Discover. Verify 'Apply' CTA is not shown (project completed).
 - [ ] View an archived project. Verify no apply button.
 
 ### 6. Smart Section Scroll & Sorting
+
 - [ ] Add more than 3 members to a team. Open Team Roster on Workspace page. Verify max-height scrolling (max-h-64 overflow-y-auto) is applied to roster list.
 - [ ] Add more than 3 past members to a project. Expand Past Team History. Verify list has max-height scrolling (max-h-64) and is sorted by exit date (recent-first).
 - [ ] In Discover tab, view a project with > 3 required slots. Verify Required Slots list has max-height scrolling (max-h-60 overflow-y-auto).
@@ -1413,23 +1495,27 @@ select * from public.project_team_members limit 5;
 - [ ] In My Projects tab, check Completed Projects and Archived Projects sections. Both should be collapsible and collapsed by default.
 
 ### 7. Discover CTA Rules by Project Status
+
 - [ ] Mark a project Completed. Open Discover tab. Verify the project card action button shows " Project Completed" badge instead of Apply/Apply Again.
 - [ ] Pause a project. Open Discover tab. Verify the project card action button shows " Project Paused" badge instead of Apply/Apply Again.
 - [ ] Archive a project. Open Discover tab. Verify the project card action button shows " Project Archived" badge instead of Apply/Apply Again.
 - [ ] View an In-Progress project. Verify the button shows "Apply to Running Project" with the italic note "Project is already in progress".
 
 ### 8. Resource Layout & URL Overflow Styling
+
 - [ ] Submit a resource with an extremely long URL (e.g. > 100 characters). Verify that in My Submitted Materials panel, the URL breaks nicely (break-all class applied) and does not blow out the card or page layout.
 
 ## Phase 6.3D: Project Mate Workspace Layout, Scroll Flow & Final UX Repair
 
 ### 1. Full-Width Workspace Header & Subtabs
+
 - [ ] Open a project workspace.
 - [ ] Verify that the **Workspace Header Card** (Title, Description, Status Select) spans 100% full-width of the container.
 - [ ] Verify that the **Subtab Navigation Bar** spans 100% full-width of the container.
 - [ ] Resize viewport to mobile/tablet sizes and verify that the header and subtabs stack and scale perfectly without horizontal scrolling.
 
 ### 2. Workspace Subtab Split Layout
+
 - [ ] Switch to the **Coordination & Settings** subtab.
   - [ ] Verify a responsive 2-column layout on desktop: Left/Main shows secure coordinates and guide, Right/Sidebar shows Roster, Past History, and Required Slots.
 - [ ] Switch to the **Team Discussion** subtab.
@@ -1440,6 +1526,7 @@ select * from public.project_team_members limit 5;
   - [ ] Verify that the Team Roster sidebar is **NOT** visible.
 
 ### 3. Scroll Traps Removal & Pagination Controls
+
 - [ ] Open the **Coordination** subtab.
   - [ ] Verify that **Team Roster**, **Past Members**, **Required Slots**, and **Applications Queue** lists do **NOT** contain nested scroll traps.
   - [ ] Verify that lists with more than 3 items display a clean **Show More** button indicating the count of remaining items.
@@ -1447,6 +1534,7 @@ select * from public.project_team_members limit 5;
   - [ ] Click **Show Fewer** and verify that the list collapses cleanly back to 3 items.
 
 ### 4. Inline Accordion replies on Discussion Board
+
 - [ ] Switch to the **Team Discussion** subtab.
   - [ ] Click the **Comments (N)** button on any thread card.
   - [ ] Verify that the replies accordion opens **inline** directly under the post card reaction footer.
@@ -1455,19 +1543,18 @@ select * from public.project_team_members limit 5;
   - [ ] Try publishing a reply and verify that it renders inline and the comment count updates dynamically.
 
 ### 5. Polished Empty States & Card Stacking
+
 - [ ] Open a project workspace with no past team members or open slots.
   - [ ] Verify that the Roster's **Past Members Section** shows a clean empty state: "No team history recorded." when expanded.
-  - [ ] Verify that the **Required Slots** sidebar shows a polished placeholder: "All team positions have been filled! ðŸŽ‰".
+  - [ ] Verify that the **Required Slots** sidebar shows a polished placeholder: "All team positions have been filled! [Celebration]".
 - [ ] Under the **Shared Resources** subtab, verify that verified resource cards with long filenames or URLs wrap cleanly without card blow-outs (using `break-all` and `break-words`).
 - [ ] Verify that verified library card footer action buttons (Preview, Download, Helpful, Pin, Delete) use a flex-wrap container so they stack elegantly on smaller viewports.
 
-
  
  
-
-
 
 ## Phase 6.3E: Project Mate Sidebar Scroll Cards, Header Polish, and Teammates Section Upgrade
+
 - [ ] Verify the workspace header grid shows Difficulty, Work Mode, Type, Capacity, and Open Roles perfectly aligned.
 - [ ] Open a project with more than 3 members. Verify the Teammates Console applies thin-scrollbar and search/filter inputs appear.
 - [ ] Test teammate search by typing a name; verify the list filters correctly.
@@ -1477,7 +1564,8 @@ select * from public.project_team_members limit 5;
 - [ ] Expand Past Members. Verify it has a scroll body for > 3 members, sorted by recent exit date.
 - [ ] Open Applications Queue (Owner view). Verify applicants are sorted by newest-first and scroll body applies for > 3 applications.
 
-##  27. Phase 6.4: Project Task Assignment & Verification
+## 27. Phase 6.4: Project Task Assignment & Verification
+
 *Verify that project owners can assign tasks and members can submit work.*
 
 - [ ] **Task Creation (Owner)**
@@ -1503,13 +1591,12 @@ select * from public.project_team_members limit 5;
   - As owner, reject the submission with feedback.
   - Verify the status updates to Rejected and the feedback is visible to the member.
 
-
-
 ---
 
-##  28. Phase 6.4A: Resource Preview, Public Contact Links & Task Dashboard Polish
+## 28. Phase 6.4A: Resource Preview, Public Contact Links & Task Dashboard Polish
 
 ### 1. Shared Resources — Video Preview
+
 - [ ] Upload a video resource file to the project workspace as a member.
 - [ ] As the owner, verify the Verification Queue shows a  Play Video button for video resources.
 - [ ] Click  Play Video — verify the lightbox modal opens with an HTML5 <video> player, streamed securely via signed URL. No raw file_path is shown.
@@ -1517,23 +1604,28 @@ select * from public.project_team_members limit 5;
 - [ ] Confirm PDF and Image previews still work correctly (iframe embed, img viewer).
 
 ### 2. Resource Verification Queue — Scroll
+
 - [ ] Submit 4+ resources as a member. As owner, verify the queue list body scrolls inside max-h-[400px].
 - [ ] Verify the queue header (title + pending badge) remains fixed and does not scroll.
 - [ ] Verify Approve/Decline buttons remain reachable inside each card.
 
 ### 3. My Submitted Materials — Polish
+
 - [ ] Upload a file with a long name. In My Submitted Materials, verify filename is truncated with ellipsis and 	itle tooltip shows full name.
 - [ ] Verify file size label (XX.X KB) appears next to the file name for file resources.
 - [ ] Verify link resources show a safely truncated clickable URL.
 - [ ] For a resource with neither file_path nor url: verify "No file or link attached." fallback is shown (no broken <a href="">).
 
 ### 4. Helpful Resource Behavior
+
 - [ ] Click the Helpful  button on a verified resource — verify helpful_count increments and button changes visual state.
 - [ ] Click again (if reaction table exists) — verify count decrements and button goes inactive.
 - [ ] Refresh page — verify
+
 eacted_by_me state is correctly restored from DB.
 
 ### 5. Public-Safe Teammate Contact Links
+
 - [ ] Roster cards: teammates who have GitHub/LinkedIn/Portfolio set in their profile should show clickable badge links directly on the card.
 - [ ] Team Contact Sharing panel: public links show for ALL active teammates regardless of share_* flags.
 - [ ] Private contacts (email/phone/WhatsApp) appear ONLY when teammate has set the respective share_* flag to true.
@@ -1542,26 +1634,29 @@ eacted_by_me state is correctly restored from DB.
 - [ ] Teammate with no public links and no shared contacts: "This teammate has not shared contact details. Use project discussion or shared workspace coordination." is displayed.
 
 ### 6. Task Attachment — Disabled State
+
 - [ ] For an attachment with no file_path and no url: verify — No source attached helper text is shown (not a broken empty href).
 - [ ] Video task attachments: verify  Play button appears and plays in the secure lightbox.
 - [ ] Submission deliverable files: same null guard applied — — No source shown when both are null.
 
 ### 7. My Work Dashboard — Status Grouping
+
 - [ ] Tasks appear in correct group sections:  Assigned,  In Progress,  Pending Review,  Verified,  Needs Revision,  Extension Requested / Granted.
 - [ ] A task past due date shows in  Overdue Tasks banner spanning full width at top of dashboard.
 - [ ] Empty groups are hidden entirely (not shown as empty sections).
 - [ ] Member with no tasks assigned sees: "No project work assigned yet." empty state.
 
 ### 8. Owner Review Queue — Newest First
+
 - [ ] Multiple members submit tasks at different times. Owner opens  Review Queue.
 - [ ] Verify most recently submitted task appears first (created_at desc order confirmed in API).
-
 
 ---
 
 ## 29. Phase 6.4B: Video Resource Polish, Profile Integration, Teammate Counts & Preset Abstractions
 
 ### 1. Video Resource Constraints & DB Compatibility
+
 - [ ] Select **Upload File** -> **Resource File Type** -> **Video** in the workspace sharing form.
 - [ ] Verify that the specific Video helper text is visible: *"Upload a short project demo, explanation, walkthrough, or reference clip."*
 - [ ] Confirm that the accepted formats block displays: *"Accepted: .mp4, .webm, .mov up to 20MB."*
@@ -1572,30 +1667,36 @@ eacted_by_me state is correctly restored from DB.
 - [ ] Try uploading a dangerous script file (.exe, .bat, .cmd, .sh, etc.) - verify it is immediately blocked.
 
 ### 2. Video Player Lightbox and URL Expiry
+
 - [ ] Play a video resource or task attachment in the lightbox preview.
 - [ ] Confirm the HTML5 player has `controls` and does NOT autoplay.
 - [ ] Verify that if the playback URL is expired or incorrect, an error toast is triggered: `"Preview link expired. Reopen preview to refresh."`
 
 ### 3. Resource Controlled Internal Scrolls
+
 - [ ] Verify that the Verified Material list starts internal compact scrolling (max-h 420px) only when containing > 4 items.
 - [ ] Verify that My Submitted Materials starts compact scrolling (max-h 300px) only when containing > 4 items.
 - [ ] Verify that the Verification Queue starts scrolling (max-h 300px) when containing > 3 items.
 
 ### 4. Workspace Teammate Task Counts & Role Tags
+
 - [ ] Open the workspace teammates console list in the Roster tab.
 - [ ] Verify that each teammate card shows their project role tag, for example `[Lead]` or custom roles.
 - [ ] Verify each card calculates and displays teammate task metrics (Assigned, Verified, Pending, Overdue counts) client-side in real-time.
 
 ### 5. Task Assignment Presets
+
 - [ ] As Project Lead, go to Task Assignment panel.
 - [ ] Click one of the quick preset template buttons (Frontend UI, Backend API, UI/UX, Research, QA, Demo).
 - [ ] Verify that the Title, Objective, and Priority fields are pre-filled automatically with premium defaults.
 
 ### 6. Empty Submissions Block & Size Caps
+
 - [ ] Open task drawer as assignee. Try submitting with note < 10 characters or without selecting any file/URL. Verify that validation errors are displayed.
 - [ ] Try uploading a submission file larger than 20MB. Verify that the size limit guard rejects it.
 
 ### 7. Private Self-View Profile Dashboard
+
 - [ ] Open My Profile tab while logged in as a student.
 - [ ] Scroll to the bottom to find the private Project Work Dashboard.
 - [ ] Verify KPIs display correctly (Active Teams, Verified Tasks, Pending Tasks, Overdue Tasks, Past Teams).
@@ -1604,24 +1705,25 @@ eacted_by_me state is correctly restored from DB.
 - [ ] Confirm that this workspace redirect button is strictly restricted to active team members.
 
 ### 8. Premium Task Status Lock Banners
+
 - [ ] Open task drawer for a verified task and verify a green `Task Verified & Completed` premium banner is displayed.
 - [ ] Open task drawer for a cancelled task and verify a neutral `Task Assignment Cancelled` banner is displayed.
 - [ ] Open task drawer for a pending-review task and verify a purple `Work Pending Lead Review` banner is displayed.
 - [ ] Open task drawer for a needs-revision task and verify a red `Revisions Requested` banner is displayed.
-
-
 
 ---
 
 ## 30. Phase 6.4C: My Profile Review Scroll, Dynamic Badge Logic & Profile Polish
 
 ### 1. Peer Help & Senior Mentor Reviews Scrollboxes
+
 - [ ] Receive or write 4+ Peer Help Reviews - verify that the Peer Help Reviews container limits height (`max-h-[360px]`) and enables vertical scrolling (`overflow-y-auto thin-scrollbar`).
 - [ ] Confirm that no duplicate or confusing "Show more reviews" / "Show fewer reviews" toggle button is rendered.
 - [ ] As a Senior Mentor, receive 4+ Guidance Reviews - verify the Received Mentor Reviews container similarly limits height (`max-h-[360px]`) and enables scrolling.
 - [ ] Confirm the review card feedback comment is displayed in a styled container that wraps long words correctly (`break-words break-all`).
 
 ### 2. Dynamic Badge Logic
+
 - [ ] Verify that profile header badges calculate and display in real-time based on actual user counts:
   - **Peer Helper**: displays "Getting Started" (0 reviews), "Helpful Peer" (1-2 helpful reviews), "Trusted Helper" (3-5 helpful reviews), or "Top Helper" (6+ helpful reviews).
   - **Doubt Solver**: displays "Doubt Solver" (1-2 answered doubts), "Active Solver" (3-5), or "Community Mentor" (6+).
@@ -1632,24 +1734,25 @@ eacted_by_me state is correctly restored from DB.
 - [ ] Confirm that if a user has no reviews, solved doubts, or projects, the default fallback displays a neutral "Getting Started" state.
 
 ### 3. Timeline Scrollers & KPI Alignments
+
 - [ ] Open My Profile - verify that the **Active Projects**, **Pending Assigned Tasks**, **Verified Contributions**, and **Past Projects** sections enable dynamic heights and scrollboxes based on item counts.
 - [ ] Verify that empty states are beautifully styled and direct the student to collaboration modules.
 - [ ] Ensure that mobile screen views are completely responsive and have no horizontal overflow.
 - [ ] Confirm that no private contact phone/WhatsApp or private task files are exposed.
-
-
 
 ---
 
 ## 31. Phase 6.4D: Global Long-List Scroll Polish & Compact Section Management
 
 ### 1. Anonymous Doubts Board Polish
+
 - [ ] Post 5+ doubts to load the "All Doubts" list. Verify that the doubt list body scrolls internally (`max-h-[500px] overflow-y-auto thin-scrollbar pr-1`) while filter headers and tab buttons stay fixed outside.
 - [ ] Go to "Answered by Me" tab with 5+ doubts. Verify it limits height (`max-h-[420px]`) and scrolls internally without horizontal overflow.
 - [ ] Verify "Recommended" and "My Doubts" tabs scroll internally (`max-h-[420px]`) only when they contain more than 4 cards.
 - [ ] Verify that empty states are beautifully styled and do not get squished or clipped inside scroll heights.
 
 ### 2. Learning Circles Page Polish
+
 - [ ] Browse active circles with 5+ Discover Circles. Verify that the grid container scrolls internally (`max-h-[500px] overflow-y-auto thin-scrollbar pr-1.5`).
 - [ ] Verify search inputs and filter menus stay fixed and remain fully responsive.
 - [ ] Join 5+ circles. Open the "My Circles" tab and verify it scrolls internally (`max-h-[420px] overflow-y-auto thin-scrollbar pr-1.5`).
@@ -1657,28 +1760,30 @@ eacted_by_me state is correctly restored from DB.
 - [ ] Go to Circle Workspace -> Resources Tab -> Verification Queue. Add 4+ resources waiting for verification. Verify the queue scrolls internally (`max-h-[300px] overflow-y-auto thin-scrollbar pr-1`).
 
 ### 3. Dashboard Campus Peer Help Requests
+
 - [ ] Post 4+ peer help requests. Verify that the dashboard "Recommended Matches" list scrolls internally (`max-h-[420px]`) when more than 3 cards exist.
 - [ ] Verify that "My Requests", "Accepted by Me", and "All Requests" tabs scroll internally (`max-h-[420px]`) when more than 4 cards exist.
 - [ ] Verify that the dashboard right sidebar ("Study Circles & Cohorts") is not affected by board scrolls.
 
 ### 4. Project Mate Resources & Timeline Timelines
+
 - [ ] Open Shared Resources inside project workspace with 5+ verified materials. Verify list body scrolls internally (`max-h-[420px]`) with no horizontal overflow.
 - [ ] Verify "My Submitted Materials" scrolls internally (`max-h-[300px]`) with more than 4 items, and long filenames truncate safely with title tooltips.
 - [ ] Verify "Material Verification Queue" scrolls internally (`max-h-[300px]`) with more than 3 pending items.
 - [ ] Go to "My Profile" tab with 5+ verified task contributions. Verify timeline scrolls internally (`max-h-[420px]`).
 
 ### 5. Unified Verification & Mobile Responsive Checks
+
 - [ ] Verify that TypeScript compilations and production builds pass cleanly (`npx tsc -p tsconfig.app.json --noEmit`, `npm run build`).
 - [ ] Verify that scroll containers are responsive and stack elements cleanly on mobile viewports.
 - [ ] Verify that there is zero horizontal overflow or hidden button actions within scroll boxes.
-
-
 
 ---
 
 ## 32. Phase 6.4E: Video Upload Validation, Phase Badge & UI Gap Polish
 
 ### 1. Video Upload Validation
+
 - [ ] In Find Teammates -> Shared Resources, select File Resource Type = Video. Choose an `.mp4` file under 20MB. Verify the resource upload succeeds successfully.
 - [ ] Choose a `.webm` file under 20MB. Verify the resource upload succeeds.
 - [ ] Choose a `.mov` file under 20MB. Verify the resource upload succeeds.
@@ -1688,16 +1793,19 @@ eacted_by_me state is correctly restored from DB.
 - [ ] Verify that uploaded video files map to `resource_type === 'other'` under the hood, but display as a `Video` badge in the UI.
 
 ### 2. Task & Submission Video Attachments
+
 - [ ] In Project Tasks, assign a new task with a `.mp4`, `.webm`, or `.mov` attachment. Verify the upload succeeds.
 - [ ] Log in as assignee and submit a video deliverable (`.mp4`, `.webm`, or `.mov`). Verify the upload succeeds.
 - [ ] Verify the secure HTML5 video preview playing and download actions both work correctly using private bucket signed URLs.
 
 ### 3. Global Top Phase Badge
+
 - [ ] Verify that the top header badge displays exactly: `"Phase 6.4E: Project Collaboration Polish"` on Home, Dashboard, Profile, and all other sections.
 - [ ] Verify that the footer copyright notice displays exactly: `"(Phase 6.4E Enabled)"`.
 - [ ] Confirm no old Phase 3.5 badges are left rendered.
 
 ### 4. Layout & Typography Polishes
+
 - [ ] In Verified Material Library, upload a resource with a long filename. Verify that the filename truncates safely with a title hover tooltip.
 - [ ] Verify that all long card grids scroll smoothly, badges align perfectly inside headers, and action buttons are fully visible and stacked cleanly on mobile viewports.
 
@@ -1706,37 +1814,39 @@ eacted_by_me state is correctly restored from DB.
 ## 33. Phase 6.4F: Fix Supabase Storage MIME Policy for Project Resource Video Uploads
 
 ### 1. Storage Bucket Support
+
 - [ ] Verify that the `project-resources` storage bucket has been updated with a file size limit of `20971520` (20MB) and `allowed_mime_types` containing `video/mp4`, `video/webm`, and `video/quicktime`.
 - [ ] Verify that no existing MIME types (such as PDF, text, images, office documents) were removed during the bucket update.
 
 ### 2. Video Resource Upload Flow
+
 - [ ] Go to Find Teammates -> Shared Resources -> Upload File. Select File Resource Type = Video.
 - [ ] Choose an `.mp4` video file under 20MB. Verify that the file uploads successfully to the `project-resources` storage bucket without triggering the `"mime type video/mp4 is not supported"` error.
 - [ ] Choose a `.webm` video file under 20MB. Verify the resource upload succeeds.
 - [ ] Choose a `.mov` video file under 20MB. Verify the resource upload succeeds.
 
 ### 3. Lightbox Preview & Download
+
 - [ ] Locate the uploaded video resource. Verify that it renders a `Video` badge in the UI.
 - [ ] Click **Play Video**. Verify that the video player lightbox overlay modal appears containing the HTML5 video player and plays correctly.
 - [ ] Click **Download File**. Verify that the file downloads successfully using a secure signed URL.
-
-
 
 ---
 
 ## 34. Phase 6.4G: Fix Project Task Submit Button Visibility and Action Button Contrast
 
 ### 1. Task Submit Button Visibility
+
 - [ ] Log in as a Project Member. Navigate to the **Project Tasks** board.
 - [ ] Open a task that is assigned to you and has the status `pending_submission` (or just assigned).
 - [ ] In the **Submit Finished Work** panel, verify that the **Submit Deliverables for Review** button has a clear primary background color (indigo-600) and white text, making it visible by default without needing to hover over it.
 - [ ] Verify that hovering over the button darkens the background correctly (indigo-700) and the text remains readable.
 
 ### 2. Action Button Contrast
+
 - [ ] Open the **Request Deadline Extension** modal (or locate the **Cancel Task assignment** action for leads).
 - [ ] Verify that the Cancel button or secondary action buttons have clear contrast (e.g. slate-100 background with slate-600 text, or red-50 background with red-600 text).
 - [ ] Verify that there are no buttons suffering from "invisible" background issues due to invalid tailwind classes.
-
 
 ---
 
