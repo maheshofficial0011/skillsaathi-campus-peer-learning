@@ -2392,7 +2392,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
               ) : sortedMembers.length === 0 ? (
                 <EmptyState icon="👥" message="No members yet." />
               ) : (
-                <div className={`space-y-2 text-left pr-1 ${sortedMembers.length > 5 ? 'max-h-[360px] overflow-y-auto thin-scrollbar' : ''}`}>
+                <div className="min-w-0 max-h-[360px] space-y-3 overflow-y-auto thin-scrollbar pr-1 text-left">
                   {sortedMembers.map((m) => (
                     <div key={m.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm flex-shrink-0">
@@ -2955,8 +2955,9 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                       <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 border-b border-slate-100 pb-2">
                         📖 Main Library Resources
                       </h4>
+                      <div className="min-w-0 max-h-[520px] space-y-3 overflow-y-auto thin-scrollbar pr-1">
                       {displayedResources.map((r) => (
-                        <div key={r.id} className="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100/70 transition-colors">
+                        <div key={r.id} className="flex min-w-0 items-start gap-3 overflow-hidden p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100/70 transition-colors">
                           <span className="text-xl flex-shrink-0 mt-0.5">
                             {r.file_path ? (
                               r.file_mime_type === 'application/pdf' ? '📄' :
@@ -2972,16 +2973,16 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                 <button
                                   type="button"
                                   onClick={() => handlePreviewResource(r)}
-                                  className="text-sm font-semibold text-indigo-700 hover:underline truncate text-left"
+                                  className="min-w-0 break-words text-left text-sm font-semibold text-indigo-700 hover:underline"
                                 >
                                   {r.title}
                                 </button>
                               ) : r.url ? (
-                                <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-indigo-700 hover:underline truncate">
+                                <a href={r.url} target="_blank" rel="noopener noreferrer" className="min-w-0 break-words text-sm font-semibold text-indigo-700 hover:underline">
                                   {r.title}
                                 </a>
                               ) : (
-                                <p className="text-sm font-semibold text-slate-900 truncate">{r.title}</p>
+                                <p className="break-words text-sm font-semibold text-slate-900">{r.title}</p>
                               )}
                               <span className="px-1.5 py-0.5 bg-slate-200 text-slate-650 rounded font-medium">{r.resource_type}</span>
                               {r.file_path && (
@@ -3003,7 +3004,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                                 </span>
                               )}
                             </div>
-                            {r.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{r.description}</p>}
+                            {r.description && <p className="break-words text-xs text-slate-500 mt-0.5 leading-relaxed">{r.description}</p>}
                             {r.file_path && (
                               <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
                                 File: {r.file_name}
@@ -3094,6 +3095,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                           )}
                         </div>
                       ))}
+                      </div>
                       {resources.length > 3 && (
                         <div className="flex justify-center pt-3 border-t border-slate-150">
                           {resourceLimit < resources.length ? (
@@ -3302,7 +3304,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                 {loadingPosts ? (
                   <LoadingSpinner label="Loading discussions…" />
                 ) : posts.length === 0 ? (
-                  <div className="py-12 border border-slate-150 rounded-2xl bg-slate-50/50 flex flex-col items-center justify-center text-center p-6 gap-3">
+                  <div className="py-6 border border-slate-150 rounded-2xl bg-slate-50/50 flex flex-col items-center justify-center text-center px-6 gap-3">
                     <span className="text-4xl">💬</span>
                     <div>
                       <h4 className="font-bold text-slate-700 text-sm">No discussions found</h4>
@@ -3316,7 +3318,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                     </div>
                   </div>
 ) : (
-                  <div className="space-y-3">
+                  <div className="min-w-0 max-h-[520px] space-y-4 overflow-y-auto thin-scrollbar pr-1">
                     {/* Show more/fewer pagination — default 3, expand on click */}
                     {(showAllPosts ? posts : posts.slice(0, 3)).map((p) => {
                       const isPostOwner = p.created_by === currentUserId;
@@ -3353,7 +3355,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                       return (
                         <div
                           key={p.id}
-                          className={`p-5 rounded-xl border text-left bg-white transition-all shadow-xs relative overflow-hidden ${
+                          className={`min-w-0 overflow-hidden p-5 rounded-xl border text-left bg-white transition-all shadow-xs relative ${
                             isPostAnnouncement
                               ? 'border-rose-300 bg-gradient-to-br from-rose-50/20 to-white hover:border-rose-400 shadow-sm'
                               : p.is_pinned
@@ -3430,8 +3432,8 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
 
                           {/* Post Content Body */}
                           <div className="space-y-2 mb-4 pr-1">
-                            <h3 className="font-bold text-sm text-slate-800 leading-snug">{p.title || 'Untitled Post'}</h3>
-                            <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{p.body || p.content}</p>
+                            <h3 className="break-words font-bold text-sm text-slate-800 leading-snug">{p.title || 'Untitled Post'}</h3>
+                            <p className="break-words text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{p.body || p.content}</p>
                             
                             {/* Rendering tags */}
                             {p.tags && p.tags.length > 0 && (

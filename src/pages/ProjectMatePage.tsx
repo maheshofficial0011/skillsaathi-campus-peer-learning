@@ -1785,7 +1785,7 @@ export const ProjectMatePage: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid max-h-[640px] min-w-0 grid-cols-1 gap-6 overflow-y-auto pr-1 thin-scrollbar md:grid-cols-2">
                   {filteredProjects.map(proj => {
                     const isFull = proj.current_team_size >= proj.max_team_size;
                     const statusBadgeColors = 
@@ -2119,7 +2119,7 @@ export const ProjectMatePage: React.FC = () => {
                           {emptyMsg}
                         </p>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="max-h-[640px] min-w-0 space-y-3 overflow-y-auto pr-1 thin-scrollbar">
                           {displayProjects.map(proj => (
                             <div key={proj.id} className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:shadow-md transition-shadow">
                               <div className="min-w-0 flex-1">
@@ -2278,7 +2278,7 @@ export const ProjectMatePage: React.FC = () => {
                       {appsList.length}
                     </span>
                   </h4>
-                  <div className="space-y-4">
+                  <div className="max-h-[640px] min-w-0 space-y-4 overflow-y-auto pr-1 thin-scrollbar">
                     {appsList.map(app => {
                       const proj = projects.find(p => p.id === app.project_id);
                       const isFull = proj ? (proj.current_team_size >= proj.max_team_size) : false;
