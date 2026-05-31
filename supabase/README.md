@@ -283,6 +283,14 @@ A fresh database setup requires executing the SQL files in the following order:
 18. `supabase/phase5-learning-circle-workflow-polish-patch.sql` (Phase 5.3 Learning Circle Workflow Rules, Owner Settings, and Resource Pinned & Likes patch: adds meeting credentials, resource pinning fields, membership logs on requests, creates `learning_circle_resource_likes` table, and sets up RLS policies)
 19. `supabase/phase5-learning-circle-exit-resource-verification-patch.sql` (Phase 5.4 Learning Circle Exit Workflow & Resource Verification System patch: adds leave log tracking columns to join requests and verification & recommendation columns to study resources, establishes verification status check constraints, and backfills metadata)
 20. `supabase/phase5-learning-circle-discussion-board-patch.sql` (Phase 5.6 Professional Discussion Board & Presence Tracking patch: extends `learning_circle_posts` with title, body, tags, pinning, resolution, soft-delete and edited_at; creates `learning_circle_post_replies` threaded comments table, `learning_circle_post_reactions` helpful reactions table, and `learning_circle_presence` real-time activity tracking table; full RLS policies and performance indexes for all new tables)
+21. `supabase/phase5.6a-discussion-board-polish-patch.sql` (Phase 5.6a Discussion board UI & pagination polish patch)
+22. `supabase/phase6-project-mate-finder-core-patch.sql` (Phase 6.1 Teammate finder core tables, check constraints, RLS policies, and unique constraints)
+23. `supabase/phase6-project-team-members-rls-fix.sql` (Phase 6.1 Team member RLS policy non-recursive repair patch)
+24. `supabase/phase6-project-mate-workspace-polish-patch.sql` (Phase 6.2 Workspace discussion boards, shared resource libraries, secure helper triggers, and RLS DEFINER helpers)
+25. `supabase/phase6-project-mate-resource-files-patch.sql` (Phase 6.3 Secure project resource files uploads, private storage bucket setup, path extract helpers, and storage RLS)
+26. `supabase/phase6-project-tasks-patch.sql` (Phase 6.4 Project task assignments, work submission, deadline extensions, verification, task-attachments private storage bucket, and RLS)
+27. `supabase/phase6-project-resource-reactions-patch.sql` (Phase 6.4 Project resource helpful reactions core table, triggers, and RLS)
+28. `supabase/phase6-project-lifecycle-polish-patch.sql` (Phase 6.4 Project lifecycle transitions, owner close/archive/complete workspace gates, and member leave controls)
 
 ---
 
@@ -547,6 +555,42 @@ SET slots_filled = COALESCE(
 
 > [!TIP]
 > This query is completely safe to run and does not delete history, applications, or depart active members. It simply aligns cache metrics with the active roster realities.
+
+---
+
+## 🎥 Step 20: Phase 6.4F — Supabase Storage Video MIME Support Patch
+
+If video resources upload fails in the project mate workspace due to MIME policy rejection (e.g., `mime type video/mp4 is not supported`), you must run the updated storage resource patch `supabase/phase6-project-mate-resource-files-patch.sql` or run this standalone idempotent SQL update statement in your **SQL Editor**:
+
+```sql
+-- Safe bucket update statement to support video MIME types up to 20MB
+UPDATE storage.buckets
+SET allowed_mime_types = ARRAY[
+      'application/pdf',
+      'text/plain',
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'text/csv',
+      'application/json',
+      'text/markdown',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'video/mp4',
+      'video/webm',
+      'video/quicktime'
+    ]::text[],
+    file_size_limit = greatest(coalesce(file_size_limit, 0), 20971520)
+WHERE id = 'project-resources';
+```
+
+**Verification:**
+Verify that the `project-resources` private storage bucket now accepts `.mp4`, `.webm`, and `.mov` up to 20MB cleanly, and successfully gates and plays video resource attachments within the workspace.
 
 
 

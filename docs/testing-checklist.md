@@ -1564,3 +1564,23 @@ select * from public.project_team_members limit 5;
 - [ ] In Verified Material Library, upload a resource with a long filename. Verify that the filename truncates safely with a title hover tooltip.
 - [ ] Verify that all long card grids scroll smoothly, badges align perfectly inside headers, and action buttons are fully visible and stacked cleanly on mobile viewports.
 
+---
+
+## 33. Phase 6.4F: Fix Supabase Storage MIME Policy for Project Resource Video Uploads
+
+### 1. Storage Bucket Support
+- [ ] Verify that the `project-resources` storage bucket has been updated with a file size limit of `20971520` (20MB) and `allowed_mime_types` containing `video/mp4`, `video/webm`, and `video/quicktime`.
+- [ ] Verify that no existing MIME types (such as PDF, text, images, office documents) were removed during the bucket update.
+
+### 2. Video Resource Upload Flow
+- [ ] Go to Find Teammates -> Shared Resources -> Upload File. Select File Resource Type = Video.
+- [ ] Choose an `.mp4` video file under 20MB. Verify that the file uploads successfully to the `project-resources` storage bucket without triggering the `"mime type video/mp4 is not supported"` error.
+- [ ] Choose a `.webm` video file under 20MB. Verify the resource upload succeeds.
+- [ ] Choose a `.mov` video file under 20MB. Verify the resource upload succeeds.
+
+### 3. Lightbox Preview & Download
+- [ ] Locate the uploaded video resource. Verify that it renders a `Video` badge in the UI.
+- [ ] Click **Play Video**. Verify that the video player lightbox overlay modal appears containing the HTML5 video player and plays correctly.
+- [ ] Click **Download File**. Verify that the file downloads successfully using a secure signed URL.
+
+

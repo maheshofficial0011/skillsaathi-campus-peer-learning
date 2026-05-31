@@ -22,7 +22,7 @@ VALUES (
   'project-resources', 
   'project-resources', 
   false, 
-  10485760, -- 10 MB in bytes
+  20971520, -- 20 MB in bytes
   ARRAY[
     'application/pdf',
     'text/plain',
@@ -38,12 +38,15 @@ VALUES (
     'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'video/mp4',
+    'video/webm',
+    'video/quicktime'
   ]::text[]
 )
 ON CONFLICT (id) DO UPDATE 
 SET public = false, 
-    file_size_limit = 10485760,
+    file_size_limit = 20971520,
     allowed_mime_types = ARRAY[
       'application/pdf',
       'text/plain',
@@ -59,8 +62,36 @@ SET public = false,
       'application/vnd.ms-powerpoint',
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'video/mp4',
+      'video/webm',
+      'video/quicktime'
     ]::text[];
+
+-- Standalone idempotent update for safety on existing bucket environments
+UPDATE storage.buckets
+SET allowed_mime_types = ARRAY[
+      'application/pdf',
+      'text/plain',
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'text/csv',
+      'application/json',
+      'text/markdown',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'video/mp4',
+      'video/webm',
+      'video/quicktime'
+    ]::text[],
+    file_size_limit = greatest(coalesce(file_size_limit, 0), 20971520)
+WHERE id = 'project-resources';
 
 -- Create path helper to securely parse and validate project UUID from storage path
 -- Pattern: project-mates/{project_id}/{resource_id}/{filename}
