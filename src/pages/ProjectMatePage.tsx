@@ -4578,18 +4578,51 @@ export const ProjectMatePage: React.FC = () => {
                         <div className="grid grid-cols-1 gap-4 text-xs">
                           {resourceMode === 'file' ? (
                             <div className="space-y-4">
-                              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-[10px] text-slate-500 leading-relaxed">
-                                <span className="font-extrabold block text-slate-700">Supported formats:</span>
-                                <div>PDF, TXT, MD, PNG, JPG, JPEG, WEBP, CSV, JSON, Word (DOC/DOCX), PowerPoint (PPT/PPTX), Excel (XLS/XLSX).</div>
-                                <div className="text-red-500 font-bold mt-1">⚠️ Hazardous execution scripts (.exe, .bat, .cmd, .sh, .msi, .scr, .apk) are strictly blocked for team security.</div>
+                              {/* Resource File Type Selector */}
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 font-extrabold tracking-wider">Resource File Type *</label>
+                                <select
+                                  value={resourceType}
+                                  onChange={e => {
+                                    setResourceType(e.target.value);
+                                    setSelectedFile(null);
+                                    setFileError(null);
+                                  }}
+                                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 font-bold focus:outline-none"
+                                >
+                                  <option value="pdf">🔴 PDF Document</option>
+                                  <option value="document">📄 Word Document (DOC/DOCX)</option>
+                                  <option value="presentation">🖥️ Presentation Slide (PPT/PPTX)</option>
+                                  <option value="notes">📝 Notes / Markdown</option>
+                                  <option value="image">🖼️ Image Asset (PNG/JPG/WEBP)</option>
+                                  <option value="dataset">📊 Dataset (CSV/JSON)</option>
+                                  <option value="video">🎥 Video Demo</option>
+                                  <option value="other">📦 Other</option>
+                                </select>
                               </div>
+
+                              {/* Guidelines Box */}
+                              {resourceType === 'video' ? (
+                                <div className="p-3.5 bg-indigo-50/60 border border-indigo-150 rounded-xl space-y-1.5 text-[10px] text-indigo-700 leading-relaxed font-semibold">
+                                  <span className="font-extrabold block text-indigo-900 uppercase tracking-wide">🎥 Video Resource Details:</span>
+                                  <p>Upload a short project demo, explanation, walkthrough, or reference clip.</p>
+                                  <p className="font-black text-indigo-850">Accepted: .mp4, .webm, .mov up to 20MB.</p>
+                                  <p className="text-red-500 text-[9px] font-bold">⚠️ Hazardous execution scripts (.exe, .bat, .cmd, .sh, .msi, .scr, .apk) are strictly blocked for team security.</p>
+                                </div>
+                              ) : (
+                                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-[10px] text-slate-500 leading-relaxed font-semibold">
+                                  <span className="font-extrabold block text-slate-700 uppercase tracking-wide">Supported formats:</span>
+                                  <div>PDF, TXT, MD, PNG, JPG, JPEG, WEBP, CSV, JSON, Word (DOC/DOCX), PowerPoint (PPT/PPTX), Excel (XLS/XLSX). Size up to 10MB.</div>
+                                  <div className="text-red-500 font-bold mt-1 text-[9px]">⚠️ Hazardous execution scripts (.exe, .bat, .cmd, .sh, .msi, .scr, .apk) are strictly blocked for team security.</div>
+                                </div>
+                              )}
 
                               <input
                                 type="file"
                                 id="resource-file-input"
                                 onChange={handleFileChange}
                                 className="hidden"
-                                accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,.csv,.json,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+                                accept={resourceType === 'video' ? "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" : ".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,.csv,.json,.doc,.docx,.ppt,.pptx,.xls,.xlsx"}
                               />
 
                               {!selectedFile ? (
@@ -4599,20 +4632,22 @@ export const ProjectMatePage: React.FC = () => {
                                 >
                                   <span className="text-3xl mb-2">📥</span>
                                   <span className="font-extrabold text-xs text-slate-700">Click to Select or Drop File</span>
-                                  <span className="text-[10px] text-slate-400 mt-1">Acceptable formats only. Size up to 10MB.</span>
+                                  <span className="text-[10px] text-slate-400 mt-1 font-bold">
+                                    {resourceType === 'video' ? 'Video formats only (.mp4, .webm, .mov). Size up to 20MB.' : 'Acceptable formats only. Size up to 10MB.'}
+                                  </span>
                                 </label>
                               ) : (
                                 <div className="p-4 bg-indigo-50/30 border border-indigo-150 rounded-2xl flex items-center justify-between gap-3 animate-fade-in">
                                   <div className="space-y-1">
                                     <span className="text-xs font-bold text-slate-800 block line-clamp-1">{selectedFile.name}</span>
-                                    <span className="text-[10px] text-slate-450 block">
+                                    <span className="text-[10px] text-slate-450 block font-semibold">
                                       Size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB · Type: {selectedFile.type || 'unknown'}
                                     </span>
                                   </div>
                                   <button
                                     type="button"
                                     onClick={() => { setSelectedFile(null); setFileError(null); }}
-                                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[10px] font-bold border border-red-150 transition-colors"
+                                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[10px] font-black border border-red-150 transition-colors"
                                   >
                                     Remove File
                                   </button>
@@ -4626,34 +4661,17 @@ export const ProjectMatePage: React.FC = () => {
                               )}
 
                               {selectedFile && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4 font-semibold">
                                   <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Resource Display Title *</label>
+                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 font-black">Resource Display Title *</label>
                                     <input
                                       type="text"
                                       required
                                       value={newResourceTitle}
                                       onChange={e => setNewResourceTitle(e.target.value)}
                                       placeholder="e.g. Smart-Parking Architecture Diagram"
-                                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+                                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-medium text-slate-800"
                                     />
-                                  </div>
-
-                                  <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Classification Type *</label>
-                                    <select
-                                      value={resourceType}
-                                      onChange={e => setResourceType(e.target.value)}
-                                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none"
-                                    >
-                                      <option value="pdf">🔴 PDF Document</option>
-                                      <option value="notes">📝 Notes / Markdown</option>
-                                      <option value="dataset">📊 Dataset (CSV/JSON)</option>
-                                      <option value="document">📄 Word Document (DOC/DOCX)</option>
-                                      <option value="presentation">🖥️ Presentation Slide (PPT/PPTX)</option>
-                                      <option value="image">🖼️ Image Asset (PNG/JPG/WEBP)</option>
-                                      <option value="other">📦 Other</option>
-                                    </select>
                                   </div>
                                 </div>
                               )}

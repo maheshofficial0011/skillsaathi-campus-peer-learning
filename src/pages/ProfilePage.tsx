@@ -81,9 +81,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [editLinkedinUrl, setEditLinkedinUrl] = useState('');
   const [editPortfolioUrl, setEditPortfolioUrl] = useState('');
 
-  const [showAllPeerReviews, setShowAllPeerReviews] = useState(false);
-  const [showAllMentorReviews, setShowAllMentorReviews] = useState(false);
-
   const sortedPeerReviews = useMemo(() => {
     return [...recentReviews].sort((a, b) => {
       if (b.rating !== a.rating) return b.rating - a.rating;
@@ -91,10 +88,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
   }, [recentReviews]);
-
-  const displayedPeerReviews = useMemo(() => {
-    return showAllPeerReviews ? sortedPeerReviews : sortedPeerReviews.slice(0, 3);
-  }, [sortedPeerReviews, showAllPeerReviews]);
 
   const sortedMentorReviews = useMemo(() => {
     return [...seniorFeedback].sort((a, b) => {
@@ -104,9 +97,137 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
     });
   }, [seniorFeedback]);
 
-  const displayedMentorReviews = useMemo(() => {
-    return showAllMentorReviews ? sortedMentorReviews : sortedMentorReviews.slice(0, 3);
-  }, [sortedMentorReviews, showAllMentorReviews]);
+  // Dynamic Badge Calculations
+  const calculatedBadges = useMemo(() => {
+    const list: { category: string; label: string; emoji: string; color: string; tooltip: string }[] = [];
+
+    if (!profile) return list;
+
+    // 1. Peer Helper Badge (Based on helpful peer reviews)
+    const helpfulReviewsCount = recentReviews.filter(r => r.helpful).length;
+    let peerHelperLabel = 'Getting Started';
+    let peerHelperColor = 'bg-slate-50 text-slate-650 border-slate-200';
+    let peerHelperTooltip = 'No helpful reviews yet. Help peers to earn badges!';
+    if (helpfulReviewsCount >= 6) {
+      peerHelperLabel = 'Top Helper';
+      peerHelperColor = 'bg-amber-50 text-amber-700 border-amber-250';
+      peerHelperTooltip = `Earned by providing 6+ helpful sessions (Current: ${helpfulReviewsCount})`;
+    } else if (helpfulReviewsCount >= 3) {
+      peerHelperLabel = 'Trusted Helper';
+      peerHelperColor = 'bg-indigo-50 text-indigo-750 border-indigo-200';
+      peerHelperTooltip = `Earned by providing 3–5 helpful sessions (Current: ${helpfulReviewsCount})`;
+    } else if (helpfulReviewsCount >= 1) {
+      peerHelperLabel = 'Helpful Peer';
+      peerHelperColor = 'bg-blue-50 text-blue-700 border-blue-200';
+      peerHelperTooltip = `Earned by providing 1–2 helpful sessions (Current: ${helpfulReviewsCount})`;
+    }
+    list.push({
+      category: 'Peer Helper',
+      label: peerHelperLabel,
+      emoji: '🤝',
+      color: peerHelperColor,
+      tooltip: peerHelperTooltip
+    });
+
+    // 2. Doubt Solver Badge (Based on answered doubts)
+    const answeredCount = doubtStats?.doubtsAnswered || 0;
+    let doubtSolverLabel = 'Learning';
+    let doubtSolverColor = 'bg-slate-50 text-slate-500 border-slate-200';
+    let doubtSolverTooltip = 'Answer peers\' doubts to build your solver profile.';
+    if (answeredCount >= 6) {
+      doubtSolverLabel = 'Community Mentor';
+      doubtSolverColor = 'bg-rose-50 text-rose-700 border-rose-250';
+      doubtSolverTooltip = `Earned by answering 6+ doubts (Current: ${answeredCount})`;
+    } else if (answeredCount >= 3) {
+      doubtSolverLabel = 'Active Solver';
+      doubtSolverColor = 'bg-violet-50 text-violet-700 border-violet-200';
+      doubtSolverTooltip = `Earned by answering 3–5 doubts (Current: ${answeredCount})`;
+    } else if (answeredCount >= 1) {
+      doubtSolverLabel = 'Doubt Solver';
+      doubtSolverColor = 'bg-sky-50 text-sky-700 border-sky-200';
+      doubtSolverTooltip = `Earned by answering 1–2 doubts (Current: ${answeredCount})`;
+    }
+    if (answeredCount > 0) {
+      list.push({
+        category: 'Doubt Solver',
+        label: doubtSolverLabel,
+        emoji: '❓',
+        color: doubtSolverColor,
+        tooltip: doubtSolverTooltip
+      });
+    }
+
+    // 3. Project Contributor Badge (Based on verified project tasks)
+    const verifiedTasksCount = verifiedTasks.length;
+    let projectBadgeLabel = 'Project Learner';
+    let projectBadgeColor = 'bg-slate-50 text-slate-500 border-slate-200';
+    let projectBadgeTooltip = 'Complete project tasks to earn verified contributor tags.';
+    if (verifiedTasksCount >= 6) {
+      projectBadgeLabel = 'Project Champion';
+      projectBadgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-250';
+      projectBadgeTooltip = `Earned by completing 6+ verified project tasks (Current: ${verifiedTasksCount})`;
+    } else if (verifiedTasksCount >= 3) {
+      projectBadgeLabel = 'Reliable Teammate';
+      projectBadgeColor = 'bg-teal-50 text-teal-700 border-teal-200';
+      projectBadgeTooltip = `Earned by completing 3–5 verified project tasks (Current: ${verifiedTasksCount})`;
+    } else if (verifiedTasksCount >= 1) {
+      projectBadgeLabel = 'Project Contributor';
+      projectBadgeColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      projectBadgeTooltip = `Earned by completing 1–2 verified project tasks (Current: ${verifiedTasksCount})`;
+    }
+    if (verifiedTasksCount > 0) {
+      list.push({
+        category: 'Project Contributor',
+        label: projectBadgeLabel,
+        emoji: '🏆',
+        color: projectBadgeColor,
+        tooltip: projectBadgeTooltip
+      });
+    }
+
+    // 4. Teamwork Badge (Based on project participation)
+    const activeTeamsCount = activeProjects.length;
+    const isProjectOwner = activeProjects.some(ap => ap.project?.created_by === userId);
+    let teamworkLabel = '';
+    let teamworkColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    let teamworkTooltip = '';
+    
+    if (isProjectOwner && verifiedTasksCount > 0) {
+      teamworkLabel = 'Project Lead';
+      teamworkColor = 'bg-amber-105/10 text-amber-800 border-amber-300';
+      teamworkTooltip = 'Earned by owning a project workspace with verified teammates.';
+    } else if (activeTeamsCount >= 2 || verifiedTasksCount > 2) {
+      teamworkLabel = 'Strong Collaborator';
+      teamworkColor = 'bg-purple-50 text-purple-700 border-purple-200';
+      teamworkTooltip = `Earned by collaborating in multiple active projects/tasks (Current active: ${activeTeamsCount})`;
+    } else if (activeTeamsCount === 1) {
+      teamworkLabel = 'Team Player';
+      teamworkColor = 'bg-blue-50 text-blue-700 border-blue-200';
+      teamworkTooltip = 'Earned by joining an active project team.';
+    }
+    if (teamworkLabel) {
+      list.push({
+        category: 'Teamwork',
+        label: teamworkLabel,
+        emoji: '🤝',
+        color: teamworkColor,
+        tooltip: teamworkTooltip
+      });
+    }
+
+    // 5. Senior Mentor Badge
+    if (profile.is_senior_mentor) {
+      list.push({
+        category: 'Senior Mentor',
+        label: 'Senior Mentor',
+        emoji: '★',
+        color: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-extrabold shadow-sm',
+        tooltip: 'Officially verified SkillSaathi Senior Mentor.'
+      });
+    }
+
+    return list;
+  }, [profile, recentReviews, doubtStats, verifiedTasks, activeProjects, userId]);
 
   const completeness = useMemo(() => {
     if (!profile) return { percent: 0, missing: [] as { name: string; label: string }[] };
@@ -873,17 +994,27 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
               )}
               <p className="text-xs text-slate-400 truncate mt-1">{userEmail || 'Email unavailable'}</p>
 
-              <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs text-slate-500 pt-2">
-                <span>🏅 Badge: <strong>{profile.badge_level}</strong></span>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs text-slate-500 pt-2">
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-slate-400 font-bold mr-1 shrink-0">🏅 Badges:</span>
+                  {calculatedBadges.map((badge, idx) => (
+                    <span
+                      key={idx}
+                      title={badge.tooltip}
+                      className={`px-2 py-0.5 border rounded-lg text-[10px] font-black uppercase tracking-wider shadow-xs cursor-help flex items-center gap-1 transition-all ${badge.color}`}
+                    >
+                      <span>{badge.emoji}</span>
+                      <span>{badge.label}</span>
+                    </span>
+                  ))}
+                  {calculatedBadges.length === 0 && (
+                    <span className="text-[10px] text-slate-400 italic">Getting Started</span>
+                  )}
+                </div>
                 <span>🤝 Trust Score: <strong>{profile.trust_score}%</strong></span>
                 <span>✅ Solved: <strong>{solvedRequestsCount}</strong> requests</span>
                 {feedbackAverage !== null && (
                   <span>⭐ Rating: <strong>{feedbackAverage}</strong> / 5</span>
-                )}
-                {profile.is_senior_mentor && (
-                  <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    ★ Senior Mentor
-                  </span>
                 )}
               </div>
             </div>
@@ -1110,36 +1241,41 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
             </div>
 
             {/* Badge Explanation */}
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Badge Levels (Peer Help)</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+            <div className="bg-slate-50/50 border border-slate-200 p-5 rounded-2xl space-y-3 shadow-xs">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dynamic Badge Progression (Peer Help)</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { emoji: '🌱', label: 'Newcomer', desc: 'Getting started' },
-                  { emoji: '🤝', label: 'Helpful Peer', desc: 'First few sessions' },
-                  { emoji: '🏅', label: 'Trusted Helper', desc: 'Consistently helpful' },
-                  { emoji: '🎓', label: 'Campus Mentor', desc: 'Highly trusted' },
-                  { emoji: '🏆', label: 'Skill Champion', desc: 'Top-rated helper' },
-                ].map((b) => (
-                  <div key={b.label}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${
-                      profile.badge_level === b.label
-                        ? 'bg-indigo-50 border-indigo-200 text-indigo-800 font-bold shadow-sm'
-                        : 'bg-slate-50 border-slate-100 text-slate-500'
-                    }`}>
-                    <span className="text-base">{b.emoji}</span>
-                    <span className="font-semibold">{b.label}</span>
-                    <span className="text-[10px] opacity-60">— {b.desc}</span>
-                  </div>
-                ))}
+                  { emoji: '🌱', label: 'Getting Started', desc: 'No helpful reviews' },
+                  { emoji: '🤝', label: 'Helpful Peer', desc: '1–2 helpful reviews' },
+                  { emoji: '🏅', label: 'Trusted Helper', desc: '3–5 helpful reviews' },
+                  { emoji: '🏆', label: 'Top Helper', desc: '6+ helpful reviews' },
+                ].map((b) => {
+                  const activePeerHelper = calculatedBadges.find(x => x.category === 'Peer Helper');
+                  const isActive = activePeerHelper?.label === b.label;
+                  return (
+                    <div key={b.label}
+                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs leading-normal transition-all ${
+                        isActive
+                          ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-extrabold shadow-md scale-[1.02]'
+                          : 'bg-white border-slate-150 text-slate-500 shadow-xs'
+                      }`}>
+                      <span className="text-base shrink-0">{b.emoji}</span>
+                      <div>
+                        <span className="font-extrabold block text-slate-800">{b.label}</span>
+                        <span className="text-[9px] opacity-70 block mt-0.5">{b.desc}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             {/* Recent Reviews */}
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">
+            <div className="space-y-3.5">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                 Peer Help Reviews ({recentReviews.length})
               </p>
-              {displayedPeerReviews.length === 0 ? (
+              {sortedPeerReviews.length === 0 ? (
                 <div className="p-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center space-y-2">
                   <p className="text-2xl">⭐</p>
                   <p className="text-sm font-semibold text-slate-600">No peer help reviews yet</p>
@@ -1148,59 +1284,55 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {displayedPeerReviews.map((rev) => (
-                    <div key={rev.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {rev.reviewer_name ? (
-                          <button onClick={() => setViewReviewerProfileId(rev.reviewer_id)}
-                            className="text-[11px] font-bold text-indigo-700 hover:underline focus:outline-none">
-                            {rev.reviewer_name}
-                          </button>
-                        ) : (
-                          <span className="text-[11px] font-bold text-slate-500">Campus Student</span>
-                        )}
-                        {(rev.reviewer_department || rev.reviewer_year) && (
-                          <span className="text-[10px] text-slate-400">
-                            {[rev.reviewer_department, rev.reviewer_year].filter(Boolean).join(' • ')}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-slate-400 ml-auto">
+                <div className={`space-y-3 pr-1 ${sortedPeerReviews.length > 3 ? 'max-h-[360px] overflow-y-auto thin-scrollbar' : ''}`}>
+                  {sortedPeerReviews.map((rev) => (
+                    <div key={rev.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl shadow-xs space-y-2">
+                      <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-200/50 pb-1.5 shrink-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {rev.reviewer_name ? (
+                            <button onClick={() => setViewReviewerProfileId(rev.reviewer_id)}
+                              className="text-[11px] font-black text-indigo-700 hover:underline focus:outline-none">
+                              {rev.reviewer_name}
+                            </button>
+                          ) : (
+                            <span className="text-[11px] font-black text-slate-550">Campus Student</span>
+                          )}
+                          {(rev.reviewer_department || rev.reviewer_year) && (
+                            <span className="text-[10px] text-slate-400 font-bold">
+                              {[rev.reviewer_department, rev.reviewer_year].filter(Boolean).join(' • ')}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-semibold">
                           {new Date(rev.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex gap-0.5">
+                      <div className="flex items-center gap-2 flex-wrap shrink-0">
+                        <div className="flex gap-0.5 text-xs">
                           {[1, 2, 3, 4, 5].map((s) => (
                             <span key={s} className={s <= rev.rating ? 'text-amber-400' : 'text-slate-200'}>★</span>
                           ))}
                         </div>
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${
                           rev.helpful
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-red-50 text-red-600 border-red-200'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-250 shadow-xs'
+                            : 'bg-red-50 text-red-650 border-red-200 shadow-xs'
                         }`}>
-                          {rev.helpful ? '👍 Helpful' : '👎 Not Helpful'}
+                          {rev.helpful ? '👍 HELPFUL' : '👎 NOT HELPFUL'}
                         </span>
                       </div>
                       {rev.request_title && (
-                        <p className="text-[11px] text-slate-500">For: <span className="font-semibold">{rev.request_title}</span></p>
+                        <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">
+                          For: <span className="font-extrabold text-slate-650">{rev.request_title}</span>
+                        </p>
                       )}
                       {rev.comment && (
-                        <p className="text-xs text-slate-700 italic leading-relaxed">"{rev.comment}"</p>
+                        <p className="text-xs text-slate-700 italic leading-relaxed break-words break-all bg-white p-2.5 rounded-xl border border-slate-150 font-medium">
+                          "{rev.comment}"
+                        </p>
                       )}
                     </div>
                   ))}
-                  {sortedPeerReviews.length > 3 && (
-                    <div className="flex justify-center mt-3 pt-1">
-                      <button
-                        onClick={() => setShowAllPeerReviews(!showAllPeerReviews)}
-                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 focus:outline-none flex items-center gap-1 transition-colors"
-                      >
-                        {showAllPeerReviews ? 'Show fewer reviews' : 'Show more reviews'}
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -1325,64 +1457,60 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                 </div>
               </div>
 
-              {/* Top Best Mentor Reviews Summary (Capped to top 3) */}
-              <div className="pt-4 border-t border-violet-200 space-y-3">
-                <p className="text-xs font-bold text-violet-800 uppercase tracking-wider block">
-                  ⭐ Top Received Mentor Reviews ({seniorFeedback.length})
+              {/* Top Best Mentor Reviews Summary (Capped to top 3 or internally scrollable) */}
+              <div className="pt-4 border-t border-violet-200 space-y-3.5">
+                <p className="text-xs font-extrabold text-violet-850 uppercase tracking-wider block">
+                  ⭐ Received Mentor Reviews ({seniorFeedback.length})
                 </p>
-                {displayedMentorReviews.length === 0 ? (
+                {sortedMentorReviews.length === 0 ? (
                   <div className="p-4 bg-white/50 rounded-xl border border-dashed border-violet-200 text-center space-y-1">
                     <p className="text-sm font-semibold text-violet-600">No senior guidance reviews yet</p>
                     <p className="text-[11px] text-slate-400">Guide juniors to receive reviews.</p>
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-2">
-                      {displayedMentorReviews.map((rev) => {
+                    <div className={`space-y-3 pr-1 ${sortedMentorReviews.length > 3 ? 'max-h-[360px] overflow-y-auto thin-scrollbar' : ''}`}>
+                      {sortedMentorReviews.map((rev) => {
                         const requestTopic = rev.guidance_request?.topic || '';
                         return (
-                          <div key={rev.id} className="p-3 bg-white rounded-xl border border-violet-100 space-y-1.5 text-xs text-left shadow-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-violet-800">Anonymous Junior</span>
-                              <span className="text-[10px] text-slate-400">
+                          <div key={rev.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs text-left shadow-xs">
+                            <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-200/50 pb-1.5 shrink-0">
+                              <span className="font-extrabold text-violet-800">Anonymous Junior</span>
+                              <span className="text-[10px] text-slate-400 font-semibold">
                                 {new Date(rev.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <div className="flex gap-0.5">
+                            <div className="flex items-center gap-2 flex-wrap shrink-0">
+                              <div className="flex gap-0.5 text-xs">
                                 {[1, 2, 3, 4, 5].map((s) => (
                                   <span key={s} className={s <= rev.rating ? 'text-amber-400' : 'text-slate-200'}>★</span>
                                 ))}
                               </div>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-                                rev.helpful ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'
+                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${
+                                rev.helpful ? 'bg-emerald-50 text-emerald-700 border-emerald-250 shadow-xs' : 'bg-red-50 text-red-650 border-red-200 shadow-xs'
                               }`}>
-                                {rev.helpful ? '👍 Helpful Session' : '👎 Not Helpful'}
+                                {rev.helpful ? '👍 HELPFUL SESSION' : '👎 NOT HELPFUL'}
                               </span>
                             </div>
                             {requestTopic && (
-                              <p className="text-[11px] text-slate-500">For Topic: <span className="font-semibold">{requestTopic}</span></p>
+                              <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">
+                                For Topic: <span className="font-extrabold text-slate-650">{requestTopic}</span>
+                              </p>
                             )}
                             {rev.comment && (
-                              <p className="text-xs text-slate-700 italic leading-relaxed">"{rev.comment}"</p>
+                              <p className="text-xs text-slate-700 italic leading-relaxed break-words break-all bg-white p-2.5 rounded-xl border border-slate-150 font-medium">
+                                "{rev.comment}"
+                              </p>
                             )}
                           </div>
                         );
                       })}
                     </div>
-                    {sortedMentorReviews.length > 3 && (
-                      <div className="flex flex-col gap-2 items-center justify-center pt-2">
-                        <button
-                          onClick={() => setShowAllMentorReviews(!showAllMentorReviews)}
-                          className="text-xs font-semibold text-violet-700 hover:text-violet-900 focus:outline-none flex items-center gap-1 transition-colors"
-                        >
-                          {showAllMentorReviews ? 'Show fewer reviews' : 'Show more reviews'}
-                        </button>
-                        <p className="text-[10px] text-violet-500 italic">
-                          💡 View all received mentor reviews in Senior Connect dashboard.
-                        </p>
-                      </div>
-                    )}
+                    <div className="text-center pt-2">
+                      <p className="text-[10px] text-violet-600 italic font-semibold">
+                        💡 View all received mentor reviews in Senior Connect dashboard.
+                      </p>
+                    </div>
                   </>
                 )}
               </div>
@@ -1522,7 +1650,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                     Not currently active in any teammate projects.
                   </div>
                 ) : (
-                  <div className="space-y-2.5 max-h-[300px] overflow-y-auto thin-scrollbar pr-1">
+                  <div className={`space-y-2.5 pr-1 ${activeProjects.length > 3 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {activeProjects.map((t, idx) => (
                       <div key={idx} className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs space-y-2 flex flex-col justify-between">
                         <div className="flex justify-between items-start gap-3">
@@ -1565,7 +1693,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                     No outstanding tasks assigned at this moment.
                   </div>
                 ) : (
-                  <div className="space-y-2.5 max-h-[300px] overflow-y-auto thin-scrollbar pr-1">
+                  <div className={`space-y-2.5 pr-1 ${pendingTasks.length > 4 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {pendingTasks.map((t, idx) => {
                       const isOverdue = new Date(t.due_at) < new Date();
                       return (
@@ -1625,7 +1753,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                     No verified contributions listed yet. Complete tasks to build history.
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-[350px] overflow-y-auto thin-scrollbar pr-1">
+                  <div className={`space-y-3 pr-1 ${verifiedTasks.length > 4 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {verifiedTasks.map((t, idx) => (
                       <div key={idx} className="p-3.5 bg-emerald-50/20 border border-emerald-150 rounded-xl space-y-2">
                         <div className="flex justify-between items-start gap-3">
@@ -1662,7 +1790,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
                     No past project participations recorded.
                   </div>
                 ) : (
-                  <div className="space-y-2.5 max-h-[350px] overflow-y-auto thin-scrollbar pr-1">
+                  <div className={`space-y-2.5 pr-1 ${pastProjects.length > 3 ? 'max-h-[320px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {pastProjects.map((t, idx) => (
                       <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                         <div className="flex justify-between items-start gap-3">
