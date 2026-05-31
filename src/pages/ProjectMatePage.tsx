@@ -2697,8 +2697,8 @@ export const ProjectMatePage: React.FC = () => {
 
                 {/* Subtab Content */}
                                 {workspaceSubTab === 'coordination' && (
-                  <div className="grid w-full max-w-full min-w-0 grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="min-w-0 lg:col-span-2 space-y-6">
+                  <div className="grid w-full max-w-full min-w-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] gap-6">
+                    <div className="min-w-0 max-w-full space-y-6">
 
                     {/* PHASE 6.3C: Completed Project Summary Banner */}
                     {(selectedProject.status === 'completed' || selectedProject.status === 'archived' || selectedProject.status === 'paused') && (
@@ -3397,7 +3397,7 @@ export const ProjectMatePage: React.FC = () => {
                       )}
                     </div>
                                       </div>
-                    <div className="space-y-6">
+                    <div className="w-full max-w-full min-w-0 space-y-5">
 
                 {/* === PHASE 6.3C: ROLE MANAGEMENT PANEL === */}
                 {selectedProject.is_owner && (
@@ -3421,7 +3421,7 @@ export const ProjectMatePage: React.FC = () => {
                     </div>
 
                     {/* Roles List */}
-                    <div className={`space-y-3 ${selectedProject.roles && selectedProject.roles.length > 3 ? 'max-h-[260px] overflow-y-auto thin-scrollbar pr-1' : ''}`}>
+                    <div className={`min-w-0 space-y-3 ${selectedProject.roles && selectedProject.roles.length > 4 ? 'max-h-[320px] overflow-y-auto thin-scrollbar pr-1' : ''}`}>
                       {(!selectedProject.roles || selectedProject.roles.length === 0) && !isAddingRole && (
                         <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
                           No roles defined yet. Add roles to structure your team.
@@ -3581,7 +3581,7 @@ export const ProjectMatePage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className={`w-full min-w-0 max-w-full space-y-3.5 divide-y divide-slate-100 pr-1 ${teamMembers.length > 3 ? 'max-h-[280px] overflow-y-auto thin-scrollbar' : ''}`}>
+                  <div className={`w-full min-w-0 max-w-full space-y-3.5 divide-y divide-slate-100 pr-1 ${teamMembers.length > 4 ? 'max-h-[360px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {(() => {
                       let filteredMembers = [...teamMembers];
                       
@@ -3632,7 +3632,7 @@ export const ProjectMatePage: React.FC = () => {
                         }).length;
 
                         return (
-                          <div key={member.id} className={`flex w-full min-w-0 max-w-full flex-col sm:flex-row sm:items-center justify-between gap-3 overflow-hidden text-xs ${idx > 0 ? 'pt-3.5' : ''}`}>
+                          <div key={member.id} className={`flex w-full min-w-0 max-w-full flex-col gap-3 overflow-hidden text-xs ${idx > 0 ? 'pt-3.5' : ''}`}>
                             <div className="flex min-w-0 gap-3 overflow-hidden">
                               {/* circular initials avatar */}
                               <div className="w-10 h-10 rounded-full bg-indigo-50/80 border border-indigo-150 text-indigo-700 font-black flex items-center justify-center text-sm shrink-0 shadow-sm">
@@ -3711,7 +3711,7 @@ export const ProjectMatePage: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="flex flex-wrap sm:flex-col sm:items-end justify-between items-center gap-2 shrink-0 pt-2 sm:pt-0">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
                               <span className="text-[9px] text-slate-400 font-medium">
                                 Joined {new Date(member.joined_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                               </span>
@@ -3831,7 +3831,7 @@ export const ProjectMatePage: React.FC = () => {
                     <p className="text-[10px] text-indigo-600 font-semibold leading-relaxed">
                       🔒 Private contacts (email/phone/WhatsApp) are only visible when a teammate explicitly enables sharing. Public links (GitHub, LinkedIn, Portfolio) are always shown.
                     </p>
-                    <div className="w-full min-w-0 max-w-full space-y-2 max-h-[260px] overflow-y-auto thin-scrollbar pr-1">
+                    <div className={`w-full min-w-0 max-w-full space-y-2 pr-1 ${teamMembers.length > 4 ? 'max-h-[320px] overflow-y-auto thin-scrollbar' : ''}`}>
                       {teamMembers.map(member => {
                         const p = member.profile;
                         const isOwner = member.user_id === selectedProject.created_by;
@@ -3861,8 +3861,8 @@ export const ProjectMatePage: React.FC = () => {
 
                         return (
                           <div key={member.id} className="min-w-0 overflow-hidden p-3 bg-white border border-indigo-100 rounded-xl shadow-xs space-y-1.5">
-                            <div className="flex items-center gap-1.5 border-b border-indigo-50 pb-1.5">
-                              <span className="font-extrabold text-slate-800 text-xs">{p?.full_name}</span>
+                            <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-b border-indigo-50 pb-1.5">
+                              <span className="min-w-0 font-extrabold text-slate-800 text-xs break-words">{p?.full_name}</span>
                               {isOwner && <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[8px] font-black uppercase rounded">Lead</span>}
                             </div>
 
@@ -3925,7 +3925,7 @@ export const ProjectMatePage: React.FC = () => {
                       <span>🏆</span>
                       <span>Member Task History</span>
                     </h4>
-                    <div className="space-y-2 max-h-[240px] overflow-y-auto thin-scrollbar pr-1">
+                    <div className={`min-w-0 space-y-2 pr-1 ${teamMembers.length > 4 ? 'max-h-[300px] overflow-y-auto thin-scrollbar' : ''}`}>
                       {teamMembers.map(member => {
                         const memberTasks = projectTasks.filter(t => t.assigned_to === member.user_id);
                         const verified = memberTasks.filter(t => t.status === 'verified').length;
@@ -3935,9 +3935,9 @@ export const ProjectMatePage: React.FC = () => {
                         const pct = total > 0 ? Math.round((verified / total) * 100) : 0;
                         const isOwner = member.user_id === selectedProject.created_by;
                         return (
-                          <div key={member.id} className="p-3 bg-slate-50 border border-slate-150 rounded-xl space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="font-extrabold text-slate-800 text-xs">{member.profile?.full_name || 'Member'}</span>
+                          <div key={member.id} className="min-w-0 overflow-hidden p-3 bg-slate-50 border border-slate-150 rounded-xl space-y-2">
+                            <div className="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
+                              <span className="min-w-0 font-extrabold text-slate-800 text-xs break-words">{member.profile?.full_name || 'Member'}</span>
                               {isOwner && <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[8px] font-black uppercase rounded">Lead</span>}
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-center">
@@ -3981,7 +3981,7 @@ export const ProjectMatePage: React.FC = () => {
                 {/* Open positions info */}
                 {/* Open positions info */}
                 {selectedProject.roles && selectedProject.roles.length > 0 && (
-                  <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
+                  <div className="w-full max-w-full min-w-0 overflow-hidden p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center justify-between">
                       <span>Required Slots</span>
                       <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[9px]">
@@ -3993,7 +3993,7 @@ export const ProjectMatePage: React.FC = () => {
                         All team positions have been filled! 🎉
                       </p>
                     ) : (
-                      <div className={`space-y-2 pr-1 ${selectedProject.roles.length > 3 ? 'max-h-[220px] overflow-y-auto thin-scrollbar' : ''}`}>
+                      <div className={`min-w-0 space-y-2 pr-1 ${selectedProject.roles.length > 4 ? 'max-h-[280px] overflow-y-auto thin-scrollbar' : ''}`}>
                         {[...selectedProject.roles]
                           .sort((a, b) => {
                             const aOpen = a.slots_needed - a.slots_filled > 0;
@@ -4007,13 +4007,13 @@ export const ProjectMatePage: React.FC = () => {
                           .map(r => {
                             const isFull = r.slots_filled >= r.slots_needed;
                             return (
-                              <div key={r.id} className={`p-3 rounded-xl border text-xs transition-colors ${
+                              <div key={r.id} className={`min-w-0 overflow-hidden p-3 rounded-xl border text-xs transition-colors ${
                                 isFull 
                                   ? 'bg-slate-50 border-slate-150 opacity-70' 
                                   : 'bg-white border-indigo-100 shadow-sm'
                               }`}>
-                                <div className="flex items-center justify-between">
-                                  <span className={`font-bold ${isFull ? 'text-slate-500' : 'text-slate-800'}`}>
+                                <div className="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
+                                  <span className={`min-w-0 break-words font-bold ${isFull ? 'text-slate-500' : 'text-slate-800'}`}>
                                     {r.role_name}
                                   </span>
                                   {isFull ? (
