@@ -1,7 +1,7 @@
 # SkillSaathi — Final MVP Manual Testing Checklist (Phase 6.6)
 
-> **Live App:** https://skillsaathi-campus-peer-learning.vercel.app/  
-> **Status:** MVP Complete ✅ — Phase 6.6 Final Polish  
+> **Live App:** https://skillsaathi-campus-peer-learning.vercel.app/
+> **Status:** MVP Complete ✅ — Phase 6.6 Final Polish
 > Use this checklist before every production release or demo presentation.
 
 ---
@@ -986,19 +986,19 @@ Run before first deployment or after any SQL patch:
 ### 1. Deleted Post Placeholder (4-Hour Window)
 - [ ] **Soft delete a post** as the author or owner. Verify:
   - The post's content (title, body, tags) is immediately hidden.
-  - The placeholder shows `Visible for a few hours for context Ã‚Â· <relative time>`.
+  - The placeholder shows `Visible for a few hours for context ? <relative time>`.
   - No helpful button, reply button, edit/delete actions, pin, or resolve controls are shown on the placeholder.
-- [ ] **Confirm delete modal** reads:  
+- [ ] **Confirm delete modal** reads:
   `"This will soft-delete the post. The content will be hidden immediately. A placeholder will remain visible for up to 4 hours for context, then disappear automatically. The record is retained for moderation."`
-- [ ] **Success toast** after deletion reads:  
+- [ ] **Success toast** after deletion reads:
   `"The post was removed. A placeholder will appear for up to 4 hours for context, then disappear automatically."`
 
 ### 2. Deleted Reply Placeholder (4-Hour Window)
 - [ ] **Delete a reply** in the threaded drawer. Verify:
   - The reply body, helpful buttons, and edit/delete actions are immediately hidden.
-  - A `Ã°Å¸Å¡Â« This comment was deleted by the author.` or `removed by the owner.` placeholder appears.
-  - The placeholder shows `Visible temporarily for context Ã‚Â· <relative time>`.
-- [ ] **Success toast** after reply deletion reads:  
+  - A `?? This comment was deleted by the author.` or `removed by the owner.` placeholder appears.
+  - The placeholder shows `Visible temporarily for context ? <relative time>`.
+- [ ] **Success toast** after reply deletion reads:
   `"The comment was removed. A placeholder will appear for up to 4 hours for context, then disappear automatically."`
 
 ### 3. Automatic Expiry (After 4 Hours)
@@ -1008,11 +1008,11 @@ Run before first deployment or after any SQL patch:
 - [ ] Verify that expired deleted posts do NOT count in the `Show more/fewer` button count.
 
 ### 4. Show More / Fewer Accuracy
-- [ ] With >3 visible posts, verify the `Ã¢Å¾â€¢ Show more discussions (N more)` button appears.
+- [ ] With >3 visible posts, verify the `? Show more discussions (N more)` button appears.
 - [ ] The count `N` should only include non-deleted posts and placeholders within the 4-hour window.
-- [ ] After all posts expire (or only Ã¢â€°Â¤3 remain visible), verify the button disappears entirely.
+- [ ] After all posts expire (or only ?3 remain visible), verify the button disappears entirely.
 
-### 5. Content Safety Ã¢â‚¬â€� No Leakage
+### 5. Content Safety ? No Leakage
 - [ ] Inspect the DOM on a deleted post placeholder. Verify:
   - No title, body, or tags text is rendered.
   - No author email or UUID is visible.
@@ -1027,7 +1027,7 @@ Run before first deployment or after any SQL patch:
   - `totalReplies` reflects only visible (non-expired) replies.
 - [ ] After 4 hours (simulate by mock or wait), re-fetch stats. Verify expired posts drop from all counts.
 
-### 7. Regression Ã¢â‚¬â€� Existing Features
+### 7. Regression ? Existing Features
 - [ ] Post create, edit, pin, resolve still work correctly.
 - [ ] Reply add, edit, helpful reaction still work correctly.
 - [ ] Filter by type, search, mine, resolved still work correctly.
@@ -1227,7 +1227,7 @@ select * from public.project_team_members limit 5;
   - Verify you can add comma-separated tags.
   - Verify the post renders with uploader name, relative timestamp, type-colored badge, and tags.
 - [ ] **Reactions & Comment Replies Drawer**:
-  - Click `Ã°Å¸â€˜ï¿½ Helpful` reaction button on a post. Verify it increments. Click again to toggle off.
+  - Click `?? Helpful` reaction button on a post. Verify it increments. Click again to toggle off.
   - Click `Comments` to slide open the replies drawer.
   - Add a reply. Verify it renders instantly and increments the comment counter.
   - As the author, delete your comment. Verify it deletes safely and decrements the counter.
@@ -1242,7 +1242,7 @@ select * from public.project_team_members limit 5;
   - Submit a valid `https://` link.
 - [ ] **Owner Auto-Verification vs Member Queue**:
   - As the Owner, submit a resource link. Verify it is verified instantly and appears directly in the **Verified Material Library**.
-  - As a normal Member, submit a resource link. Verify it is sent to the pending verification list and shows in your **My Submitted Resources** dashboard as `Ã¢ï¿½Â³ Pending`.
+  - As a normal Member, submit a resource link. Verify it is sent to the pending verification list and shows in your **My Submitted Resources** dashboard as `[Pending]`.
 - [ ] **Verification Console Moderation**:
   - Log in as Owner. Open the Shared Resources tab.
   - Locate the **Material Verification Queue** containing the member's pending resource.
@@ -1312,7 +1312,7 @@ select * from public.project_team_members limit 5;
   - Select **Project Lead Only (Do not consume dynamic slot)**. Submit. Open workspace Members. Verify your role is `Project Lead` and the position slots show `0/1` filled.
   - Create another project with the same roles. Select **Reserve Dynamic Open Position Below**.
   - Choose `Backend Engineer` from the positioning dropdown list. Submit.
-  - Open workspace Members. Verify that your roster card lists you with both `Ã°Å¸â€˜â€˜ Lead` and `Backend Engineer` badges, and the Backend Engineer slot displays as `1/1 Full` instantly!
+  - Open workspace Members. Verify that your roster card lists you with both `[Lead]` and `Backend Engineer` badges, and the Backend Engineer slot displays as `1/1 Full` instantly!
   - Create a third project. Select **Specify Custom Role Title**.
   - Type `"System Architect"`. Submit. Open roster. Verify your card displays the custom `"System Architect"` role badge cleanly.
 
@@ -1334,21 +1334,21 @@ select * from public.project_team_members limit 5;
 ### 4. Premium Team Roster & Privacy
 - [ ] **Active Members Roster & Profile Previews**:
   - Navigate to the **Members** list in your workspace.
-  - Verify that the Owner is strictly pinned at the very top of the list with a `"Ã°Å¸â€˜â€˜ Lead"` badge.
+  - Verify that the Owner is strictly pinned at the very top of the list with a `[Lead]` badge.
   - Verify that other active members are sorted alphabetically by their full names.
   - Check that each member card displays their initials avatar, department/year, joined date, and dynamic role badge.
   - Click **View Profile** next to a teammate's name. Verify that the public profile modal opens correctly.
   - **CRITICAL PRIVACY CHECK**: Verify that no email address, phone number, WhatsApp link, or raw database UUID is leaked inside the profile card or workspace layout.
 - [ ] **Past Members separated history (Owner only)**:
   - As the project owner, kick an active member with a reason.
-  - Verify that the kicked member is removed from the active roster and appears under **Ã¢Å’â€º Past Members / Team History** collapsible list (visible only to the owner).
+  - Verify that the kicked member is removed from the active roster and appears under **Past Members / Team History** collapsible list (visible only to the owner).
   - Verify that the past member card lists their name, role, exit date, exit reason, and a fully functional **View Profile** button safely gating contact fields.
 
 ### 5. Sandboxed Link-Based Sharing
 - [ ] **Folder Link & Repository URL Warnings**:
   - Click **Share Material** under the Shared Resources tab.
-  - Click **Ã°Å¸â€œï¿½ Folder Link**. Verify that the form placeholder changes to an HTTPS URL guide, and a prominent yellow warning states that browser directory uploading is disabled for security sandboxing.
-  - Click **Ã°Å¸â€™Â» Code Repo**. Verify that the help note guides the student to paste a secure HTTPS repository link.
+  - Click **Folder Link**. Verify that the form placeholder changes to an HTTPS URL guide, and a prominent yellow warning states that browser directory uploading is disabled for security sandboxing.
+  - Click **Code Repo**. Verify that the help note guides the student to paste a secure HTTPS repository link.
 - [ ] **Resource Deletion Boundary Rules**:
   - Log in as a normal member. Upload a resource to the verification queue.
   - Log in as the Owner. Verify the queue, and click **Approve Material** to verify it.
@@ -1366,7 +1366,7 @@ select * from public.project_team_members limit 5;
 
 ## Phase 6.3C: Project Lifecycle, Role Management & Completion Controls
 
-### 1. My Projects â€” Lifecycle Sections
+### 1. My Projects ? Lifecycle Sections
 - [ ] Navigate to My Projects tab. Verify 4 lifecycle sections: Recruiting, Running, Completed, Archived & Paused.
 - [ ] Create a project. It appears in Recruiting section with correct quick action buttons.
 - [ ] Click 'Mark Running'. Project moves from Recruiting to Running section immediately.
@@ -1413,9 +1413,9 @@ select * from public.project_team_members limit 5;
 - [ ] In My Projects tab, check Completed Projects and Archived Projects sections. Both should be collapsible and collapsed by default.
 
 ### 7. Discover CTA Rules by Project Status
-- [ ] Mark a project Completed. Open Discover tab. Verify the project card action button shows "? Project Completed" badge instead of Apply/Apply Again.
-- [ ] Pause a project. Open Discover tab. Verify the project card action button shows "?? Project Paused" badge instead of Apply/Apply Again.
-- [ ] Archive a project. Open Discover tab. Verify the project card action button shows "?? Project Archived" badge instead of Apply/Apply Again.
+- [ ] Mark a project Completed. Open Discover tab. Verify the project card action button shows " Project Completed" badge instead of Apply/Apply Again.
+- [ ] Pause a project. Open Discover tab. Verify the project card action button shows " Project Paused" badge instead of Apply/Apply Again.
+- [ ] Archive a project. Open Discover tab. Verify the project card action button shows " Project Archived" badge instead of Apply/Apply Again.
 - [ ] View an In-Progress project. Verify the button shows "Apply to Running Project" with the italic note "Project is already in progress".
 
 ### 8. Resource Layout & URL Overflow Styling
@@ -1461,11 +1461,12 @@ select * from public.project_team_members limit 5;
 - [ ] Under the **Shared Resources** subtab, verify that verified resource cards with long filenames or URLs wrap cleanly without card blow-outs (using `break-all` and `break-words`).
 - [ ] Verify that verified library card footer action buttons (Preview, Download, Helpful, Pin, Delete) use a flex-wrap container so they stack elegantly on smaller viewports.
 
- 
+
+ 
  
 
- 
- 
+
+
 ## Phase 6.3E: Project Mate Sidebar Scroll Cards, Header Polish, and Teammates Section Upgrade
 - [ ] Verify the workspace header grid shows Difficulty, Work Mode, Type, Capacity, and Open Roles perfectly aligned.
 - [ ] Open a project with more than 3 members. Verify the Teammates Console applies thin-scrollbar and search/filter inputs appear.
@@ -1476,12 +1477,12 @@ select * from public.project_team_members limit 5;
 - [ ] Expand Past Members. Verify it has a scroll body for > 3 members, sorted by recent exit date.
 - [ ] Open Applications Queue (Owner view). Verify applicants are sorted by newest-first and scroll body applies for > 3 applications.
 
-## ??? 27. Phase 6.4: Project Task Assignment & Verification
+##  27. Phase 6.4: Project Task Assignment & Verification
 *Verify that project owners can assign tasks and members can submit work.*
 
 - [ ] **Task Creation (Owner)**
   - Open project workspace and click the Project Tasks subtab.
-  - In the console, select ? Assign New Task.
+  - In the console, select  Assign New Task.
   - Fill in task details and assign it to an active member.
   - Verify that the task appears in the Task Board under 'To Do / In Progress'.
 - [ ] **Task Progression (Assignee)**
@@ -1506,13 +1507,13 @@ select * from public.project_team_members limit 5;
 
 ---
 
-## ? 28. Phase 6.4A: Resource Preview, Public Contact Links & Task Dashboard Polish
+##  28. Phase 6.4A: Resource Preview, Public Contact Links & Task Dashboard Polish
 
 ### 1. Shared Resources — Video Preview
 - [ ] Upload a video resource file to the project workspace as a member.
-- [ ] As the owner, verify the Verification Queue shows a ? Play Video button for video resources.
-- [ ] Click ? Play Video — verify the lightbox modal opens with an HTML5 <video> player, streamed securely via signed URL. No raw file_path is shown.
-- [ ] Approve the video. In the Verified Library, verify ? Play Video button now appears (previously only PDF/image were supported).
+- [ ] As the owner, verify the Verification Queue shows a  Play Video button for video resources.
+- [ ] Click  Play Video — verify the lightbox modal opens with an HTML5 <video> player, streamed securely via signed URL. No raw file_path is shown.
+- [ ] Approve the video. In the Verified Library, verify  Play Video button now appears (previously only PDF/image were supported).
 - [ ] Confirm PDF and Image previews still work correctly (iframe embed, img viewer).
 
 ### 2. Resource Verification Queue — Scroll
@@ -1527,9 +1528,10 @@ select * from public.project_team_members limit 5;
 - [ ] For a resource with neither file_path nor url: verify "No file or link attached." fallback is shown (no broken <a href="">).
 
 ### 4. Helpful Resource Behavior
-- [ ] Click the Helpful ?? button on a verified resource — verify helpful_count increments and button changes visual state.
+- [ ] Click the Helpful  button on a verified resource — verify helpful_count increments and button changes visual state.
 - [ ] Click again (if reaction table exists) — verify count decrements and button goes inactive.
-- [ ] Refresh page — verify eacted_by_me state is correctly restored from DB.
+- [ ] Refresh page — verify
+eacted_by_me state is correctly restored from DB.
 
 ### 5. Public-Safe Teammate Contact Links
 - [ ] Roster cards: teammates who have GitHub/LinkedIn/Portfolio set in their profile should show clickable badge links directly on the card.
@@ -1541,17 +1543,17 @@ select * from public.project_team_members limit 5;
 
 ### 6. Task Attachment — Disabled State
 - [ ] For an attachment with no file_path and no url: verify — No source attached helper text is shown (not a broken empty href).
-- [ ] Video task attachments: verify ? Play button appears and plays in the secure lightbox.
+- [ ] Video task attachments: verify  Play button appears and plays in the secure lightbox.
 - [ ] Submission deliverable files: same null guard applied — — No source shown when both are null.
 
 ### 7. My Work Dashboard — Status Grouping
-- [ ] Tasks appear in correct group sections: ?? Assigned, ? In Progress, ? Pending Review, ? Verified, ?? Needs Revision, ?? Extension Requested / Granted.
-- [ ] A task past due date shows in ?? Overdue Tasks banner spanning full width at top of dashboard.
+- [ ] Tasks appear in correct group sections:  Assigned,  In Progress,  Pending Review,  Verified,  Needs Revision,  Extension Requested / Granted.
+- [ ] A task past due date shows in  Overdue Tasks banner spanning full width at top of dashboard.
 - [ ] Empty groups are hidden entirely (not shown as empty sections).
 - [ ] Member with no tasks assigned sees: "No project work assigned yet." empty state.
 
 ### 8. Owner Review Queue — Newest First
-- [ ] Multiple members submit tasks at different times. Owner opens ?? Review Queue.
+- [ ] Multiple members submit tasks at different times. Owner opens  Review Queue.
 - [ ] Verify most recently submitted task appears first (created_at desc order confirmed in API).
 
 
@@ -1581,7 +1583,7 @@ select * from public.project_team_members limit 5;
 
 ### 4. Workspace Teammate Task Counts & Role Tags
 - [ ] Open the workspace teammates console list in the Roster tab.
-- [ ] Verify that each teammate card shows their project role tag (e.g. "Ã°Å¸â€˜â€˜ Lead" or custom roles).
+- [ ] Verify that each teammate card shows their project role tag, for example `[Lead]` or custom roles.
 - [ ] Verify each card calculates and displays teammate task metrics (Assigned, Verified, Pending, Overdue counts) client-side in real-time.
 
 ### 5. Task Assignment Presets
@@ -1598,14 +1600,14 @@ select * from public.project_team_members limit 5;
 - [ ] Scroll to the bottom to find the private Project Work Dashboard.
 - [ ] Verify KPIs display correctly (Active Teams, Verified Tasks, Pending Tasks, Overdue Tasks, Past Teams).
 - [ ] Verify current and past project participations timeline lists display correctly.
-- [ ] Confirm that active project entries show a rocket Ã°Å¸Å¡â‚¬ "Open Workspace" shortcut button.
+- [ ] Confirm that active project entries show an `Open Workspace` shortcut button.
 - [ ] Confirm that this workspace redirect button is strictly restricted to active team members.
 
 ### 8. Premium Task Status Lock Banners
-- [ ] Open task drawer for a verified task - verify a green Ã°Å¸Â�â€  "Task Verified & Completed" premium banner is displayed.
-- [ ] Open task drawer for a cancelled task - verify a neutral Ã°Å¸Å¡Â« "Task Assignment Cancelled" banner is displayed.
-- [ ] Open task drawer for a pending-review task - verify a purple Ã¢Â�Â³ "Work Pending Lead Review" banner is displayed.
-- [ ] Open task drawer for a needs-revision (rejected) task - verify a red Ã¢Å¡Â Ã¯Â¸Â� "Revisions Requested" banner is displayed.
+- [ ] Open task drawer for a verified task and verify a green `Task Verified & Completed` premium banner is displayed.
+- [ ] Open task drawer for a cancelled task and verify a neutral `Task Assignment Cancelled` banner is displayed.
+- [ ] Open task drawer for a pending-review task and verify a purple `Work Pending Lead Review` banner is displayed.
+- [ ] Open task drawer for a needs-revision task and verify a red `Revisions Requested` banner is displayed.
 
 
 
@@ -1621,7 +1623,7 @@ select * from public.project_team_members limit 5;
 
 ### 2. Dynamic Badge Logic
 - [ ] Verify that profile header badges calculate and display in real-time based on actual user counts:
-  - **Peer Helper**: displays "Getting Started" (0 reviews), "Helpful Peer" (1â€“2 helpful reviews), "Trusted Helper" (3â€“5 helpful reviews), or "Top Helper" (6+ helpful reviews).
+  - **Peer Helper**: displays "Getting Started" (0 reviews), "Helpful Peer" (1-2 helpful reviews), "Trusted Helper" (3-5 helpful reviews), or "Top Helper" (6+ helpful reviews).
   - **Doubt Solver**: displays "Doubt Solver" (1-2 answered doubts), "Active Solver" (3-5), or "Community Mentor" (6+).
   - **Project Contributor**: displays "Project Contributor" (1-2 verified tasks), "Reliable Teammate" (3-5), or "Project Champion" (6+).
   - **Teamwork**: displays "Team Player" (1 active project roster), "Strong Collaborator" (2+ active/verified tasks), or "Project Lead" (Owner with verified tasks).
@@ -1635,7 +1637,7 @@ select * from public.project_team_members limit 5;
 - [ ] Ensure that mobile screen views are completely responsive and have no horizontal overflow.
 - [ ] Confirm that no private contact phone/WhatsApp or private task files are exposed.
 
- 
+
 
 ---
 
@@ -1670,7 +1672,7 @@ select * from public.project_team_members limit 5;
 - [ ] Verify that scroll containers are responsive and stack elements cleanly on mobile viewports.
 - [ ] Verify that there is zero horizontal overflow or hidden button actions within scroll boxes.
 
- 
+
 
 ---
 
