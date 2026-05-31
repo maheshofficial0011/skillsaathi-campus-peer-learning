@@ -1627,6 +1627,20 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
   });
   const pendingRequestsCount = activeRequests.length;
 
+  const sortedPosts = [...posts].sort((a, b) => {
+    const isAnnA = a.post_type?.toLowerCase() === 'announcement';
+    const isAnnB = b.post_type?.toLowerCase() === 'announcement';
+    if (isAnnA !== isAnnB) {
+      return isAnnA ? -1 : 1;
+    }
+    const isPinA = !!a.is_pinned;
+    const isPinB = !!b.is_pinned;
+    if (isPinA !== isPinB) {
+      return isPinA ? -1 : 1;
+    }
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+
   const TABS: { id: WorkspaceTab; label: string; icon: string }[] = [
     { id: 'overview', label: 'Overview', icon: '📋' },
     ...(isOwner ? [{ id: 'requests' as WorkspaceTab, label: `Requests (${pendingRequestsCount})`, icon: '⏳' }] : []),
@@ -3320,7 +3334,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
 ) : (
                   <div className="min-w-0 max-h-[520px] space-y-4 overflow-y-auto thin-scrollbar pr-1">
                     {/* Show more/fewer pagination — default 3, expand on click */}
-                    {(showAllPosts ? posts : posts.slice(0, 3)).map((p) => {
+                    {(showAllPosts ? sortedPosts : sortedPosts.slice(0, 3)).map((p) => {
                       const isPostOwner = p.created_by === currentUserId;
                       const isPostAnnouncement = p.post_type.toLowerCase() === 'announcement' || p.post_type === 'Announcement';
                       const isPostQuestion = p.post_type.toLowerCase() === 'question' || p.post_type === 'Question';
@@ -3734,7 +3748,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
 
                     {/* Show more/fewer toggle — count only visible (non-deleted or recently deleted) posts */}
                     {(() => {
-                      const visiblePosts = posts.filter((p) => !p.deleted_at || isDeletedRecently(p.deleted_at));
+                      const visiblePosts = sortedPosts.filter((p) => !p.deleted_at || isDeletedRecently(p.deleted_at));
                       if (visiblePosts.length <= 3) return null;
                       return (
                         <div className="flex justify-center pt-2">
