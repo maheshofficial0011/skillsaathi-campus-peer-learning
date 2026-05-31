@@ -1328,6 +1328,9 @@ select * from public.project_team_members limit 5;
 
  
  
+
+ 
+ 
 ## Phase 6.3E: Project Mate Sidebar Scroll Cards, Header Polish, and Teammates Section Upgrade
 - [ ] Verify the workspace header grid shows Difficulty, Work Mode, Type, Capacity, and Open Roles perfectly aligned.
 - [ ] Open a project with more than 3 members. Verify the Teammates Console applies thin-scrollbar and search/filter inputs appear.
@@ -1337,9 +1340,6 @@ select * from public.project_team_members limit 5;
 - [ ] Open Required Slots. Verify open roles are sorted first, skill chips are rendered, and max-height scroll is applied for > 3 roles.
 - [ ] Expand Past Members. Verify it has a scroll body for > 3 members, sorted by recent exit date.
 - [ ] Open Applications Queue (Owner view). Verify applicants are sorted by newest-first and scroll body applies for > 3 applications.
-
-
----
 
 ## ??? 27. Phase 6.4: Project Task Assignment & Verification
 *Verify that project owners can assign tasks and members can submit work.*
@@ -1367,3 +1367,54 @@ select * from public.project_team_members limit 5;
   - As owner, reject the submission with feedback.
   - Verify the status updates to Rejected and the feedback is visible to the member.
 
+
+
+---
+
+## ? 28. Phase 6.4A: Resource Preview, Public Contact Links & Task Dashboard Polish
+
+### 1. Shared Resources — Video Preview
+- [ ] Upload a video resource file to the project workspace as a member.
+- [ ] As the owner, verify the Verification Queue shows a ? Play Video button for video resources.
+- [ ] Click ? Play Video — verify the lightbox modal opens with an HTML5 <video> player, streamed securely via signed URL. No raw file_path is shown.
+- [ ] Approve the video. In the Verified Library, verify ? Play Video button now appears (previously only PDF/image were supported).
+- [ ] Confirm PDF and Image previews still work correctly (iframe embed, img viewer).
+
+### 2. Resource Verification Queue — Scroll
+- [ ] Submit 4+ resources as a member. As owner, verify the queue list body scrolls inside max-h-[400px].
+- [ ] Verify the queue header (title + pending badge) remains fixed and does not scroll.
+- [ ] Verify Approve/Decline buttons remain reachable inside each card.
+
+### 3. My Submitted Materials — Polish
+- [ ] Upload a file with a long name. In My Submitted Materials, verify filename is truncated with ellipsis and 	itle tooltip shows full name.
+- [ ] Verify file size label (XX.X KB) appears next to the file name for file resources.
+- [ ] Verify link resources show a safely truncated clickable URL.
+- [ ] For a resource with neither file_path nor url: verify "No file or link attached." fallback is shown (no broken <a href="">).
+
+### 4. Helpful Resource Behavior
+- [ ] Click the Helpful ?? button on a verified resource — verify helpful_count increments and button changes visual state.
+- [ ] Click again (if reaction table exists) — verify count decrements and button goes inactive.
+- [ ] Refresh page — verify eacted_by_me state is correctly restored from DB.
+
+### 5. Public-Safe Teammate Contact Links
+- [ ] Roster cards: teammates who have GitHub/LinkedIn/Portfolio set in their profile should show clickable badge links directly on the card.
+- [ ] Team Contact Sharing panel: public links show for ALL active teammates regardless of share_* flags.
+- [ ] Private contacts (email/phone/WhatsApp) appear ONLY when teammate has set the respective share_* flag to true.
+- [ ] Non-members: verify Contact Sharing panel is NOT visible.
+- [ ] No raw UUIDs, emails, or phone numbers are shown to non-members.
+- [ ] Teammate with no public links and no shared contacts: "This teammate has not shared contact details. Use project discussion or shared workspace coordination." is displayed.
+
+### 6. Task Attachment — Disabled State
+- [ ] For an attachment with no file_path and no url: verify — No source attached helper text is shown (not a broken empty href).
+- [ ] Video task attachments: verify ? Play button appears and plays in the secure lightbox.
+- [ ] Submission deliverable files: same null guard applied — — No source shown when both are null.
+
+### 7. My Work Dashboard — Status Grouping
+- [ ] Tasks appear in correct group sections: ?? Assigned, ? In Progress, ? Pending Review, ? Verified, ?? Needs Revision, ?? Extension Requested / Granted.
+- [ ] A task past due date shows in ?? Overdue Tasks banner spanning full width at top of dashboard.
+- [ ] Empty groups are hidden entirely (not shown as empty sections).
+- [ ] Member with no tasks assigned sees: "No project work assigned yet." empty state.
+
+### 8. Owner Review Queue — Newest First
+- [ ] Multiple members submit tasks at different times. Owner opens ?? Review Queue.
+- [ ] Verify most recently submitted task appears first (created_at desc order confirmed in API).

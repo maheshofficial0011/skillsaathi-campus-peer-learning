@@ -98,7 +98,19 @@ export async function getActiveProjectMembers(projectId: string): Promise<Projec
       profile:profiles!project_team_members_user_id_fkey(
         full_name,
         department,
-        year_of_study
+        year_of_study,
+        github_url,
+        linkedin_url,
+        portfolio_url,
+        contact_phone,
+        contact_whatsapp,
+        contact_email,
+        contact_other,
+        share_phone_after_accept,
+        share_whatsapp_after_accept,
+        share_email_after_accept,
+        share_other_contact_after_accept,
+        share_contact_after_accept
       )
     `)
     .eq('project_id', projectId)
@@ -870,7 +882,19 @@ export async function getProjectTeamMembers(projectId: string): Promise<ProjectT
       profile:profiles!project_team_members_user_id_fkey(
         full_name,
         department,
-        year_of_study
+        year_of_study,
+        github_url,
+        linkedin_url,
+        portfolio_url,
+        contact_phone,
+        contact_whatsapp,
+        contact_email,
+        contact_other,
+        share_phone_after_accept,
+        share_whatsapp_after_accept,
+        share_email_after_accept,
+        share_other_contact_after_accept,
+        share_contact_after_accept
       )
     `)
     .eq('project_id', projectId)
@@ -892,7 +916,19 @@ export async function getProjectPastTeamMembers(projectId: string): Promise<Proj
       profile:profiles!project_team_members_user_id_fkey(
         full_name,
         department,
-        year_of_study
+        year_of_study,
+        github_url,
+        linkedin_url,
+        portfolio_url,
+        contact_phone,
+        contact_whatsapp,
+        contact_email,
+        contact_other,
+        share_phone_after_accept,
+        share_whatsapp_after_accept,
+        share_email_after_accept,
+        share_other_contact_after_accept,
+        share_contact_after_accept
       )
     `)
     .eq('project_id', projectId)
@@ -2052,7 +2088,7 @@ export async function getMyTasks(userId: string): Promise<ProjectTask[]> {
 /**
  * Create a new task (Owner only)
  */
-export async function createProjectTask(taskInput: any): Promise<ProjectTask> {
+export async function createProjectTask(taskInput: any, attachments?: any[]): Promise<ProjectTask> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated.');
   
@@ -2066,6 +2102,20 @@ export async function createProjectTask(taskInput: any): Promise<ProjectTask> {
     .single();
     
   if (error) throw error;
+
+  if (attachments && attachments.length > 0) {
+    const attachmentsToInsert = attachments.map((a: any) => ({
+      ...a,
+      task_id: data.id,
+      project_id: data.project_id,
+      uploaded_by: user.id
+    }));
+    const { error: attachErr } = await supabase
+      .from('project_task_attachments')
+      .insert(attachmentsToInsert);
+    if (attachErr) throw attachErr;
+  }
+  
   return data as any;
 }
 
@@ -2398,5 +2448,22 @@ export async function getTaskAttachments(taskId: string): Promise<ProjectTaskAtt
     .eq('task_id', taskId);
   if (error) throw error;
   return data as any;
+}
+
+/**
+ * Withdraw a pending extension request (Assigned Member)
+ */
+export async function withdrawTaskExtensionRequest(requestId: string, taskId: string): Promise<void> {
+  const { error } = await supabase
+    .from('project_task_extension_requests')
+    .update({ status: 'withdrawn' })
+    .eq('id', requestId);
+  if (error) throw error;
+
+  const { error: taskErr } = await supabase
+    .from('project_tasks')
+    .update({ status: 'assigned' }) // reset status back to assigned/in_progress. Default back to 'in_progress' or 'assigned' (safe fallback is 'in_progress')
+    .eq('id', taskId);
+  if (taskErr) throw taskErr;
 }
 

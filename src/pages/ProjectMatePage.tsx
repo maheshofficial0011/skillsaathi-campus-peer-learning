@@ -3614,6 +3614,42 @@ export const ProjectMatePage: React.FC = () => {
                                       {member.role_name}
                                     </span>
                                   )}
+                                  {/* Public-safe profile links */}
+                                  {member.profile?.github_url && (
+                                    <a
+                                      href={member.profile.github_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={`GitHub: ${member.profile.github_url}`}
+                                      className="px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[9px] font-bold rounded shadow-xs transition-colors flex items-center gap-0.5"
+                                    >
+                                      <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                                      GitHub
+                                    </a>
+                                  )}
+                                  {member.profile?.linkedin_url && (
+                                    <a
+                                      href={member.profile.linkedin_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={`LinkedIn: ${member.profile.linkedin_url}`}
+                                      className="px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-150 text-[9px] font-bold rounded shadow-xs transition-colors flex items-center gap-0.5"
+                                    >
+                                      <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                                      LinkedIn
+                                    </a>
+                                  )}
+                                  {member.profile?.portfolio_url && (
+                                    <a
+                                      href={member.profile.portfolio_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={`Portfolio: ${member.profile.portfolio_url}`}
+                                      className="px-1.5 py-0.5 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-150 text-[9px] font-bold rounded shadow-xs transition-colors flex items-center gap-0.5"
+                                    >
+                                      🌐 Portfolio
+                                    </a>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -3725,6 +3761,163 @@ export const ProjectMatePage: React.FC = () => {
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Contact Sharing Panel — public-safe links always shown; private contact gated by share_* flags */}
+                {(selectedProject.is_owner || selectedProject.is_member) && (
+                  <div className="p-5 bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-150 rounded-2xl shadow-sm space-y-3">
+                    <h4 className="text-xs font-black text-indigo-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>📬</span>
+                      <span>Team Contact Sharing</span>
+                    </h4>
+                    <p className="text-[10px] text-indigo-600 font-semibold leading-relaxed">
+                      🔒 Private contacts (email/phone/WhatsApp) are only visible when a teammate explicitly enables sharing. Public links (GitHub, LinkedIn, Portfolio) are always shown.
+                    </p>
+                    <div className="space-y-2 max-h-[260px] overflow-y-auto thin-scrollbar pr-1">
+                      {teamMembers.map(member => {
+                        const p = member.profile;
+                        const isOwner = member.user_id === selectedProject.created_by;
+
+                        // Public-safe links — always visible to active teammates
+                        const publicLinks: { icon: string; label: string; url: string }[] = [];
+                        if (p?.github_url) publicLinks.push({ icon: '💻', label: 'GitHub', url: p.github_url });
+                        if (p?.linkedin_url) publicLinks.push({ icon: '🔗', label: 'LinkedIn', url: p.linkedin_url });
+                        if (p?.portfolio_url) publicLinks.push({ icon: '🌐', label: 'Portfolio', url: p.portfolio_url });
+
+                        // Private contacts — gated by share_* flags
+                        const privateContacts: { icon: string; label: string; value: string }[] = [];
+                        if ((p?.share_email_after_accept || p?.share_contact_after_accept) && p?.contact_email) {
+                          privateContacts.push({ icon: '✉️', label: 'Email', value: p.contact_email });
+                        }
+                        if ((p?.share_whatsapp_after_accept || p?.share_contact_after_accept) && p?.contact_whatsapp) {
+                          privateContacts.push({ icon: '💬', label: 'WhatsApp', value: p.contact_whatsapp });
+                        }
+                        if ((p?.share_phone_after_accept || p?.share_contact_after_accept) && p?.contact_phone) {
+                          privateContacts.push({ icon: '📱', label: 'Phone', value: p.contact_phone });
+                        }
+                        if ((p?.share_other_contact_after_accept || p?.share_contact_after_accept) && p?.contact_other) {
+                          privateContacts.push({ icon: '🔗', label: 'Other', value: p.contact_other });
+                        }
+
+                        const hasAnything = publicLinks.length > 0 || privateContacts.length > 0;
+
+                        return (
+                          <div key={member.id} className="p-3 bg-white border border-indigo-100 rounded-xl shadow-xs space-y-1.5">
+                            <div className="flex items-center gap-1.5 border-b border-indigo-50 pb-1.5">
+                              <span className="font-extrabold text-slate-800 text-xs">{p?.full_name}</span>
+                              {isOwner && <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[8px] font-black uppercase rounded">Lead</span>}
+                            </div>
+
+                            {/* Public profile links */}
+                            {publicLinks.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {publicLinks.map((lnk, li) => (
+                                  <a
+                                    key={li}
+                                    href={lnk.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-150 text-[9px] font-bold rounded-lg transition-colors"
+                                    title={lnk.url}
+                                  >
+                                    <span>{lnk.icon}</span>
+                                    <span>{lnk.label}</span>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Private contacts */}
+                            {privateContacts.length > 0 && (
+                              <div className="flex flex-col gap-1">
+                                {privateContacts.map((c, ci) => (
+                                  <div key={ci} className="flex items-center gap-1.5 text-[10px]">
+                                    <span>{c.icon}</span>
+                                    <span className="font-bold text-slate-500">{c.label}:</span>
+                                    <span className="font-semibold text-slate-700 break-all">{c.value}</span>
+                                    {c.label === 'WhatsApp' && c.value.startsWith('https') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => window.open(c.value, '_blank', 'noopener,noreferrer')}
+                                        className="text-[8px] font-black text-indigo-600 hover:underline"
+                                      >Open</button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Fallback when no contact info at all */}
+                            {!hasAnything && (
+                              <p className="text-[9px] text-slate-400 italic font-medium">
+                                This teammate has not shared contact details. Use project discussion or shared workspace coordination.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Member Work History */}
+                {projectTasks.length > 0 && (
+                  <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
+                    <h4 className="text-xs font-black text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>🏆</span>
+                      <span>Member Task History</span>
+                    </h4>
+                    <div className="space-y-2 max-h-[240px] overflow-y-auto thin-scrollbar pr-1">
+                      {teamMembers.map(member => {
+                        const memberTasks = projectTasks.filter(t => t.assigned_to === member.user_id);
+                        const verified = memberTasks.filter(t => t.status === 'verified').length;
+                        const inProgress = memberTasks.filter(t => ['assigned', 'in_progress', 'submitted', 'extension_requested', 'extended'].includes(t.status)).length;
+                        const total = memberTasks.length;
+                        if (total === 0) return null;
+                        const pct = total > 0 ? Math.round((verified / total) * 100) : 0;
+                        const isOwner = member.user_id === selectedProject.created_by;
+                        return (
+                          <div key={member.id} className="p-3 bg-slate-50 border border-slate-150 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-extrabold text-slate-800 text-xs">{member.profile?.full_name || 'Member'}</span>
+                              {isOwner && <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[8px] font-black uppercase rounded">Lead</span>}
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div className="p-1 bg-white rounded-lg border border-slate-100">
+                                <p className="text-sm font-black text-slate-800">{total}</p>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase">Total</p>
+                              </div>
+                              <div className="p-1 bg-emerald-50 rounded-lg border border-emerald-100">
+                                <p className="text-sm font-black text-emerald-700">{verified}</p>
+                                <p className="text-[8px] font-bold text-emerald-500 uppercase">Done</p>
+                              </div>
+                              <div className="p-1 bg-indigo-50 rounded-lg border border-indigo-100">
+                                <p className="text-sm font-black text-indigo-700">{inProgress}</p>
+                                <p className="text-[8px] font-bold text-indigo-400 uppercase">Active</p>
+                              </div>
+                            </div>
+                            {total > 0 && (
+                              <div>
+                                <div className="flex justify-between text-[8px] font-bold text-slate-400 mb-0.5">
+                                  <span>Progress</span>
+                                  <span>{pct}% complete</span>
+                                </div>
+                                <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }).filter(Boolean)}
+                      {teamMembers.every(m => projectTasks.filter(t => t.assigned_to === m.user_id).length === 0) && (
+                        <p className="text-[10px] text-slate-400 italic text-center py-4">No tasks have been assigned yet.</p>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -4544,12 +4737,12 @@ export const ProjectMatePage: React.FC = () => {
                                     
                                     {res.file_path ? (
                                       <div className="flex gap-2">
-                                        {(res.resource_type === 'pdf' || res.resource_type === 'image') && (
+                                        {(res.resource_type === 'pdf' || res.resource_type === 'image' || res.resource_type === 'video') && (
                                           <button
                                             onClick={() => handlePreviewResource(res)}
                                             className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-1"
                                           >
-                                            👁️ Preview Securely
+                                            {res.resource_type === 'video' ? '▶ Play Video' : '👁️ Preview Securely'}
                                           </button>
                                         )}
                                         <button
@@ -4560,10 +4753,15 @@ export const ProjectMatePage: React.FC = () => {
                                         </button>
                                       </div>
                                     ) : (
-                                      <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-indigo-650 hover:underline flex items-center gap-1 font-bold self-start sm:self-auto">
-                                        <span>Open Link coordinates</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => { if (res.url) window.open(res.url, '_blank', 'noopener,noreferrer'); }}
+                                        disabled={!res.url}
+                                        className="flex items-center gap-1 font-bold text-indigo-650 hover:underline disabled:opacity-40 disabled:cursor-not-allowed self-start sm:self-auto"
+                                      >
+                                        <span>Open Link</span>
                                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                      </a>
+                                      </button>
                                     )}
                                   </div>
                                   {res.description && <p className="text-slate-550 italic text-[11px]">"{res.description}"</p>}
@@ -4699,12 +4897,12 @@ export const ProjectMatePage: React.FC = () => {
                                       <div className="flex flex-wrap gap-2 items-center">
                                         {res.file_path ? (
                                           <>
-                                            {(res.resource_type === 'pdf' || res.resource_type === 'image') && (
+                                            {(res.resource_type === 'pdf' || res.resource_type === 'image' || res.resource_type === 'video') && (
                                               <button
                                                 onClick={() => handlePreviewResource(res)}
                                                 className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm transition-all"
                                               >
-                                                <span>👁️ Preview Securely</span>
+                                                <span>{res.resource_type === 'video' ? '▶ Play Video' : '👁️ Preview Securely'}</span>
                                               </button>
                                             )}
                                             <button
@@ -4715,15 +4913,15 @@ export const ProjectMatePage: React.FC = () => {
                                             </button>
                                           </>
                                         ) : (
-                                          <a
-                                            href={res.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="px-3 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm transition-all"
+                                          <button
+                                            type="button"
+                                            onClick={() => { if (res.url) window.open(res.url, '_blank', 'noopener,noreferrer'); }}
+                                            disabled={!res.url}
+                                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                           >
                                             <span>Open Link</span>
                                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                          </a>
+                                          </button>
                                         )}
 
                                         <button
@@ -4822,16 +5020,21 @@ export const ProjectMatePage: React.FC = () => {
                                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200/50 pb-1.5">
                                     <div>
                                       <h5 className="font-extrabold text-slate-850 flex items-center gap-1.5">
-                                        <span>{res.title}</span>
-                                        <span className="px-1.5 py-0.2 bg-slate-250 text-slate-505 rounded text-[8px] font-black uppercase">
+                                        <span className="truncate max-w-[160px]" title={res.title}>{res.title}</span>
+                                        <span className="px-1.5 py-0.2 bg-slate-250 text-slate-505 rounded text-[8px] font-black uppercase shrink-0">
                                           {res.resource_type}
                                         </span>
                                       </h5>
                                       {res.file_path ? (
-                                        <span className="text-[9px] text-slate-400 font-medium">💾 File Resource: {res.file_name}</span>
-                                                                            ) : (
-                                        <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-650 hover:underline line-clamp-1 break-all">{res.url}</a>
-                                      )}
+                                        <span className="text-[9px] text-slate-400 font-medium" title={res.file_name}>
+                                          💾 <span className="inline-block max-w-[180px] truncate align-bottom">{res.file_name}</span>
+                                          {res.file_size_bytes ? <span className="ml-1 text-slate-400">({(res.file_size_bytes / 1024).toFixed(1)} KB)</span> : null}
+                                        </span>
+                                      ) : res.url ? (
+                                        <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-650 hover:underline break-all line-clamp-1" title={res.url}>{res.url}</a>
+                                      ) : (
+                                        <span className="text-[9px] text-slate-400 italic">No file or link attached.</span>
+                                      )}                                    
                                     </div>
                                     <span className={`px-2.5 py-0.5 rounded border text-[9px] font-black uppercase self-start sm:self-auto ${statusBadge}`}>
                                       {res.verification_status === 'pending_verification' ? 'Pending Review' : res.verification_status}

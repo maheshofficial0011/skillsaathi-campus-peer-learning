@@ -338,6 +338,18 @@ export interface LearningCircleMember {
     full_name: string;
     department: string;
     year_of_study: string;
+    github_url?: string | null;
+    linkedin_url?: string | null;
+    portfolio_url?: string | null;
+    contact_phone?: string | null;
+    contact_whatsapp?: string | null;
+    contact_email?: string | null;
+    contact_other?: string | null;
+    share_phone_after_accept?: boolean;
+    share_whatsapp_after_accept?: boolean;
+    share_email_after_accept?: boolean;
+    share_other_contact_after_accept?: boolean;
+    share_contact_after_accept?: boolean;
   } | null;
 }
 
@@ -451,6 +463,18 @@ export interface LearningCirclePresence {
     full_name: string;
     department: string;
     year_of_study: string;
+    github_url?: string | null;
+    linkedin_url?: string | null;
+    portfolio_url?: string | null;
+    contact_phone?: string | null;
+    contact_whatsapp?: string | null;
+    contact_email?: string | null;
+    contact_other?: string | null;
+    share_phone_after_accept?: boolean;
+    share_whatsapp_after_accept?: boolean;
+    share_email_after_accept?: boolean;
+    share_other_contact_after_accept?: boolean;
+    share_contact_after_accept?: boolean;
   } | null;
 }
 
@@ -591,6 +615,18 @@ export interface ProjectTeamMember {
     full_name: string;
     department: string;
     year_of_study: string;
+    github_url?: string | null;
+    linkedin_url?: string | null;
+    portfolio_url?: string | null;
+    contact_phone?: string | null;
+    contact_whatsapp?: string | null;
+    contact_email?: string | null;
+    contact_other?: string | null;
+    share_phone_after_accept?: boolean;
+    share_whatsapp_after_accept?: boolean;
+    share_email_after_accept?: boolean;
+    share_other_contact_after_accept?: boolean;
+    share_contact_after_accept?: boolean;
   } | null;
 }
 
