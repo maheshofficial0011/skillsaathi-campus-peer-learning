@@ -1584,3 +1584,19 @@ select * from public.project_team_members limit 5;
 - [ ] Click **Download File**. Verify that the file downloads successfully using a secure signed URL.
 
 
+
+---
+
+## 34. Phase 6.4G: Fix Project Task Submit Button Visibility and Action Button Contrast
+
+### 1. Task Submit Button Visibility
+- [ ] Log in as a Project Member. Navigate to the **Project Tasks** board.
+- [ ] Open a task that is assigned to you and has the status `pending_submission` (or just assigned).
+- [ ] In the **Submit Finished Work** panel, verify that the **Submit Deliverables for Review** button has a clear primary background color (indigo-600) and white text, making it visible by default without needing to hover over it.
+- [ ] Verify that hovering over the button darkens the background correctly (indigo-700) and the text remains readable.
+
+### 2. Action Button Contrast
+- [ ] Open the **Request Deadline Extension** modal (or locate the **Cancel Task assignment** action for leads).
+- [ ] Verify that the Cancel button or secondary action buttons have clear contrast (e.g. slate-100 background with slate-600 text, or red-50 background with red-600 text).
+- [ ] Verify that there are no buttons suffering from "invisible" background issues due to invalid tailwind classes.
+

@@ -1577,7 +1577,7 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
                     <button 
                       disabled={loading} 
                       type="submit" 
-                      className="w-full py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-1 text-xs"
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-1 text-xs"
                     >
                       {loading ? 'Uploading & Submitting...' : '🚀 Submit Deliverables for Review'}
                     </button>
@@ -1645,7 +1645,7 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
                 <button 
                   type="button" 
                   onClick={() => setIsExtensionModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-250 text-slate-650 font-bold rounded-xl transition-colors"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-colors"
                 >
                   Cancel
                 </button>
