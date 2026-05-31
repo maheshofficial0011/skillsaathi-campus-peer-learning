@@ -1061,17 +1061,30 @@ export const ProjectMatePage: React.FC = () => {
 
     const isVideoFile = lowerName.endsWith('.mp4') || lowerName.endsWith('.webm') || lowerName.endsWith('.mov') || file.type.startsWith('video/');
 
-    if (!ALLOWED_MIME_TYPES.includes(file.type) && !isVideoFile) {
-      setFileError('Unsupported file type. Only PDFs, text files, images, videos, datasets, and standard office documents are allowed.');
-      setSelectedFile(null);
-      return;
-    }
-
-    const sizeLimit = isVideoFile ? 20 * 1024 * 1024 : 10 * 1024 * 1024;
-    if (file.size > sizeLimit) {
-      setFileError(`File size exceeds the limit (${isVideoFile ? '20 MB for videos' : '10 MB for standard files'}).`);
-      setSelectedFile(null);
-      return;
+    if (isVideoFile) {
+      const allowedExts = ['.mp4', '.webm', '.mov'];
+      const hasValidExt = allowedExts.some(ext => lowerName.endsWith(ext));
+      if (!hasValidExt) {
+        setFileError('Unsupported video format. Please upload .mp4, .webm, or .mov under 20MB.');
+        setSelectedFile(null);
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        setFileError('Unsupported video format. Please upload .mp4, .webm, or .mov under 20MB.');
+        setSelectedFile(null);
+        return;
+      }
+    } else {
+      if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+        setFileError('Unsupported file type. Only PDFs, text files, images, datasets, and standard office documents are allowed.');
+        setSelectedFile(null);
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setFileError('File size exceeds the limit (10 MB for standard files).');
+        setSelectedFile(null);
+        return;
+      }
     }
 
     setSelectedFile(file);
@@ -4943,8 +4956,8 @@ export const ProjectMatePage: React.FC = () => {
                                         {res.description && <p className="text-slate-505 italic pr-2 line-clamp-2 leading-relaxed">"{res.description}"</p>}
                                         
                                         {res.file_path && (
-                                          <p className="text-[9px] text-indigo-500 font-bold bg-indigo-50/50 p-1.5 rounded-lg border border-indigo-100/50 inline-block break-words break-all">
-                                            💾 File Resource: {res.file_name} ({(res.file_size_bytes ? (res.file_size_bytes / 1024).toFixed(1) : 0)} KB)
+                                          <p className="text-[9px] text-indigo-500 font-bold bg-indigo-50/50 p-1.5 rounded-lg border border-indigo-100/50 inline-block max-w-full" title={res.file_name}>
+                                            💾 File Resource: <span className="inline-block max-w-[180px] truncate align-bottom">{res.file_name}</span> ({(res.file_size_bytes ? (res.file_size_bytes / 1024).toFixed(1) : 0)} KB)
                                           </p>
                                         )}
 

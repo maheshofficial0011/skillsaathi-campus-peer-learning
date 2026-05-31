@@ -41,7 +41,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           </div>
           
           <div className="flex items-center gap-3 text-xs font-semibold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
-            <span>Phase 3.5: UX Polish &amp; Readiness</span>
+            <span>Phase 6.4E: Project Collaboration Polish</span>
           </div>
         </div>
       </header>
@@ -100,7 +100,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
           {/* Footer cleanly integrated at bottom of scrollable workspace */}
           <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400 mt-auto shrink-0 rounded-xl">
-            <p>© 2026 SkillSaathi Campus Platform. All rights reserved. (Phase 3.5 Enabled)</p>
+            <p>© 2026 SkillSaathi Campus Platform. All rights reserved. (Phase 6.4E Enabled)</p>
           </footer>
         </main>
       </div>

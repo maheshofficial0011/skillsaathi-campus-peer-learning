@@ -1535,3 +1535,32 @@ select * from public.project_team_members limit 5;
 - [ ] Verify that scroll containers are responsive and stack elements cleanly on mobile viewports.
 - [ ] Verify that there is zero horizontal overflow or hidden button actions within scroll boxes.
 
+ 
+
+---
+
+## 32. Phase 6.4E: Video Upload Validation, Phase Badge & UI Gap Polish
+
+### 1. Video Upload Validation
+- [ ] In Find Teammates -> Shared Resources, select File Resource Type = Video. Choose an `.mp4` file under 20MB. Verify the resource upload succeeds successfully.
+- [ ] Choose a `.webm` file under 20MB. Verify the resource upload succeeds.
+- [ ] Choose a `.mov` file under 20MB. Verify the resource upload succeeds.
+- [ ] Try choosing a `.mp4` video file over 20MB. Verify that a type-specific validation error toast is shown: `"Unsupported video format. Please upload .mp4, .webm, or .mov under 20MB."`
+- [ ] Try choosing a dangerous script/executable file (e.g. `.exe`, `.bat`). Verify that it is explicitly blocked.
+- [ ] Try choosing an unsupported video format (e.g. `.avi`). Verify the specific video error toast is shown instead of the standard document message.
+- [ ] Verify that uploaded video files map to `resource_type === 'other'` under the hood, but display as a `Video` badge in the UI.
+
+### 2. Task & Submission Video Attachments
+- [ ] In Project Tasks, assign a new task with a `.mp4`, `.webm`, or `.mov` attachment. Verify the upload succeeds.
+- [ ] Log in as assignee and submit a video deliverable (`.mp4`, `.webm`, or `.mov`). Verify the upload succeeds.
+- [ ] Verify the secure HTML5 video preview playing and download actions both work correctly using private bucket signed URLs.
+
+### 3. Global Top Phase Badge
+- [ ] Verify that the top header badge displays exactly: `"Phase 6.4E: Project Collaboration Polish"` on Home, Dashboard, Profile, and all other sections.
+- [ ] Verify that the footer copyright notice displays exactly: `"(Phase 6.4E Enabled)"`.
+- [ ] Confirm no old Phase 3.5 badges are left rendered.
+
+### 4. Layout & Typography Polishes
+- [ ] In Verified Material Library, upload a resource with a long filename. Verify that the filename truncates safely with a title hover tooltip.
+- [ ] Verify that all long card grids scroll smoothly, badges align perfectly inside headers, and action buttons are fully visible and stacked cleanly on mobile viewports.
+

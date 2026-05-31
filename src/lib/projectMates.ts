@@ -1664,31 +1664,45 @@ export const uploadProjectResourceFile = async (
     throw new Error('Please sign in again before uploading files.');
   }
 
-  // Allowed file types check (Allowed: PDF, DOC, DOCX, PPT, PPTX, TXT, MD, PNG, JPG, JPEG, WEBP, CSV, JSON)
-  const allowedMimeTypes = [
-    'application/pdf',
-    'text/plain',
-    'image/png',
-    'image/jpeg',
-    'image/jpg',
-    'image/webp',
-    'text/csv',
-    'application/json',
-    'text/markdown',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  ];
+  const lowerName = file.name.toLowerCase();
+  const isVideo = lowerName.endsWith('.mp4') || lowerName.endsWith('.webm') || lowerName.endsWith('.mov') || file.type.startsWith('video/');
 
-  if (!allowedMimeTypes.includes(file.type)) {
-    throw new Error('Unsupported file type. Only PDFs, text files, images, datasets, and standard office documents are allowed.');
-  }
+  if (isVideo) {
+    const hasValidExt = lowerName.endsWith('.mp4') || lowerName.endsWith('.webm') || lowerName.endsWith('.mov');
+    
+    if (!hasValidExt) {
+      throw new Error('Unsupported video format. Please upload .mp4, .webm, or .mov under 20MB.');
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      throw new Error('Unsupported video format. Please upload .mp4, .webm, or .mov under 20MB.');
+    }
+  } else {
+    // Allowed file types check (Allowed: PDF, DOC, DOCX, PPT, PPTX, TXT, MD, PNG, JPG, JPEG, WEBP, CSV, JSON)
+    const allowedMimeTypes = [
+      'application/pdf',
+      'text/plain',
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'text/csv',
+      'application/json',
+      'text/markdown',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
 
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error('File size exceeds the 10 MB limit.');
+    if (!allowedMimeTypes.includes(file.type)) {
+      throw new Error('Unsupported file type. Only PDFs, text files, images, datasets, and standard office documents are allowed.');
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error('File size exceeds the 10 MB limit.');
+    }
   }
 
   // Sanitize filename
@@ -2310,7 +2324,7 @@ export async function uploadProjectTaskFile(projectId: string, file: File): Prom
   if (!user) throw new Error('Not authenticated.');
 
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
-  const allowed = ['pdf', 'png', 'jpg', 'jpeg', 'mp4', 'docx', 'xlsx', 'pptx', 'txt', 'zip'];
+  const allowed = ['pdf', 'png', 'jpg', 'jpeg', 'mp4', 'webm', 'mov', 'docx', 'xlsx', 'pptx', 'txt', 'zip'];
   if (ext && !allowed.includes(ext)) {
     throw new Error('File type not allowed for task uploads.');
   }
