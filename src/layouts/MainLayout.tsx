@@ -15,7 +15,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   userEmail,
   onLogout,
 }) => {
-  const navItems = [
+  const authenticatedNavItems = [
     { id: 'landing', label: 'Home' },
     { id: 'auth', label: 'Auth Gateway' },
     { id: 'dashboard', label: 'Dashboard' },
@@ -24,6 +24,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     { id: 'circles', label: 'Learning Circles' },
     { id: 'projectmate', label: 'Find Teammates' },
     { id: 'seniorconnect', label: 'Senior Connect' },
+  ];
+  const publicNavItems = [
+    { id: 'landing', label: 'Home' },
+    { id: 'about', label: 'About' },
+    { id: 'faq', label: 'FAQ' },
+    { id: 'contact', label: 'Contact' },
+  ];
+  const navItems = userEmail ? authenticatedNavItems : publicNavItems;
+  const footerItems = [
+    { id: 'about', label: 'About' },
+    { id: 'faq', label: 'FAQ' },
+    { id: 'contact', label: 'Contact' },
+    { id: 'privacy', label: 'Privacy' },
+    { id: 'terms', label: 'Terms & Guidelines' },
   ];
 
   return (
@@ -40,9 +54,24 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             </h1>
           </div>
           
-          <div className="flex items-center gap-3 text-xs font-semibold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
-            <span>Phase 6.6: Final Polish &amp; Demo-Ready</span>
-          </div>
+          {userEmail ? (
+            <div className="flex items-center gap-3 text-xs font-semibold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
+              <span>Campus Peer Learning</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <nav className="hidden sm:flex items-center gap-1" aria-label="Public navigation">
+                {publicNavItems.map((item) => (
+                  <button key={item.id} onClick={() => onNavigate(item.id)} className="public-header-link">
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+              <button onClick={() => onNavigate('auth')} className="public-button public-button-compact">
+                Open App
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -103,7 +132,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           </div>
 
           {/* Footer cleanly integrated at bottom of scrollable workspace */}
-          <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400 mt-auto shrink-0 rounded-xl">
+          <footer className="platform-footer bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400 mt-auto shrink-0 rounded-xl">
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 px-4 mb-3">
+              {footerItems.map((item) => (
+                <button key={item.id} onClick={() => onNavigate(item.id)} className="footer-link">
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <p>&copy; 2026 SkillSaathi Campus Platform. All rights reserved.</p>
             <p>© 2026 SkillSaathi Campus Platform. All rights reserved. (Phase 6.6 Enabled)</p>
           </footer>
         </main>

@@ -2,6 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .public-header-link {
+    @apply px-3 py-2 text-xs font-bold text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900;
+  }
+
+  .public-button {
+    @apply inline-flex items-center justify-center px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-lg border border-indigo-700 shadow-sm transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
+  }
+
+  .public-button-compact {
+    @apply px-3.5 py-2 text-xs;
+  }
+
+  .public-page {
+    @apply max-w-4xl mx-auto py-4 sm:py-8;
+  }
+
+  .public-page-centered {
+    @apply min-h-[360px] flex flex-col items-center justify-center text-center;
+  }
+
+  .public-eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.18em] text-indigo-600;
+  }
+
+  .public-title {
+    @apply mt-3 text-3xl sm:text-4xl font-black tracking-tight text-slate-900;
+  }
+
+  .public-intro {
+    @apply mt-4 mb-7 max-w-3xl text-base sm:text-lg leading-relaxed text-slate-600;
+  }
+
+  .public-section-grid {
+    @apply grid gap-4 mb-7;
+  }
+
+  .public-section {
+    @apply p-4 sm:p-5 rounded-xl border border-slate-200 bg-slate-50/70;
+  }
+
+  .public-section h3 {
+    @apply text-base font-bold text-slate-900;
+  }
+
+  .public-section p {
+    @apply mt-1.5 text-sm sm:text-base leading-relaxed text-slate-600;
+  }
+
+  .footer-link {
+    @apply font-semibold text-slate-500 transition-colors hover:text-indigo-700;
+  }
+
+  .platform-footer > p:last-child {
+    @apply hidden;
+  }
+}
+
 /* Premium Thin Scrollbar Styling */
 .thin-scrollbar {
   scrollbar-width: thin;

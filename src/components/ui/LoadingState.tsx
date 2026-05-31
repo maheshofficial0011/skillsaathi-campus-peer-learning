@@ -6,7 +6,7 @@ interface LoadingStateProps {
 }
 
 export const LoadingState: React.FC<LoadingStateProps> = ({
-  label = 'Syncing platform data...',
+  label = 'Loading your campus learning space...',
   minHeight = 'min-h-[200px]',
 }) => {
   return (
@@ -15,9 +15,9 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
         {/* Outer Glow Ring */}
         <div className="absolute w-12 h-12 rounded-full border-4 border-indigo-100 animate-ping opacity-75"></div>
         {/* Spinner Ring */}
-        <div className="w-12 h-12 rounded-full border-4 border-slate-200 border-t-indigo-650 border-t-indigo-600 animate-spin"></div>
+        <div className="w-12 h-12 rounded-full border-4 border-slate-200 border-t-indigo-600 animate-spin"></div>
       </div>
-      <p className="text-sm font-semibold text-slate-500 tracking-wide animate-pulse">
+      <p className="text-sm font-semibold text-slate-600 tracking-wide animate-pulse text-center">
         {label}
       </p>
     </div>

@@ -8,7 +8,10 @@ import DoubtsPage from './pages/DoubtsPage';
 import { LearningCirclesPage } from './pages/LearningCirclesPage';
 import { ProjectMatePage } from './pages/ProjectMatePage';
 import { SeniorConnectPage } from './pages/SeniorConnectPage';
+import { PublicInfoPage } from './pages/PublicInfoPages';
 import { useAuth } from './hooks/useAuth';
+
+const publicPages = ['landing', 'auth', 'about', 'contact', 'faq', 'privacy', 'terms'];
 
 function App() {
   const { user, loading, signOut } = useAuth();
@@ -22,7 +25,7 @@ function App() {
       }
     } else {
       // If user logs out, send them back to landing page
-      if (activePage !== 'landing' && activePage !== 'auth') {
+      if (!publicPages.includes(activePage)) {
         setActivePage('landing');
       }
     }
@@ -30,7 +33,6 @@ function App() {
 
   // Route Protection validation
   const navigateTo = (page: string) => {
-    const publicPages = ['landing', 'auth'];
     const isPublic = publicPages.includes(page);
 
     if (!user && !isPublic) {
@@ -48,6 +50,12 @@ function App() {
         return <LandingPage onNavigate={navigateTo} />;
       case 'auth':
         return <AuthPage />;
+      case 'about':
+      case 'contact':
+      case 'faq':
+      case 'privacy':
+      case 'terms':
+        return <PublicInfoPage page={activePage} onNavigate={navigateTo} />;
       case 'dashboard':
         return <DashboardPage userId={user?.id} userEmail={user?.email} onNavigate={navigateTo} />;
       case 'profile':
@@ -61,7 +69,7 @@ function App() {
       case 'seniorconnect':
         return <SeniorConnectPage />;
       default:
-        return <LandingPage onNavigate={navigateTo} />;
+        return <PublicInfoPage page="not-found" onNavigate={navigateTo} />;
     }
   };
 
@@ -71,7 +79,7 @@ function App() {
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">
         <div className="w-14 h-14 rounded-full border-4 border-slate-200 border-t-indigo-600 animate-spin"></div>
         <p className="text-sm text-slate-500 font-semibold tracking-wide">
-          Syncing campus session...
+          Preparing your SkillSaathi session...
         </p>
       </div>
     );
