@@ -3198,7 +3198,7 @@ export const ProjectMatePage: React.FC = () => {
 
                     {/* Owner Applicant Management Queue */}
                     {selectedProject.is_owner && (
-                      <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+                      <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
                         <h4 className="text-lg font-black text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
                           <span>Applications Queue</span>
                           <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold rounded-full">
@@ -3207,7 +3207,7 @@ export const ProjectMatePage: React.FC = () => {
                         </h4>
 
                         {pendingApplicants.length === 0 ? (
-                          <p className="text-xs text-slate-400 italic text-center py-6">
+                          <p className="text-xs text-slate-400 italic text-center py-4">
                             No pending team applications yet.
                           </p>
                         ) : (
@@ -3397,7 +3397,7 @@ export const ProjectMatePage: React.FC = () => {
                       )}
                     </div>
                                       </div>
-                    <div className="w-full max-w-full min-w-0 space-y-5">
+                    <div className="w-full max-w-full min-w-0 space-y-4">
 
                 {/* === PHASE 6.3C: ROLE MANAGEMENT PANEL === */}
                 {selectedProject.is_owner && (
@@ -3581,7 +3581,7 @@ export const ProjectMatePage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className={`w-full min-w-0 max-w-full space-y-3.5 divide-y divide-slate-100 pr-1 ${teamMembers.length > 4 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
+                  <div className="w-full min-w-0 max-w-full max-h-[360px] space-y-3.5 divide-y divide-slate-100 overflow-y-auto thin-scrollbar pr-1">
                     {(() => {
                       let filteredMembers = [...teamMembers];
                       
@@ -3776,7 +3776,7 @@ export const ProjectMatePage: React.FC = () => {
                             No team history recorded.
                           </p>
                         ) : (
-                          <div className={`divide-y divide-slate-200/60 pr-1 ${pastTeamMembers.length > 3 ? 'max-h-[360px] overflow-y-auto thin-scrollbar' : ''}`}>
+                          <div className="max-h-[280px] divide-y divide-slate-200/60 overflow-y-auto thin-scrollbar pr-1">
                             {[...pastTeamMembers]
                               .sort((a, b) => new Date(b.left_at || '').getTime() - new Date(a.left_at || '').getTime())
                               .map((member, idx) => {
@@ -3831,7 +3831,7 @@ export const ProjectMatePage: React.FC = () => {
                     <p className="text-[10px] text-indigo-600 font-semibold leading-relaxed">
                       🔒 Private contacts (email/phone/WhatsApp) are only visible when a teammate explicitly enables sharing. Public links (GitHub, LinkedIn, Portfolio) are always shown.
                     </p>
-                    <div className={`w-full min-w-0 max-w-full space-y-2 pr-1 ${teamMembers.length > 4 ? 'max-h-[320px] overflow-y-auto thin-scrollbar' : ''}`}>
+                    <div className="w-full min-w-0 max-w-full max-h-[260px] space-y-2 overflow-y-auto thin-scrollbar pr-1">
                       {teamMembers.map(member => {
                         const p = member.profile;
                         const isOwner = member.user_id === selectedProject.created_by;
@@ -3925,7 +3925,7 @@ export const ProjectMatePage: React.FC = () => {
                       <span>🏆</span>
                       <span>Member Task History</span>
                     </h4>
-                    <div className={`min-w-0 space-y-2 pr-1 ${teamMembers.length > 4 ? 'max-h-[360px] overflow-y-auto thin-scrollbar' : ''}`}>
+                    <div className="min-w-0 max-h-[280px] space-y-2 overflow-y-auto thin-scrollbar pr-1">
                       {teamMembers.map(member => {
                         const memberTasks = projectTasks.filter(t => t.assigned_to === member.user_id);
                         const verified = memberTasks.filter(t => t.status === 'verified').length;
@@ -3993,7 +3993,7 @@ export const ProjectMatePage: React.FC = () => {
                         All team positions have been filled! 🎉
                       </p>
                     ) : (
-                      <div className={`min-w-0 space-y-2 pr-1 ${selectedProject.roles.length > 4 ? 'max-h-[300px] overflow-y-auto thin-scrollbar' : ''}`}>
+                      <div className="min-w-0 max-h-[260px] space-y-2 overflow-y-auto thin-scrollbar pr-1">
                         {[...selectedProject.roles]
                           .sort((a, b) => {
                             const aOpen = a.slots_needed - a.slots_filled > 0;
