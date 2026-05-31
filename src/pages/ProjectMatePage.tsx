@@ -3397,7 +3397,7 @@ export const ProjectMatePage: React.FC = () => {
                       )}
                     </div>
                                       </div>
-                    <div className="w-full max-w-full min-w-0 space-y-4">
+                    <div className="w-full max-w-full min-w-0 space-y-4 xl:sticky xl:top-24 xl:self-start xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto thin-scrollbar xl:pr-1">
 
                 {/* === PHASE 6.3C: ROLE MANAGEMENT PANEL === */}
                 {selectedProject.is_owner && (
@@ -3925,7 +3925,7 @@ export const ProjectMatePage: React.FC = () => {
                       <span>🏆</span>
                       <span>Member Task History</span>
                     </h4>
-                    <div className="min-w-0 max-h-[280px] space-y-2 overflow-y-auto thin-scrollbar pr-1">
+                    <div className="min-w-0 max-h-[260px] space-y-2 overflow-y-auto thin-scrollbar pr-1">
                       {teamMembers.map(member => {
                         const memberTasks = projectTasks.filter(t => t.assigned_to === member.user_id);
                         const verified = memberTasks.filter(t => t.status === 'verified').length;
@@ -3993,7 +3993,7 @@ export const ProjectMatePage: React.FC = () => {
                         All team positions have been filled! 🎉
                       </p>
                     ) : (
-                      <div className="min-w-0 max-h-[260px] space-y-2 overflow-y-auto thin-scrollbar pr-1">
+                      <div className="min-w-0 max-h-[240px] space-y-2 overflow-y-auto thin-scrollbar pr-1">
                         {[...selectedProject.roles]
                           .sort((a, b) => {
                             const aOpen = a.slots_needed - a.slots_filled > 0;
