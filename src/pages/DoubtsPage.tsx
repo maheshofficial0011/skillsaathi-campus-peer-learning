@@ -432,7 +432,7 @@ const DoubtsPage: React.FC = () => {
               onAction={() => { setSearchQuery(''); setFilterCategory('All'); setFilterStatus('All'); }}
             />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 pr-1 ${allFilteredDoubts.length > 4 ? 'max-h-[500px] overflow-y-auto thin-scrollbar' : ''}`}>
               {allFilteredDoubts.map((doubt) => (
                 <DoubtCard
                   key={doubt.id}
@@ -516,7 +516,7 @@ const TabSection: React.FC<TabSectionProps> = ({
           onAction={emptyAction?.onClick}
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 pr-1 ${childArray.length > 4 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
           {children}
         </div>
       )}

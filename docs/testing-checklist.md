@@ -1500,3 +1500,38 @@ select * from public.project_team_members limit 5;
 - [ ] Ensure that mobile screen views are completely responsive and have no horizontal overflow.
 - [ ] Confirm that no private contact phone/WhatsApp or private task files are exposed.
 
+ 
+
+---
+
+## 31. Phase 6.4D: Global Long-List Scroll Polish & Compact Section Management
+
+### 1. Anonymous Doubts Board Polish
+- [ ] Post 5+ doubts to load the "All Doubts" list. Verify that the doubt list body scrolls internally (`max-h-[500px] overflow-y-auto thin-scrollbar pr-1`) while filter headers and tab buttons stay fixed outside.
+- [ ] Go to "Answered by Me" tab with 5+ doubts. Verify it limits height (`max-h-[420px]`) and scrolls internally without horizontal overflow.
+- [ ] Verify "Recommended" and "My Doubts" tabs scroll internally (`max-h-[420px]`) only when they contain more than 4 cards.
+- [ ] Verify that empty states are beautifully styled and do not get squished or clipped inside scroll heights.
+
+### 2. Learning Circles Page Polish
+- [ ] Browse active circles with 5+ Discover Circles. Verify that the grid container scrolls internally (`max-h-[500px] overflow-y-auto thin-scrollbar pr-1.5`).
+- [ ] Verify search inputs and filter menus stay fixed and remain fully responsive.
+- [ ] Join 5+ circles. Open the "My Circles" tab and verify it scrolls internally (`max-h-[420px] overflow-y-auto thin-scrollbar pr-1.5`).
+- [ ] Go to Circle Workspace -> Members Tab. Add 6+ members to the study circle. Verify the roster list container scrolls internally (`max-h-[360px] overflow-y-auto thin-scrollbar pr-1`).
+- [ ] Go to Circle Workspace -> Resources Tab -> Verification Queue. Add 4+ resources waiting for verification. Verify the queue scrolls internally (`max-h-[300px] overflow-y-auto thin-scrollbar pr-1`).
+
+### 3. Dashboard Campus Peer Help Requests
+- [ ] Post 4+ peer help requests. Verify that the dashboard "Recommended Matches" list scrolls internally (`max-h-[420px]`) when more than 3 cards exist.
+- [ ] Verify that "My Requests", "Accepted by Me", and "All Requests" tabs scroll internally (`max-h-[420px]`) when more than 4 cards exist.
+- [ ] Verify that the dashboard right sidebar ("Study Circles & Cohorts") is not affected by board scrolls.
+
+### 4. Project Mate Resources & Timeline Timelines
+- [ ] Open Shared Resources inside project workspace with 5+ verified materials. Verify list body scrolls internally (`max-h-[420px]`) with no horizontal overflow.
+- [ ] Verify "My Submitted Materials" scrolls internally (`max-h-[300px]`) with more than 4 items, and long filenames truncate safely with title tooltips.
+- [ ] Verify "Material Verification Queue" scrolls internally (`max-h-[300px]`) with more than 3 pending items.
+- [ ] Go to "My Profile" tab with 5+ verified task contributions. Verify timeline scrolls internally (`max-h-[420px]`).
+
+### 5. Unified Verification & Mobile Responsive Checks
+- [ ] Verify that TypeScript compilations and production builds pass cleanly (`npx tsc -p tsconfig.app.json --noEmit`, `npm run build`).
+- [ ] Verify that scroll containers are responsive and stack elements cleanly on mobile viewports.
+- [ ] Verify that there is zero horizontal overflow or hidden button actions within scroll boxes.
+

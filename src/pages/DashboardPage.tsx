@@ -519,7 +519,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail,
               </button>
             ))}
           </div>
-
           {loading ? (
             <LoadingState label="Refreshing Board..." minHeight="min-h-[200px]" />
           ) : (
@@ -532,7 +531,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail,
                     message="No matching requests yet. Update your profile skills or browse all campus requests."
                   />
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 pr-1 ${sortedRecommended.length > 3 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {sortedRecommended.map((req) => renderCard(req))}
                   </div>
                 )
@@ -548,7 +547,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail,
                     onAction={() => setShowCreateModal(true)}
                   />
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 pr-1 ${sortedMyRequests.length > 4 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {sortedMyRequests.map((req) => renderCard(req))}
                   </div>
                 )
@@ -564,7 +563,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail,
                     onAction={() => handleTabChange('all')}
                   />
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 pr-1 ${sortedAcceptedByMe.length > 4 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {sortedAcceptedByMe.map((req) => renderCard(req))}
                   </div>
                 )
@@ -580,7 +579,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail,
                     onAction={handleResetFilters}
                   />
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 pr-1 ${sortedFilteredRequests.length > 4 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {sortedFilteredRequests.map((req) => renderCard(req))}
                   </div>
                 )
@@ -588,8 +587,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ userId, userEmail,
             </>
           )}
         </div>
-
-        {/* Side Panel: Study Circles (Phase 3 placeholder) */}
         <div className="space-y-4">
           <h3 className="text-lg font-bold text-slate-900">Study Circles &amp; Cohorts</h3>
           <div className="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4 shadow-sm">

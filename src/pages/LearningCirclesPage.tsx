@@ -2392,7 +2392,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
               ) : sortedMembers.length === 0 ? (
                 <EmptyState icon="👥" message="No members yet." />
               ) : (
-                <div className="space-y-2 text-left">
+                <div className={`space-y-2 text-left pr-1 ${sortedMembers.length > 5 ? 'max-h-[360px] overflow-y-auto thin-scrollbar' : ''}`}>
                   {sortedMembers.map((m) => (
                     <div key={m.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                       <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm flex-shrink-0">
@@ -2703,7 +2703,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
                           ⚠️ <span className="font-semibold text-slate-700">Disclaimer:</span> Automated link reviews are basic. Please manually inspect each shared file or URL before approving to maintain study group integrity and prevent spam or malicious content.
                         </p>
 
-                        <div className="space-y-3">
+                        <div className={`space-y-3 pr-1 ${verificationQueue.length > 3 ? 'max-h-[300px] overflow-y-auto thin-scrollbar' : ''}`}>
                           {verificationQueue.map((r) => {
                             const check = r.url ? runResourceLinkSafetyCheck(r.url) : { isSafe: true };
                             return (
@@ -4644,7 +4644,7 @@ export const LearningCirclesPage: React.FC = () => {
           ) : (
             <>
               <p className="text-sm text-slate-500">{filteredCircles.length} circle{filteredCircles.length !== 1 ? 's' : ''} found</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pr-1.5 ${filteredCircles.length > 4 ? 'max-h-[500px] overflow-y-auto thin-scrollbar' : ''}`}>
                 {filteredCircles.map((circle) => {
                   const matchingReq = myJoinRequests
                     .filter(r => r.circle_id === circle.id)
@@ -4729,7 +4729,7 @@ export const LearningCirclesPage: React.FC = () => {
               ) : (
                 <>
                   <p className="text-sm text-slate-500">{myCircles.length} circle{myCircles.length !== 1 ? 's' : ''} — sorted by newest first</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pr-1.5 ${myCircles.length > 4 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {myCircles.map((circle) => {
                       const matchingReq = myJoinRequests.find(r => r.circle_id === circle.id);
                       return (
