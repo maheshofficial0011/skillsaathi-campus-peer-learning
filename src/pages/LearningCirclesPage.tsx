@@ -2208,7 +2208,7 @@ const CircleWorkspace: React.FC<CircleWorkspaceProps> = ({ circle, currentUserId
             ) : activeRequests.length === 0 ? (
               <EmptyState icon="⏳" message="No pending join requests at the moment." />
             ) : (
-              <div className="space-y-4 font-sans">
+              <div className="space-y-4 font-sans max-h-[520px] overflow-y-auto thin-scrollbar pr-1">
                 {activeRequests.map((req) => (
                   <div key={req.id} className="p-5 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm space-y-4 text-left">
                     
