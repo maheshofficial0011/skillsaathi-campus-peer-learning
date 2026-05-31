@@ -17,7 +17,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 }) => {
   const authenticatedNavItems = [
     { id: 'landing', label: 'Home' },
-    { id: 'auth', label: 'Auth Gateway' },
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'profile', label: 'My Profile' },
     { id: 'doubts', label: 'Anonymous Doubts' },
@@ -78,7 +77,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
       {/* Main Layout Area */}
       <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden max-w-7xl w-full mx-auto min-h-0">
         {/* Navigation Sidebar */}
-        <aside className="w-full lg:w-64 p-4 lg:py-6 lg:border-r border-slate-200 shrink-0 flex flex-col justify-between lg:h-full lg:overflow-y-auto min-h-0">
+        <aside className="w-full lg:w-64 p-4 lg:py-6 lg:border-r border-b lg:border-b-0 border-slate-200 shrink-0 flex flex-col justify-between lg:h-full lg:overflow-y-auto min-h-0">
           <div className="space-y-6">
             <nav className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible gap-1 pb-3 lg:pb-0 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
               {navItems.map((item) => {
@@ -141,7 +140,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
               ))}
             </div>
             <p>&copy; 2026 SkillSaathi Campus Platform. All rights reserved.</p>
-            <p>© 2026 SkillSaathi Campus Platform. All rights reserved. (Phase 6.6 Enabled)</p>
           </footer>
         </main>
       </div>

@@ -137,7 +137,7 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## Ã°Å¸â€�ï¿½ 1. Authentication & Route Protection
+## 1. Authentication & Route Protection
 - [ ] **Registration Flow**:
   - Visit the auth portal, toggle to "Create Campus Account".
   - Fill in all fields (Full Name, Email, Password, Department, Year, Section).
@@ -153,7 +153,7 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## Ã°Å¸â€˜Â¤ 2. Profile Page & Completeness Card
+## 2. Profile Page & Completeness Card
 - [ ] **Profile Completeness Calculations**:
   - Go to **My Profile**.
   - Count missing fields in the view panel.
@@ -172,7 +172,7 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## Ã°Å¸Â¤ï¿½ 3. Peer Help Requests Board
+## 3. Peer Help Requests Board
 - [ ] **Creation Modal**:
   - Click **+ Create Help Request** on the Dashboard.
   - Fill in Title, Description, Category, Urgency, Skills, and optional Deadline.
@@ -189,7 +189,7 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## Ã°Å¸â€™Â¬ 4. Anonymous Doubts Module
+## 4. Anonymous Doubts Module
 - [ ] **Doubt Creation**:
   - Open **Anonymous Doubts** board.
   - Click **+ Ask a Doubt**.
@@ -212,7 +212,7 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## Ã°Å¸â€œÂ± 5. Mobile Responsiveness Polish
+## 5. Mobile Responsiveness Polish
 - [ ] **Main Layout Sidebar**:
   - Open Developer Tools in your browser, switch to a mobile device view (e.g. iPhone SE / 375px width).
   - Verify that navigation sidebar items form a horizontal scrolling list at the top or bottom of the screen.
@@ -226,53 +226,53 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## Ã¢Å“ï¿½Ã¯Â¸ï¿½ 6. Doubt Answer & Reply Edit / Delete
+## 6. Doubt Answer & Reply Edit / Delete
 
 > **Requires Supabase patch**: Run `supabase/phase3-answer-reply-edit-delete-patch.sql` in the SQL Editor before testing.
 
-- [ ] **Edit own answer**: Post an answer. Click **Edit** Ã¢â€ â€™ modify text Ã¢â€ â€™ **Save Answer**. Verify success toast and `(edited)` label appears.
+- [ ] **Edit own answer**: Post an answer. Click **Edit** → modify text → **Save Answer**. Verify success toast and `(edited)` label appears.
 - [ ] **Cancel edit**: Click **Cancel**. Verify original text restored with no API call.
 - [ ] **Delete own unaccepted answer**: Delete an unaccepted/unpinned answer. Confirm dialog. Verify it disappears, counters update, toast fires.
-- [ ] **Delete blocked for accepted answer**: Verify no **Delete** button; hint `"Accepted Ã¢â‚¬â€� cannot delete"` shown.
-- [ ] **Delete blocked for pinned answer**: Verify no **Delete** button; hint `"Pinned Ã¢â‚¬â€� cannot delete"` shown.
-- [ ] **Edit own reply**: Click **Edit** on own reply Ã¢â€ â€™ modify Ã¢â€ â€™ **Save**. Verify toast and `(edited)` label.
+- [ ] **Delete blocked for accepted answer**: Verify no **Delete** button; hint `"Accepted — cannot delete"` shown.
+- [ ] **Delete blocked for pinned answer**: Verify no **Delete** button; hint `"Pinned — cannot delete"` shown.
+- [ ] **Edit own reply**: Click **Edit** on own reply → modify → **Save**. Verify toast and `(edited)` label.
 - [ ] **Delete own reply (not pinned)**: Confirm dialog. Verify reply removed, count decremented, toast fires.
-- [ ] **Delete blocked for pinned reply**: Reply author sees `"Pinned Ã¢â‚¬â€� cannot delete"` instead of Delete button.
-- [ ] **Other users cannot edit/delete**: Log in as a different user Ã¢â‚¬â€� no Edit/Delete buttons on others' answers or replies.
+- [ ] **Delete blocked for pinned reply**: Reply author sees `"Pinned — cannot delete"` instead of Delete button.
+- [ ] **Other users cannot edit/delete**: Log in as a different user — no Edit/Delete buttons on others' answers or replies.
 
 ---
 
-## Ã°Å¸â€œÅ’ 7. Reply Pinning
+## 7. Reply Pinning
 
 > **Requires Supabase patch**: Run `supabase/phase3-answer-reply-edit-delete-patch.sql`.
 
-- [ ] **Doubt creator can pin a reply**: Click **Ã°Å¸â€œÅ’ Pin** on a reply Ã¢â€ â€™ success toast Ã¢â€ â€™ `Ã°Å¸â€œÅ’ Pinned` amber badge appears.
+- [ ] **Doubt creator can pin a reply**: Click **📌 Pin** on a reply → success toast → `📌 Pinned` amber badge appears.
 - [ ] **Pinned reply floats to top**: Pinned reply appears before all un-pinned replies in the thread.
 - [ ] **Multiple pinned replies allowed**: Pin two replies. Both appear at the top with amber badges.
-- [ ] **Doubt creator can unpin**: Click **Ã°Å¸â€œÅ’ Unpin** Ã¢â€ â€™ badge disappears, reply sorts normally.
-- [ ] **Non-creator cannot pin**: Log in as non-creator Ã¢â‚¬â€� no Pin button in reply action rows.
-- [ ] **Closed doubt Ã¢â‚¬â€� no pinning**: Close the doubt. Pin button disappears even for creator.
-- [ ] **Sort respects pinned first**: Toggle Ã°Å¸â€�Â¥ Top / Ã°Å¸â€¢â€™ Newest. Pinned replies always stay at the top.
+- [ ] **Doubt creator can unpin**: Click **📌 Unpin** → badge disappears, reply sorts normally.
+- [ ] **Non-creator cannot pin**: Log in as non-creator — no Pin button in reply action rows.
+- [ ] **Closed doubt — no pinning**: Close the doubt. Pin button disappears even for creator.
+- [ ] **Sort respects pinned first**: Toggle 🔥 Top / 🕒 Newest. Pinned replies always stay at the top.
 - [ ] **Reply author can edit pinned reply**: **Edit** button still visible; text saves; `(edited)` label appears.
 
 ---
 
-## Ã°Å¸â€ºÂ¡Ã¯Â¸ï¿½ 8. Self-Answer Safety
+## 8. Self-Answer Safety
 
 > **Product rule**: Self-answering is allowed. Students can share their own solutions. But it is labelled and does not inflate stats.
 
 - [ ] **Doubt creator can post own answer**: While status is `open` or `answered`, creator submits an answer. Success toast fires.
-- [ ] **Own answer shows badge**: Creator's answer shows grey `Ã°Å¸â„¢â€¹ Answered by asker` badge. Other users' answers do NOT show this badge.
-- [ ] **Doubt creator cannot rate own answer**: No **Ã¢Â­ï¿½ Rate** button on the creator's own answer. Rating form is inaccessible.
-- [ ] **Doubt creator CAN rate other users' answers**: Ã¢Â­ï¿½ Rate button appears on others' answers when status is `answered`/`solved`.
-- [ ] **Doubt creator can accept own answer**: Ã¢Å“â€¦ Accept visible on own answer. After accepting: `Ã¢Å“â€¦ Accepted Answer` badge appears, status Ã¢â€ â€™ `solved`.
-- [ ] **Own accepted answer does NOT inflate stat**: Go to **My Profile Ã¢â€ â€™ Doubt Contribution**. Accepting own answer should NOT increment `Accepted Answers` count.
+- [ ] **Own answer shows badge**: Creator's answer shows grey `🙋 Answered by asker` badge. Other users' answers do NOT show this badge.
+- [ ] **Doubt creator cannot rate own answer**: No **⭐ Rate** button on the creator's own answer. Rating form is inaccessible.
+- [ ] **Doubt creator CAN rate other users' answers**: ⭐ Rate button appears on others' answers when status is `answered`/`solved`.
+- [ ] **Doubt creator can accept own answer**: ✅ Accept visible on own answer. After accepting: `✅ Accepted Answer` badge appears, status → `solved`.
+- [ ] **Own accepted answer does NOT inflate stat**: Go to **My Profile → Doubt Contribution**. Accepting own answer should NOT increment `Accepted Answers` count.
 - [ ] **External accepted answer DOES increment stat**: The answerer's profile `Accepted Answers` count increases after creator accepts their answer.
-- [ ] **Like button hidden for own content**: Ã°Å¸â€˜ï¿½ Like button not shown on own answers or replies. Count is still displayed as read-only text if others liked it.
+- [ ] **Like button hidden for own content**: 👍 Like button not shown on own answers or replies. Count is still displayed as read-only text if others liked it.
 
 ---
 
-## Ã°Å¸Å½â€œ 9. Phase 4 - Senior Connect Module & Polishes
+## 9. Phase 4 - Senior Connect Module & Polishes
 
 > **Requires Supabase patches**: Run `supabase/phase4-senior-connect-patch.sql` and `supabase/phase4-senior-connect-contact-patch.sql` in the SQL Editor.
 
@@ -291,10 +291,10 @@ Run before first deployment or after any SQL patch:
   - Filter by department or topic. Verify cards filter instantly.
 
 - [ ] **Guidance Request Coordination Workflow**:
-  - Log in with Student Account A. Go to **Senior Connect** Ã¢â€ â€™ **Find Seniors**.
+  - Log in with Student Account A. Go to **Senior Connect** → **Find Seniors**.
   - Locate Senior Mentor B. Click **Request Guidance**. Prevents requesting self (Senior Mentor B sees request modal blocked for their own profile).
-  - Submit request with topic, message, preferred mode, and time. Outgoing request appears in **My Requests** as `Ã¢ï¿½Â³ pending`.
-  - Log in as Senior Mentor B. Go to **Senior Connect** Ã¢â€ â€™ **Mentor Dashboard**.
+  - Submit request with topic, message, preferred mode, and time. Outgoing request appears in **My Requests** as `🕒 pending`.
+  - Log in as Senior Mentor B. Go to **Senior Connect** → **Mentor Dashboard**.
   - In **Incoming Guidance Requests**, locate Student A's request. Click **Accept**.
   - Verify the accept modal prompts for:
     * Message (optional)
@@ -303,14 +303,14 @@ Run before first deployment or after any SQL patch:
     * Meeting/Contact Details (required text)
   - Fill these details and submit. Request moves to accepted.
   - Log back in as Student A. Check **My Requests**.
-  - Verify the request shows `Ã¢Å“â€¦ accepted` status and a dedicated **Session Coordination Details** panel appears:
+  - Verify the request shows `✅ accepted` status and a dedicated **Session Coordination Details** panel appears:
     * Displays selected Mode, Scheduled Time, and a clean copy-paste contact details card showing the Meet link or campus location shared by the senior.
-  - Senior marks the session as `completed`. Verify status changes to `Ã°Å¸Å½â€œ completed` and statistics update.
+  - Senior marks the session as `completed`. Verify status changes to `🏆 completed` and statistics update.
 
 - [ ] **Senior Mentor Impact stats**:
   - Log in as Senior Mentor B. View the **Mentor Dashboard**.
   - Verify that the stats grid lists 6 distinct counters: **Received, Pending, Accepted, Completed, Declined, Completion Rate (%)**.
-  - Open the **My Profile** page. Verify a dedicated **Ã°Å¸Å½â€œ Senior Mentor Impact** section is rendered with Completed, Accepted, Pending, Declined, and Completion Rate counters, bio, topics of expertise, availability hours, and preference mode.
+  - Open the **My Profile** page. Verify a dedicated **🏆 Senior Mentor Impact** section is rendered with Completed, Accepted, Pending, Declined, and Completion Rate counters, bio, topics of expertise, availability hours, and preference mode.
   - Click on Senior Mentor B's name from a Doubt post to open their `PublicProfileModal`.
   - Verify a premium **Senior Mentor** card is rendered containing their bio, expertise badges, availability details, and the 3-column stats panel (**Completed, Accepted, Completion Rate %**).
   - Double check that this section does NOT mix with Peer Help trust scores or Doubt rating stats.
@@ -321,7 +321,7 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## Ã°Å¸Å½â€œ 10. Phase 4.5 - Senior Connect Reputation & Safety Polish
+## 10. Phase 4.5 - Senior Connect Reputation & Safety Polish
 
 > **Requires Supabase patches**: Run `supabase/phase4-contact-privacy-patch.sql` and `supabase/phase4-senior-reviews-safety-patch.sql` in the SQL Editor.
 
@@ -330,26 +330,26 @@ Run before first deployment or after any SQL patch:
   - Locate the **Mentor Status** select dropdown (Accepting / Busy / Unavailable).
   - Select `Unavailable` and click **Save**.
   - Log in as a different student. Browse the mentor in **Find Seniors**.
-  - Verify that the card displays a clear `Unavailable` badge, a warning message `"Ã¢Å¡Â Ã¯Â¸ï¿½ This mentor is not accepting requests right now"`, and the **Request Guidance** button is completely disabled.
+  - Verify that the card displays a clear `Unavailable` badge, a warning message `"⚠️ This mentor is not accepting requests right now"`, and the **Request Guidance** button is completely disabled.
   - Log back in as the mentor, change status to `Busy`, and save.
-  - Log in as the student, verify the card displays a `Busy` badge, shows a warning `"Ã¢Å¡Â Ã¯Â¸ï¿½ Mentor is busy; response may be delayed"`, but the **Request Guidance** button is ENABLED and allows requests.
+  - Log in as the student, verify the card displays a `Busy` badge, shows a warning `"⚠️ Mentor is busy; response may be delayed"`, but the **Request Guidance** button is ENABLED and allows requests.
   - Set status to `Accepting`. Verify normal behavior.
 
 - [ ] **Guidance Feedback (Ratings & Reviews)**:
   - Log in as Student A. Once a guidance session with Senior B is marked as `completed`, locate the request in **My Requests**.
-  - Verify a **Ã¢Â­ï¿½ Give Mentor Feedback** button is visible.
+  - Verify a **⭐ Give Mentor Feedback** button is visible.
   - Click it. The **Rate Guidance Session** modal should open, showing:
-    * 1Ã¢â‚¬â€œ5 star selectors (rating > 0 validation constraint).
+    * 1–5 star selectors (rating > 0 validation constraint).
     * Helpfulness Yes / No toggle buttons.
     * Comments textbox.
   - Select 5 stars, click "Yes, helpful", write a comment, and submit. Verify success toast.
-  - The button should now change to **Ã¢Å“ï¿½Ã¯Â¸ï¿½ Edit Review** and show a `Ã¢Å“â€œ Reviewed` badge.
-  - Click **Ã¢Å“ï¿½Ã¯Â¸ï¿½ Edit Review**, change rating or comment, and save. Verify success toast.
+  - The button should now change to **✍️ Edit Review** and show a `✅ Reviewed` badge.
+  - Click **✍️ Edit Review**, change rating or comment, and save. Verify success toast.
   - Try logging in as the senior (Senior B). Try to review your own session. Verify RLS and UI prevent seniors from reviewing their own sessions.
 
 - [ ] **Public Profile Reviews Grid**:
   - Open Senior B's **Public Profile Modal** from a post or card.
-  - Verify that the profile displays the cumulative **Average Mentor Rating** (e.g. `Ã¢Â­ï¿½ 5.0`) and the **Guidance Reviews** count.
+  - Verify that the profile displays the cumulative **Average Mentor Rating** (e.g. `⭐ 5.0`) and the **Guidance Reviews** count.
   - Verify that a list of **Recent Guidance Reviews** is rendered.
   - Verify that each review item is strictly anonymous, showing `"Anonymous Junior"` instead of student name/email/UUID.
   - Verify that the recent reviews list is capped at a maximum of the 3 most recent records.
@@ -362,17 +362,17 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## Ã¢Â­ï¿½ 11. Phase 4.6 - Review Display & Mentor Review Management Polish
+## 11. Phase 4.6 - Review Display & Mentor Review Management Polish
 
 - [ ] **Mentor Dashboard Received Reviews**:
   - Log in as a Senior Mentor who has received reviews from juniors.
   - Navigate to **Senior Connect** -> **Mentor Dashboard** (Tab 3).
-  - Verify that a dedicated **Ã¢Â­ï¿½ Reviews Received** section is visible.
+  - Verify that a dedicated **⭐ Reviews Received** section is visible.
   - Check that if there are no reviews, a clean empty state card is displayed: `"No mentor reviews yet. Complete guidance sessions to receive reviews."`
   - If reviews exist, verify that each review card contains:
     * Reviewer's real public name (e.g. `Jane Doe`), department, and year of study (due to the completed guidance session connection).
-    * Rating stars (1Ã¢â‚¬â€œ5).
-    * Helpfulness badge (`Ã°Å¸â€˜ï¿½ Helpful`).
+    * Rating stars (1–5).
+    * Helpfulness badge (`👍 Helpful`).
     * Guidance request topic (e.g. `Resume Review`).
     * Date and comment content.
   - Verify that reviewer email and reviewer UUID are strictly HIDDEN and not leaked.
@@ -383,7 +383,7 @@ Run before first deployment or after any SQL patch:
   - Verify that reviews are organized into two separate compact sections: **Senior Guidance Reviews** and **Peer Help Reviews**.
   - Verify that **Senior Guidance Reviews** are strictly anonymous, showing `"Anonymous Junior"` as the reviewer, and never leak email, UUID, phone, or WhatsApp details.
   - Verify that reviews in both sections are sorted by quality (best-first):
-    1. Rating (1Ã¢â‚¬â€œ5) descending.
+    1. Rating (1–5) descending.
     2. Helpful (`true`) first.
     3. Created_at date descending.
   - Verify that both sections initially display a maximum of `3` reviews.
@@ -394,9 +394,9 @@ Run before first deployment or after any SQL patch:
 - [ ] **User's Own Profile Page (ProfilePage) Review Summaries**:
   - Log in and navigate to **My Profile**.
   - Locate the **Senior Mentor Impact** card.
-  - Verify that a **Ã¢Â­ï¿½ Top Received Mentor Reviews** section is rendered.
+  - Verify that a **⭐ Top Received Mentor Reviews** section is rendered.
   - Check that it lists up to the top 3 best mentor reviews (sorted quality-first) anonymously.
-  - Verify that if you have more than 3 reviews, a footnote is displayed: `"Ã°Å¸â€™Â¡ View all received mentor reviews in Senior Connect dashboard."`
+  - Verify that if you have more than 3 reviews, a footnote is displayed: `"💡 View all received mentor reviews in Senior Connect dashboard."`
 
 - [ ] **Reputation Systems Separation**:
   - Verify that there is no combined global score or mixed ratings:
@@ -407,54 +407,54 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## Ã°Å¸â€œË† 12. Phase 4.7 - Final Pre-Phase-5 Stability & Review UX Polish
+## 12. Phase 4.7 - Final Pre-Phase-5 Stability & Review UX Polish
 
 - [ ] **My Profile Toggles & Counters**:
   - Go to **My Profile** tab.
   - Verify **Peer Help Reviews (N)** header displays the compact count of reviews.
-  - Verify reviews sort quality-first (`rating desc Ã¢â€ â€™ helpful true first Ã¢â€ â€™ created_at desc`).
+  - Verify reviews sort quality-first (`rating desc → helpful true first → created_at desc`).
   - Verify Peer Help reviews cap at `3` initially with an independent **Show more reviews** / **Show fewer reviews** button.
-  - Verify **Ã¢Â­ï¿½ Top Received Mentor Reviews (N)** header displays the compact count of reviews.
+  - Verify **⭐ Top Received Mentor Reviews (N)** header displays the compact count of reviews.
   - Verify Mentor reviews cap at `3` initially with an independent **Show more reviews** / **Show fewer reviews** button and the redirection footnote.
   - Verify empty states `"No peer help reviews yet"` and `"No senior guidance reviews yet"` render nicely when there are no reviews.
 
 - [ ] **Mentor Dashboard Reviews Capping & Counters**:
-  - Open **Senior Connect** Ã¢â€ â€™ **Mentor Dashboard** (Tab 3).
-  - Verify header displays **Ã¢Â­ï¿½ Reviews Received (N)** with total received reviews count.
+  - Open **Senior Connect** → **Mentor Dashboard** (Tab 3).
+  - Verify header displays **⭐ Reviews Received (N)** with total received reviews count.
   - Verify the list of reviews is sorted best-first.
   - Verify the list caps at `5` initially with a local **Show more reviews** / **Show fewer reviews** button.
   - Verify that clicking the button expands the list locally to show all received reviews.
 
 - [ ] **In-Page Review Refresh**:
-  - As a student, navigate to **Senior Connect** Ã¢â€ â€™ **My Requests**.
+  - As a student, navigate to **Senior Connect** → **My Requests**.
   - Rate a completed session (submit or edit feedback).
   - Submit the form. Verify that the request status, review badges, and any active dashboard reviews lists are immediately updated in-place without requiring a browser reload.
 
 - [ ] **Contact Privacy & Warning Copy**:
   - Edit your profile and go to the **Private Contact Sharing Settings** section.
   - Verify the explicit gating warnings are displayed:
-    * `"Ã°Å¸â€�â€™ Only visible after an accepted/completed connection."`
-    * `"Ã¢Å“â€œ Only contact methods enabled by the user are shown."`
-    * `"Ã°Å¸Å¡Â« Private contact is never shown on public profiles."`
+    * `"🔑 Only visible after an accepted/completed connection."`
+    * `"✅ Only contact methods enabled by the user are shown."`
+    * `"🚫 Private contact is never shown on public profiles."`
   - Open an accepted help request coordinate modal or guidance request coordination card.
   - Verify that the shared contact details card displays the same explicit gating warning copy consistently.
 
 - [ ] **Request Workflow Descriptions & Warnings**:
   - Verify that request status cards display status-specific descriptive workflow notes:
-    * **Pending**: `"Ã¢ï¿½Â³ Waiting for mentor response."` or `"Ã¢ï¿½Â³ Waiting for your response."`
-    * **Accepted**: `"Ã¢Å“â€¦ Session coordination is available below."` or `"Ã¢Å“â€¦ Session coordination is active below."`
-    * **Completed**: `"Ã°Å¸Å½â€œ Guidance completed. You can review this mentor."` or `"Ã°Å¸Å½â€œ Guidance completed."`
-    * **Declined**: `"Ã¢ï¿½Å’ Mentor declined this request."` or `"Ã¢ï¿½Å’ You declined this request."`
-    * **Cancelled**: `"Ã°Å¸Å¡Â« You cancelled this request."` or `"Ã°Å¸Å¡Â« Student cancelled this request."`
-  - Verify duplicate requests show descriptive info: `"Ã¢â€žÂ¹Ã¯Â¸ï¿½ You already have an active request with this mentor. New requests are allowed after completed, cancelled, or declined sessions."`
+    * **Pending**: `"🕒 Waiting for mentor response."` or `"🕒 Waiting for your response."`
+    * **Accepted**: `"✅ Session coordination is available below."` or `"✅ Session coordination is active below."`
+    * **Completed**: `"🏆 Guidance completed. You can review this mentor."` or `"🏆 Guidance completed."`
+    * **Declined**: `"❌ Mentor declined this request."` or `"❌ You declined this request."`
+    * **Cancelled**: `"🚫 You cancelled this request."` or `"🚫 Student cancelled this request."`
+  - Verify duplicate requests show descriptive info: `"ℹ️ You already have an active request with this mentor. New requests are allowed after completed, cancelled, or declined sessions."`
 
 ---
 
-## Ã°Å¸â€�Âµ 13. Phase 5 Ã¢â‚¬â€� Learning Circles Module
+## 🔵 13. Phase 5 — Learning Circles Module
 
 ### Circle Discovery & Filters
 - [ ] **Discover Circles Tab**:
-  - Navigate to Learning Circles Ã¢â€ â€™ Discover tab.
+  - Navigate to Learning Circles → Discover tab.
   - Verify search bar filters circles by title, description, category, and department.
   - Verify Category, Difficulty, and Meeting Mode dropdowns filter results correctly.
   - Verify "X circles found" count updates dynamically.
@@ -464,26 +464,26 @@ Run before first deployment or after any SQL patch:
 ### Circle Creation
 - [ ] **Create Circle Modal**:
   - Click "Start a Circle" button.
-  - Leave Title blank Ã¢â€ â€™ submit Ã¢â€ â€™ verify inline error "Title is required."
-  - Enter a Title shorter than 5 chars Ã¢â€ â€™ verify "Title must be at least 5 characters."
-  - Enter Description shorter than 20 chars Ã¢â€ â€™ verify "Description must be at least 20 characters."
-  - Enter Max Members = 1 Ã¢â€ â€™ verify "Max members must be between 2 and 100."
-  - Enter Meeting Location as `http://insecure.com` Ã¢â€ â€™ verify error about https://.
-  - Enter Meeting Location as plain text "Room 203 Block B" Ã¢â€ â€™ verify accepted (no error).
-  - Enter Meeting Location as `https://meet.google.com/xyz` Ã¢â€ â€™ verify accepted.
-  - Fill all fields correctly Ã¢â€ â€™ submit Ã¢â€ â€™ verify success toast "Circle Created! Ã°Å¸Å½â€°".
-  - Verify circle appears in "My Circles" tab with "Ã°Å¸â€˜â€˜ Owner" badge.
+  - Leave Title blank → submit → verify inline error "Title is required."
+  - Enter a Title shorter than 5 chars → verify "Title must be at least 5 characters."
+  - Enter Description shorter than 20 chars → verify "Description must be at least 20 characters."
+  - Enter Max Members = 1 → verify "Max members must be between 2 and 100."
+  - Enter Meeting Location as `http://insecure.com` → verify error about https://.
+  - Enter Meeting Location as plain text "Room 203 Block B" → verify accepted (no error).
+  - Enter Meeting Location as `https://meet.google.com/xyz` → verify accepted.
+  - Fill all fields correctly → submit → verify success toast "Circle Created! 🏆".
+  - Verify circle appears in "My Circles" tab with "🙋 Owner" badge.
   - Verify workspace opens automatically after creation.
 
 ### Join & Leave
 - [ ] **Join Circle**:
   - As a different user, find an active public circle.
-  - Click "+ Join" Ã¢â€ â€™ verify success toast "Joined! Ã°Å¸Å½â€°".
-  - Verify "Ã¢Å“â€œ Joined" badge appears on card.
+  - Click "+ Join" → verify success toast "Joined! 🏆".
+  - Verify "✅ Joined" badge appears on card.
   - Verify "Open Workspace" button replaces "Join" button.
-  - Try joining again Ã¢â€ â€™ verify error "You are already a member of this circle."
-  - Set max_members to current count Ã¢â€ â€™ try to join Ã¢â€ â€™ verify "This circle is full." error.
-  - Archive the circle Ã¢â€ â€™ try joining Ã¢â€ â€™ verify "This circle is not accepting new members right now." error.
+  - Try joining again → verify error "You are already a member of this circle."
+  - Set max_members to current count → try to join → verify "This circle is full." error.
+  - Archive the circle → try joining → verify "This circle is not accepting new members right now." error.
 
 ### Leave Circle
 - [ ] **Leave Circle**:
@@ -494,33 +494,36 @@ Run before first deployment or after any SQL patch:
 
 ### Circle Workspace
 - [ ] **Overview Tab**:
-  - Open a circle workspace Ã¢â€ â€™ verify Overview shows description, category, difficulty, mode, schedule, location/link, creator, created date, member count, visibility.
+  - Open a circle workspace → verify Overview shows description, category, difficulty, mode, schedule, location/link, creator, created date, member count, visibility.
   - If location is a URL (https://), verify it renders as a clickable link.
   - If location is plain text, verify it renders as text.
   - If archived/paused, verify amber warning banner appears.
   - If not a member, verify "You are not a member yet" info box appears.
 
+### Members Tab
 - [ ] **Members Tab**:
-  - Open Members tab Ã¢â€ â€™ verify all members are listed with name, department, year, join date.
-  - Verify Owner has "Ã°Å¸â€˜â€˜ Owner" badge, others have "Member" badge.
+  - Open Members tab → verify all members are listed with name, department, year, join date.
+  - Verify Owner has "🙋 Owner" badge, others have "Member" badge.
   - Verify names do not expose raw UUIDs or emails.
 
+### Resources Tab
 - [ ] **Resources Tab**:
   - As a member, click "Share a Resource".
-  - Submit with empty Title Ã¢â€ â€™ verify "Title is required."
-  - Enter URL as `http://insecure.com` Ã¢â€ â€™ verify "URL must use https:// protocol" error.
-  - Enter URL as `javascript:alert(1)` Ã¢â€ â€™ verify blocked with https error.
-  - Enter URL as `https://youtube.com` Ã¢â€ â€™ verify accepted.
+  - Submit with empty Title → verify "Title is required."
+  - Enter URL as `http://insecure.com` → verify "URL must use https:// protocol" error.
+  - Enter URL as `javascript:alert(1)` → verify blocked with https error.
+  - Enter URL as `https://youtube.com` → verify accepted.
   - Verify resource appears in list with type icon, title, uploader name, relative timestamp.
   - Verify uploader can delete their own resource (trash icon visible).
   - Verify owner can also delete any resource.
   - Verify non-uploader non-owner sees no delete icon.
   - As an archived circle member, verify "Share a Resource" form is hidden.
 
+### Discussion Tab
 - [ ] **Discussion Tab**:
   - As a member, post a message with type "Update".
   - Verify post appears at top with author name, time, type badge.
-  - Post with type "Question", "Plan", "Announcement" Ã¢â€ â€™ verify different badge colors.
+  - Post with type "Question", "Plan", "Announcement" → verify different badge colors.
   - Verify post author can delete their own post.
   - Verify circle owner can delete any post.
   - Verify non-author non-owner cannot see delete icon on others' posts.
@@ -528,34 +531,34 @@ Run before first deployment or after any SQL patch:
 
 ### Archive / Restore
 - [ ] **Archive Circle (Owner only)**:
-  - In workspace header, click "Ã°Å¸â€œÂ¦ Archive".
+  - In workspace header, click "📁 Archive".
   - Verify success toast "Circle Archived".
   - Verify workspace header shows "archived" badge.
   - Verify "Archived" status badge appears on circle card.
   - Verify Join button is hidden on archived circles.
   - Verify post form and resource form are hidden in workspace.
-  - Click "Ã¢â„¢Â» Restore" Ã¢â€ â€™ verify "Circle Restored" toast and active status restored.
+  - Click "♻️ Restore" → verify "Circle Restored" toast and active status restored.
 
 ### Profile Integration
-- [ ] **My Profile Ã¢â‚¬â€œ Learning Circles Count**:
+- [ ] **My Profile – Learning Circles Count**:
   - After joining 1+ circles, navigate to My Profile.
-  - Verify "Ã°Å¸â€�Âµ Learning Circles" section appears below Doubts section.
+  - Verify "🔵 Learning Circles" section appears below Doubts section.
   - Verify the count displayed matches the number of circles joined/owned.
   - Verify the section is hidden if user has 0 circles.
 
 ### Security & Privacy
 - [ ] **URL Safety**:
-  - Attempt to share a resource with URL `javascript:void(0)` Ã¢â€ â€™ blocked.
-  - Attempt to share a resource with URL `data:text/html,...` Ã¢â€ â€™ blocked.
-  - Attempt to share a resource with URL `file:///etc/passwd` Ã¢â€ â€™ blocked.
-  - Attempt to share a resource with URL `https://drive.google.com/...` Ã¢â€ â€™ accepted.
+  - Attempt to share a resource with URL `javascript:void(0)` → blocked.
+  - Attempt to share a resource with URL `data:text/html,...` → blocked.
+  - Attempt to share a resource with URL `file:///etc/passwd` → blocked.
+  - Attempt to share a resource with URL `https://drive.google.com/...` → accepted.
 - [ ] **No Private Data Leaks**:
   - Verify no UUID, email, or phone number is displayed anywhere in the Learning Circles module.
   - Verify all member names resolve to full_name from profiles join.
 
 ---
 
-## Ã°Å¸â€�Âµ 14. Phase 5.1 Ã¢â‚¬â€� Learning Circle Secure Resource Uploads & Owner Status Lock
+## 🔵 14. Phase 5.1 — Learning Circle Secure Resource Uploads & Owner Status Lock
 
 ### Secure File Uploads
 - [ ] **Segment Selector (Link vs File)**:
@@ -575,7 +578,7 @@ Run before first deployment or after any SQL patch:
 - [ ] **File Upload Submission**:
   - Add an optional description and submit the form.
   - Verify that the loading state triggers: "+ Uploading..." is displayed, and inputs are disabled.
-  - Once complete, verify that a success toast "File Uploaded! Ã°Å¸Å¡â‚¬" is shown, and the new resource appears in the list with a beautiful "Ã°Å¸â€™Â¾ [Size]" badge, original uploader name, and secure preview/download actions.
+  - Once complete, verify that a success toast "File Uploaded! 🚀" is shown, and the new resource appears in the list with a beautiful "💾 [Size]" badge, original uploader name, and secure preview/download actions.
 
 ### Secure Preview Lightbox Modal
 - [ ] **PDF Interactive Preview**:
@@ -594,11 +597,11 @@ Run before first deployment or after any SQL patch:
 ### Status Lock Restrictions
 - [ ] **Upload Lock States**:
   - Log in as the Owner and go to the Overview tab.
-  - Select **Ã°Å¸Å¸Â¡ Pause Uploads** status.
+  - Select **🏗️ Pause Uploads** status.
   - Switch to the Resources tab as the Owner or a normal Member.
-  - Verify that the "+ Share a Resource" button and form are replaced by: `"Ã°Å¸â€�â€™ Resource uploads are disabled because this circle is currently paused."`
+  - Verify that the "+ Share a Resource" button and form are replaced by: `"🔑 Resource uploads are disabled because this circle is currently paused."`
   - Verify that discussions and announcements still remain active.
-  - Select **Ã°Å¸â€œÂ¦ Archive** status.
+  - Select **📁 Archive** status.
   - Verify that both the resource upload form AND the discussion post forms are completely hidden.
 
 ### Secure Role Capabilities
@@ -611,7 +614,7 @@ Run before first deployment or after any SQL patch:
   - Verify that when a file resource is deleted, it is securely deleted from the private Supabase Storage bucket first before removing the row from PostgreSQL.
 
 
-## Ã°Å¸â€�Âµ 15. Phase 5.2 Ã¢â‚¬â€� Learning Circle Join Requests & Member Profile Verification
+## 15. Phase 5.2 — Learning Circle Join Requests & Member Profile Verification
 
 ### Join Request Workflow
 - [ ] **Request to Join Button**:
@@ -624,7 +627,7 @@ Run before first deployment or after any SQL patch:
   - Leave the application message blank or type less than 10 characters.
   - Click **Submit Application**. Verify that an error message: `"Please provide a message explaining why you want to join (minimum 10 characters)."` is displayed and submission is blocked.
   - Type a meaningful message (at least 10 characters) and submit.
-  - Verify that a success toast `"Request Submitted! Ã¢Å’â€º"` is shown, the modal closes, and the button changes to `"Ã¢Å’â€º Pending (Cancel)"`.
+  - Verify that a success toast `"Request Submitted! ⌛"` is shown, the modal closes, and the button changes to `"⌛ Pending (Cancel)"`.
 - [ ] **Pending Requests Summary & Cancellation**:
   - Navigate to the **My Circles** explorer tab.
   - Locate the **Pending Join Requests** dashboard panel.
@@ -659,7 +662,7 @@ Run before first deployment or after any SQL patch:
   - Log in as the Owner and go to the **Join Requests** tab.
   - Click **Accept Application** (with or without a custom response message).
   - **NOTE**: The database RLS insert policy requires the join request to have status = `accepted` before the membership row can be inserted. Verify that the API executes the status update first, followed by the membership insert.
-  - Verify that a success toast `"Application Approved! Ã°Å¸Å½â€°"` is shown, and the request is removed from the list.
+  - Verify that a success toast `"Application Approved! 🏆"` is shown, and the request is removed from the list.
   - Click the **Members** tab in the workspace. Verify that the accepted requester has been instantly added as a `member`.
   - Log in as the accepted student. Verify that you can now fully access the workspace, share resources, view files, and write discussion posts.
 
@@ -675,7 +678,7 @@ Run before first deployment or after any SQL patch:
   - Change all URL inputs to start with strictly `https://` (e.g., `https://github.com/user`, `https://linkedin.com/in/user`). Click **Save Changes**. Verify that saving succeeds without issue.
 
 
-## Ã°Å¸Å’Å¸ Phase 5.3: Learning Circle Workflow Rules, Owner Management, Resource Ranking Polish
+## Phase 5.3: Learning Circle Workflow Rules, Owner Management, Resource Ranking Polish
 
 ### 1. Private Meeting Coordinates Access
 - [ ] **Owner Setup**:
@@ -704,29 +707,29 @@ Run before first deployment or after any SQL patch:
 ### 3. Owner Roster Controls & Alphabetical Members List
 - [ ] **Roster Alphabetical Sorting**:
   - Open the **Members** tab in your workspace.
-  - Verify that the **Owner** is strictly pinned at the very top of the list with a `"Ã°Å¸â€˜â€˜ Owner"` badge.
+  - Verify that the **Owner** is strictly pinned at the very top of the list with a `"🙋 Owner"` badge.
   - Verify that all other members are sorted strictly **alphabetically** by their public full name.
 - [ ] **Member Removal**:
   - As the Owner, locate a standard member on the roster.
-  - Click the **Ã¢ï¿½Å’ Remove** button next to their name and confirm the browser alert.
+  - Click the **❌ Remove** button next to their name and confirm the browser alert.
   - Verify that the member is removed from the roster instantly, and the member count is decremented.
   - Log in as the removed member. Verify that you have lost access to the workspace, resources, and discussions, and can now cleanly submit a new join request.
 
 ### 4. Resource Pinning & Likes Interaction
 - [ ] **One Like Per User Constraint**:
   - Open the **Resources** tab as a member.
-  - Locate a resource and click the **Ã°Å¸Â¤ï¿½ Like** button. Verify that the like count is incremented and the button changes to `Ã¢ï¿½Â¤Ã¯Â¸ï¿½ Liked`.
+  - Locate a resource and click the **👍 Like** button. Verify that the like count is incremented and the button changes to `❤️ Liked`.
   - Click the button again. Verify that it unlikes the resource, decrementing the count back to 0.
 - [ ] **Owner-only Resource Pinning**:
-  - As a circle owner, locate a resource. Click **Ã°Å¸â€œÅ’ Pin**.
-  - Verify that a vibrant `Ã°Å¸â€œÅ’ PINNED` badge is rendered, and the resource is instantly ranked at the very top of the list.
+  - As a circle owner, locate a resource. Click **📌 Pin**.
+  - Verify that a vibrant `📌 PINNED` badge is rendered, and the resource is instantly ranked at the very top of the list.
   - Verify that regular members **do not** see the pin/unpin action button.
 - [ ] **Resource Paging / Pagination**:
   - Upload 4 or more study resources.
   - Verify that initially only the top 3 resources are rendered.
-  - Verify that a **Ã¢Å¾â€¢ Show more resources** button is rendered at the bottom of the list.
-  - Click the button. Verify that the list expands to show all remaining resources, and is replaced by a **Ã¢Å¾â€“ Show fewer resources** button to collapse it back.
-## Ã°Å¸Å’Å¸ Phase 5.4: Learning Circle Exit Workflow & Resource Verification System
+  - Verify that a **➕ Show more resources** button is rendered at the bottom of the list.
+  - Click the button. Verify that the list expands to show all remaining resources, and is replaced by a **➖ Show fewer resources** button to collapse it back.
+## Phase 5.4: Learning Circle Exit Workflow & Resource Verification System
 
 ### 1. Leave Study Circle Exit Form
 - [ ] **Departing Member Flow**:
@@ -734,17 +737,17 @@ Run before first deployment or after any SQL patch:
   - On the circle card (Discover/My Circles), click the **Leave** button.
   - Verify that a premium looking **Leave Circle: [Circle Name]** modal is rendered.
   - Select a reason (e.g., "Completed learning goal") and type an optional message: `"Thanks for the great DSA discussions!"`.
-  - Click **Ã°Å¸Å¡Âª Leave Study Circle** and confirm the success toast.
+  - Click **🚫 Leave Study Circle** and confirm the success toast.
   - Verify that you are instantly removed from the circle, loss of workspace access is immediate, and you can now request to join again cleanly.
   - Verify that the owner **does not** see the old accepted request as `"Repair Needed"`.
 
 ### 2. Owner Remove Member custom form
 - [ ] **Roster Removal Flow**:
   - As the Owner, navigate to the **Members** tab.
-  - Click the **Ã¢ï¿½Å’ Remove** button next to a standard member.
+  - Click the **❌ Remove** button next to a standard member.
   - Verify that a premium looking **Remove Member: [Member Name]** modal is rendered.
   - Choose a reason (e.g., "Inactive member") and write a message: `"No updates in over 2 weeks. Removing to open slots."`.
-  - Click **Ã°Å¸Å¡Â« Remove Member** and confirm the success toast.
+  - Click **🚫 Remove Member** and confirm the success toast.
   - Verify that the roster is updated, and the member loses access.
   - Log in as the removed student. Verify that you can cleanly request to join again, and see the owner's custom removal reason.
 
@@ -755,21 +758,21 @@ Run before first deployment or after any SQL patch:
   - Type a secure URL in link mode (e.g., `https://google.com/notes`). Note the live formatting verification alert.
   - Click **Share Resource**. Verify the success toast: `"Your shared material has been sent to the circle owner for verification."`
   - Verify that the link is **not** displayed in the Main Library Resources list yet.
-  - Locate the **My Submitted Resources** panel. Verify that the link is listed with an orange `Ã¢ï¿½Â³ Pending` badge.
+  - Locate the **My Submitted Resources** panel. Verify that the link is listed with an orange `🕒 Pending` badge.
 
 ### 4. Owner Resource Verification Console & Safety Check
 - [ ] **Resource Approval Flow**:
   - Log in as the Owner of the circle. Open the **Resources** tab.
   - Locate the **Resource Verification Queue** console. Verify that the member's pending link is listed with uploader name, shared date, link coordinates, safety formats, and Decline/Approve buttons.
-  - Click **Ã¢Å“â€¦ Approve Only**. Verify that the resource is removed from the verification queue and added to the **Main Library Resources** list with a success toast.
+  - Click **✅ Approve Only**. Verify that the resource is removed from the verification queue and added to the **Main Library Resources** list with a success toast.
 - [ ] **Safety warning triggers**:
   - Log in as a member. Submit a resource URL targeting an executable file (e.g., `https://example.com/malicious.exe`).
   - Log in as the Owner. Locate the item in the verification queue.
   - Verify that a prominent amber safety warning is displayed: `"This link targets a file type (.exe) that can be executed."`
-  - Click **Ã¢ï¿½Å’ Decline & Reject**.
+  - Click **❌ Decline & Reject**.
   - Verify that a custom modal prompts you for a rejection reason.
   - Type `"Executable file formats are blocked for security."` (must be at least 5 chars). Click **Decline Material**.
-  - Log in as the member. Locate the item in **My Submitted Resources**. Verify that it has a red `Ã¢ï¿½Å’ Rejected` badge and displays the owner's feedback reason inline.
+  - Log in as the member. Locate the item in **My Submitted Resources**. Verify that it has a red `❌ Rejected` badge and displays the owner's feedback reason inline.
 
 ### 5. Roster Aggregate Stats and Owner Recommendation Ranking
 - [ ] **Members stats display**:
@@ -777,10 +780,10 @@ Run before first deployment or after any SQL patch:
   - Verify that each member card displays inline aggregate metrics, e.g., `Shared: 2 | V: 1 | P: 1 | R: 0`.
 - [ ] **Star Recommendation Rank**:
   - As the Owner, locate a verified resource in the main library list.
-  - Click **Ã¢Â­ï¿½ Recommend**. Verify that a premium blue `Ã¢Â­ï¿½ RECOMMENDED` badge is rendered, and the resource is sorted directly above likes/newest (pinned is still at the absolute top).
+  - Click **⭐ Recommend**. Verify that a premium blue `⭐ RECOMMENDED` badge is rendered, and the resource is sorted directly above likes/newest (pinned is still at the absolute top).
   - Regular members see the badge, but **cannot** toggle the recommendation status.
 
-## Ã¢Å¡â„¢Ã¯Â¸ï¿½ Phase 5.4A: Leave Lifecycle Tracking and Old Accepted Request Cleanup
+## 🛠️ Phase 5.4A: Leave Lifecycle Tracking and Old Accepted Request Cleanup
 
 ### 1. Old Accepted Request Filtering (Anti-"Repair Needed" check)
 - [ ] **False Repair Shield**:
@@ -803,9 +806,9 @@ Run before first deployment or after any SQL patch:
   - Navigate to the **Discover** tab. Locate the circle card.
   - Verify that the card's join request button renders `"Request Again"`.
   - Click `"Request Again"`. Type a new application message (minimum 10 chars) and submit.
-  - Verify the application goes to pending status, and displays `"Ã¢Å’â€º Pending (Cancel)"` to block duplicates.
+  - Verify the application goes to pending status, and displays `"⌛ Pending (Cancel)"` to block duplicates.
 
-## Ã°Å¸â€™Å½ Phase 5.5: Learning Circles Final Polish & Stability Checklist
+## Phase 5.5: Learning Circles Final Polish & Stability Checklist
 
 ### 1. Verification Queue & Rejected Resource Polish
 - [ ] **Active Owner Verification Queue Filtering**:
@@ -817,7 +820,7 @@ Run before first deployment or after any SQL patch:
   - Toggle the collapsible section open. Verify that historically rejected resources are displayed with their title, uploader name, rejected date, and rejection reason, and that **no** Accept/Decline action buttons are shown.
 - [ ] **Uploader-only Rejected Status Panel**:
   - Log in as the member whose resource was rejected.
-  - Verify that the rejected resource remains visible strictly inside **My Submitted Resources** dashboard panel, showing a red `Ã¢ï¿½Å’ Rejected` badge and the owner's custom rejection feedback reason.
+  - Verify that the rejected resource remains visible strictly inside **My Submitted Resources** dashboard panel, showing a red `❌ Rejected` badge and the owner's custom rejection feedback reason.
   - Verify that this rejected resource is completely invisible inside the **Main Library Resources** view.
 - [ ] **Empty Active Queue State**:
   - As the Owner, verify that if there are no pending resources waiting for review, the verification console renders a clean status label: `"No resources waiting for verification."`
@@ -825,7 +828,7 @@ Run before first deployment or after any SQL patch:
 ### 2. Workspace Roster & Spacing Details
 - [ ] **Owner Roster Priority**:
   - Open the **Members** tab in the circle workspace.
-  - Verify that the Owner is strictly displayed at the very top of the list with a `"Ã°Å¸â€˜â€˜ Owner"` badge.
+  - Verify that the Owner is strictly displayed at the very top of the list with a `"🙋 Owner"` badge.
 - [ ] **Alphabetical Standard Members Sorting**:
   - Verify that all standard members are sorted strictly alphabetically by their full profile name.
 - [ ] **Tablet/Mobile Spacing and Joined Dates**:
@@ -838,11 +841,11 @@ Run before first deployment or after any SQL patch:
 - [ ] **Tab Header Resource Counters**:
   - Verify that the tab header displays the exact current library resources count, e.g., `"Resources (3)"`.
 - [ ] **Main Library Badges**:
-  - Open the verified resources list. Verify that every resource renders a green `"Ã¢Å“â€¦ Verified by Owner"` badge.
-  - Verify that owner-pinned resources render `"Ã°Å¸â€œÅ’ Pinned"` and owner-recommended resources render `"Ã¢Â­ï¿½ Owner Recommended"`.
-  - Verify that likes display in a clean `"Ã°Å¸â€˜ï¿½ X likes"` button format.
+  - Open the verified resources list. Verify that every resource renders a green `"✅ Verified by Owner"` badge.
+  - Verify that owner-pinned resources render `"📌 Pinned"` and owner-recommended resources render `"⭐ Owner Recommended"`.
+  - Verify that likes display in a clean `"👍 X likes"` button format.
 - [ ] **Resource Slicing and Expansion Toggles**:
-  - Verify that if there are 4 or more verified resources, only the first 3 are rendered, with smooth `Ã¢Å¾â€¢ Show more resources` and `Ã¢Å¾â€“ Show fewer resources` buttons to toggle expansion.
+  - Verify that if there are 4 or more verified resources, only the first 3 are rendered, with smooth `➕ Show more resources` and `➖ Show fewer resources` buttons to toggle expansion.
 - [ ] **Resource Sorting Hierarchy**:
   - Verify resources are ranked in the following exact hierarchy: `Pinned first -> Recommended second -> Likes count third -> Newest first`.
 
@@ -852,8 +855,8 @@ Run before first deployment or after any SQL patch:
   - Log in as a member. Verify that the credentials card is titled `"Members-only meeting details"`.
   - Verify that if meeting details are empty, the coordinates container displays: `"Meeting details will be shared by the owner."`
 - [ ] **Clipboard Copy Triggers**:
-  - Click the **Copy (Ã°Å¸â€œâ€¹)** button next to the meeting link. Verify that it copies the URL to your clipboard and fires a success toast: `"Meeting link copied to clipboard."`
-  - Click the **Copy (Ã°Å¸â€œâ€¹)** button next to the meeting password. Verify that it copies the passcode to your clipboard and fires a success toast: `"Meeting password copied to clipboard."`
+  - Click the **Copy (📋)** button next to the meeting link. Verify that it copies the URL to your clipboard and fires a success toast: `"Meeting link copied to clipboard."`
+  - Click the **Copy (📋)** button next to the meeting password. Verify that it copies the passcode to your clipboard and fires a success toast: `"Meeting password copied to clipboard."`
 
 ### 5. Standard Empty States & Fallbacks
 - [ ] **Main Verified Resources Fallback**:
@@ -868,14 +871,14 @@ Run before first deployment or after any SQL patch:
 ### 6. Cohort Capacity Bounds and request Again
 - [ ] **Discover Cards cohort limits**:
   - Locate a full circle. Verify that the card displays a red `"Full"` badge and shows members count as `C/M` (e.g. `20/20`).
-  - Verify that the join button is active but displays a clear warning: `"Full Ã¢â‚¬â€� owner must increase capacity before accepting."`
+  - Verify that the join button is active but displays a clear warning: `"Full — owner must increase capacity before accepting."`
   - Verify that the join application is still allowed to be sent to the owner, but the owner is blocked from accepting until they increase maximum capacity.
 - [ ] **Request Again Verification**:
   - After a member intentionally leaves or is removed, verify that the Discover card join button displays `"Request Again"` and lets the student re-apply.
 
 ---
 
-## Ã°Å¸â€”Â£Ã¯Â¸ï¿½ Phase 5.6: Professional Discussion Board, Moderation, Presence System & UX Polish
+## 🗣️ Phase 5.6: Professional Discussion Board, Moderation, Presence System & UX Polish
 
 ### 1. SQL Database Patch Verification
 - [ ] **Presence Table Created**:
@@ -899,9 +902,9 @@ Run before first deployment or after any SQL patch:
 
 ### 3. New Post Composer Modal
 - [ ] **Open Composer**:
-  - Click `Ã¢Å¾â€¢ New Post`. Verify the composer modal opens.
+  - Click `➕ New Post`. Verify the composer modal opens.
 - [ ] **Post Type Selection**:
-  - Verify the post type dropdown includes: `Ã°Å¸â€œÂ¢ Discussion`, `Ã¢ï¿½â€œ Question`, `Ã°Å¸â€œÂ£ Announcement` (owner only), `Ã°Å¸â€œâ€¦ Study Plan`.
+  - Verify the post type dropdown includes: `📢 Discussion`, `❓ Question`, `📣 Announcement` (owner only), `📅 Study Plan`.
   - As a non-owner, verify that the `Announcement` option is hidden or blocked.
 - [ ] **Character Counter Validation**:
   - Try submitting with an empty title or body. Verify inline error messages appear.
@@ -918,21 +921,21 @@ Run before first deployment or after any SQL patch:
 - [ ] **"Edited" Label**:
   - Edit an existing post. Verify a small `(edited)` timestamp label appears next to the post's timestamp after saving.
 - [ ] **Soft-Delete Placeholder**:
-  - As the owner, soft-delete a post. Verify the post renders a dashed placeholder: `"Ã°Å¸Å¡Â« This post was removed by the owner."` instead of disappearing from the list.
+  - As the owner, soft-delete a post. Verify the post renders a dashed placeholder: `"🚫 This post was removed by the owner."` instead of disappearing from the list.
 
 ### 5. Question Resolution
 - [ ] **Mark Resolved**:
-  - Create a `question` type post. Verify the `Ã¢Å“â€¦ Mark Resolved` button is present.
-  - Click it. Verify the post card shows a `Ã¢Å“â€¦ Resolved` badge.
+  - Create a `question` type post. Verify the `✅ Mark Resolved` button is present.
+  - Click it. Verify the post card shows a `✅ Resolved` badge.
 - [ ] **Filter by Resolved State**:
-  - In the filter bar, select the `Ã¢ï¿½â€œ Questions` post type. Verify a new filter dropdown appears: `All Questions`, `Ã¢ï¿½â€œ Open / Unresolved`, `Ã¢Å“â€¦ Resolved Only`.
+  - In the filter bar, select the `❓ Questions` post type. Verify a new filter dropdown appears: `All Questions`, `❓ Open / Unresolved`, `✅ Resolved Only`.
   - Toggle between states. Verify only matching posts appear in the list.
 
 ### 6. Post Pinning & Helpful Reactions
 - [ ] **Owner Pin Post**:
-  - As the circle owner, click the pin action on a post. Verify the post moves to the top of the list and shows a `Ã°Å¸â€œÅ’ Pinned` indicator.
+  - As the circle owner, click the pin action on a post. Verify the post moves to the top of the list and shows a `📌 Pinned` indicator.
 - [ ] **Helpful Reaction**:
-  - Click `Ã°Å¸â€˜ï¿½ Helpful` on a post. Verify the count increments.
+  - Click `👍 Helpful` on a post. Verify the count increments.
   - Click again to undo. Verify the count decrements.
   - Verify users cannot react to their own posts (or that it handles gracefully).
 
@@ -946,24 +949,24 @@ Run before first deployment or after any SQL patch:
   - As the reply author, click edit. Modify the text and save. Verify `(edited)` appears.
   - Delete the reply. Verify it disappears from the drawer and the post's reply count decrements.
 - [ ] **Author Online Dot**:
-  - If the post author is logged in concurrently, verify a small animated green dot Ã°Å¸Å¸Â¢ appears on their avatar.
+  - If the post author is logged in concurrently, verify a small animated green dot 🟢 appears on their avatar.
 
 ### 8. Search & Filter Controls
 - [ ] **Search Input**:
   - Type a keyword in the search box. Verify only matching posts (by title or body) are shown.
   - Clear the search. Verify all posts return.
 - [ ] **"My Posts" Toggle**:
-  - Click `Ã°Å¸â€˜Â¤ My Posts`. Verify only posts by the current user are shown.
+  - Click `👤 My Posts`. Verify only posts by the current user are shown.
 - [ ] **Paused/Archived Read-Only Banner**:
   - As the owner, change the circle status to `Paused` or `Archived`.
-  - Navigate to the Discussion tab. Verify the amber banner `"Ã°Å¸â€�â€™ Discussions are read-only because this circle is currently paused/archived."` appears.
-  - Verify the `Ã¢Å¾â€¢ New Post` button is hidden while in this state.
+  - Navigate to the Discussion tab. Verify the amber banner `"🔑 Discussions are read-only because this circle is currently paused/archived."` appears.
+  - Verify the `➕ New Post` button is hidden while in this state.
 
 ### 9. Lightweight Presence Bar
 - [ ] **Bar Renders for Members**:
   - As an accepted member, open a circle workspace. Verify the presence bar appears between the tab navigation and the tab content area.
 - [ ] **Presence Counts**:
-  - Verify the bar shows: Ã°Å¸Å¸Â¢ X online Ã‚Â· Ã°Å¸Å¸Â¡ Y recently active Ã‚Â· Ã¢Å¡Â« Z offline.
+  - Verify the bar shows: 🟢 X online · 🟡 Y recently active · ⚫ Z offline.
   - Open the workspace from a second user account in a separate browser. Verify the online count updates on the next heartbeat (within ~60 seconds).
 - [ ] **Hidden for Non-Members**:
   - As a non-member or guest, verify the presence bar does not render.
@@ -978,12 +981,11 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## Ã°Å¸â€œâ€¹ Phase 5.6B Ã¢â‚¬â€� Discussion Auto-Cleanup & Deletion Lifecycle
+## 📋 Phase 5.6B — Discussion Auto-Cleanup & Deletion Lifecycle
 
 ### 1. Deleted Post Placeholder (4-Hour Window)
 - [ ] **Soft delete a post** as the author or owner. Verify:
   - The post's content (title, body, tags) is immediately hidden.
-  - A `Ã°Å¸Å¡Â« This post was deleted by the author.` or `This post was removed by the owner.` placeholder appears.
   - The placeholder shows `Visible for a few hours for context Ã‚Â· <relative time>`.
   - No helpful button, reply button, edit/delete actions, pin, or resolve controls are shown on the placeholder.
 - [ ] **Confirm delete modal** reads:  
@@ -1035,23 +1037,23 @@ Run before first deployment or after any SQL patch:
 
 ---
 
-## Ã°Å¸Â¤ï¿½ 15. Phase 6.1 Ã¢â‚¬â€� Find Teammates / Project Mate Finder Core System
+## 🤝 Phase 6.1 — Find Teammates / Project Mate Finder Core System
 
 > **Requires Supabase Patch**: Run `supabase/phase6-project-mate-finder-core-patch.sql` in the SQL Editor before testing.
 
 ### 1. Project Creation Workflow
 - [ ] **Create Project Modal validation**:
   - Open **Find Teammates** tab. Click **+ Post Project Board**.
-  - Submit title shorter than 5 chars Ã¢â€ â€™ verify warning: `"Title must be at least 5 characters long."`
-  - Submit description shorter than 20 chars Ã¢â€ â€™ verify warning: `"Description must be at least 20 characters long."`
-  - Set Max Team Size < 2 or > 20 Ã¢â€ â€™ verify validation blocks it.
+  - Submit title shorter than 5 chars → verify warning: `"Title must be at least 5 characters long."`
+  - Submit description shorter than 20 chars → verify warning: `"Description must be at least 20 characters long."`
+  - Set Max Team Size < 2 or > 20 → verify validation blocks it.
 - [ ] **Role Builder constructor**:
   - Click **+ Add Role Slot**. Define role names, prerequisite skills, slots count, description, and select priority.
   - Verify that leaving optional description or skills empty does not block creation.
 - [ ] **HTTPS coordination links validation**:
-  - In coordination links, enter `http://google.com/meet` Ã¢â€ â€™ verify warning: `"All external links must strictly use the https:// protocol."`
-  - Enter `javascript:alert(1)` or `data:text/html` Ã¢â€ â€™ verify strict validation blocks submission.
-  - Enter valid URLs starting with strictly `https://` Ã¢â€ â€™ verify successful creation.
+  - In coordination links, enter `http://google.com/meet` → verify warning: `"All external links must strictly use the https:// protocol."`
+  - Enter `javascript:alert(1)` or `data:text/html` → verify strict validation blocks submission.
+  - Enter valid URLs starting with strictly `https://` → verify successful creation.
 - [ ] **Project Owner bootstrap**:
   - Once project is created, click **Manage Workspace** -> check **Team Roster** card.
   - Verify that the creator has been automatically registered as a team member with role: `"Project Owner"`.
@@ -1079,8 +1081,8 @@ Run before first deployment or after any SQL patch:
 - [ ] **Submit Application**:
   - Log in with Student Account A (not project creator). Go to discover list.
   - Click **Join Request** (or **Apply** next to a role). The **Submit Join Request** modal should open.
-  - Enter message shorter than 10 characters Ã¢â€ â€™ submit Ã¢â€ â€™ verify warning: `"Application message must be at least 10 characters."`
-  - Enter invalid portfolio URL (e.g. `http://portfolio.com`) Ã¢â€ â€™ verify HTTPS block.
+  - Enter message shorter than 10 characters → submit → verify warning: `"Application message must be at least 10 characters."`
+  - Enter invalid portfolio URL (e.g. `http://portfolio.com`) → verify HTTPS block.
   - Enter message >= 10 chars, safe portfolio URL (https://) and click Submit. Verify success toast and status indicator shows `"Applied (pending)"`.
 - [ ] **Duplicate pending application blocked**:
   - Go back to the card. Try to apply again.
@@ -1178,7 +1180,7 @@ select * from public.project_team_members limit 5;
 
 ---
 
-## Ã°Å¸â€œâ€¹ Phase 6.2 Ã¢â‚¬â€� Project Mate Finder Lifecycle Polish, Discussion Board & Shared Resources
+## 📋 Phase 6.2 — Project Mate Finder Lifecycle Polish, Discussion Board & Shared Resources
 
 > **Requires Supabase Patch**: Run `supabase/phase6-project-mate-workspace-polish-patch.sql` in the SQL Editor before testing.
 
@@ -1247,15 +1249,15 @@ select * from public.project_team_members limit 5;
   - Verify that if the URL ends in `.exe`, a prominent safety warning alerts you.
   - Decline the material. Verify that a modal prompts you for a rejection reason.
   - Type a rejection reason and save. Verify the resource is removed from the queue.
-  - Log in as the member. Verify that the resource shows in your dashboard with a red `Ã¢ï¿½Å’ Rejected` badge and displays the owner's feedback comments.
+  - Log in as the member. Verify that the resource shows in your dashboard with a red `❌ Rejected` badge and displays the owner's feedback comments.
   - Approve a resource. Verify it is verified instantly, removed from the queue, and appears in the public **Verified Material Library** visible to all teammates.
 - [ ] **Owner & Uploader Pin Controls**:
-  - As the Owner, pin a verified resource. Verify a blue `Ã°Å¸â€œÅ’ PINNED` badge appears and it floats to the top of the library.
+  - As the Owner, pin a verified resource. Verify a blue `📌 PINNED` badge appears and it floats to the top of the library.
   - Verify that Owners and original uploaders can delete resources safely.
 
 ---
 
-## Ã°Å¸â€œâ€¹ Phase 6.3A Ã¢â‚¬â€� Project Formation Count Sync, Self-Healing DB Updates, and Custom Category/Type Support
+## 📋 Phase 6.3A — Project Formation Count Sync, Self-Healing DB Updates, and Custom Category/Type Support
 
 ### 1. Roster & Live Team Count Sync
 - [ ] **Active Count Live Truth**:
@@ -1292,13 +1294,13 @@ select * from public.project_team_members limit 5;
 
 ---
 
-## Ã°Å¸â€œâ€¹ Phase 6.3B Ã¢â‚¬â€� Project Mate Workspace Repairs & UX Polish
+## 📋 Phase 6.3B — Project Mate Workspace Repairs & UX Polish
 
 ### 1. One-User-One-Helpful-Reaction Toggling
 - [ ] **Single Helpful Vote**:
   - Log in as a member. Navigate to **Shared Resources**.
-  - Click **Ã°Å¸â€˜ï¿½ Helpful** on a verified resource. Verify the count increments from `0` to `1` and the button highlights as active.
-  - Click the **Ã°Å¸â€˜ï¿½ Helpful** button again. Verify the count decrements from `1` back to `0` and highlights are removed.
+  - Click **👍 Helpful** on a verified resource. Verify the count increments from `0` to `1` and the button highlights as active.
+  - Click the **👍 Helpful** button again. Verify the count decrements from `1` back to `0` and highlights are removed.
   - Click the button rapidly multiple times. Verify that count never inflates beyond `1` and strictly toggles between `0` and `1`.
   - Log in as the project owner. Verify that you see the updated reaction count, and clicking the button toggles your own individual upvote independently.
 
