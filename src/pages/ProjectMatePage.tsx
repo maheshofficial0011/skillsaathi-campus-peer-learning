@@ -3925,7 +3925,7 @@ export const ProjectMatePage: React.FC = () => {
                       <span>🏆</span>
                       <span>Member Task History</span>
                     </h4>
-                    <div className="min-w-0 max-h-[260px] space-y-2 overflow-y-auto thin-scrollbar pr-1">
+                    <div className="min-w-0 max-h-[260px] space-y-3 overflow-y-auto thin-scrollbar pr-1">
                       {teamMembers.map(member => {
                         const memberTasks = projectTasks.filter(t => t.assigned_to === member.user_id);
                         const verified = memberTasks.filter(t => t.status === 'verified').length;
@@ -3993,7 +3993,7 @@ export const ProjectMatePage: React.FC = () => {
                         All team positions have been filled! 🎉
                       </p>
                     ) : (
-                      <div className="min-w-0 max-h-[240px] space-y-2 overflow-y-auto thin-scrollbar pr-1">
+                      <div className="min-w-0 max-h-[240px] space-y-3 overflow-y-auto thin-scrollbar pr-1">
                         {[...selectedProject.roles]
                           .sort((a, b) => {
                             const aOpen = a.slots_needed - a.slots_filled > 0;
@@ -4262,7 +4262,7 @@ export const ProjectMatePage: React.FC = () => {
                     )}
 
                     {/* Posts List */}
-                    <div className="space-y-4">
+                    <div className="min-w-0 max-h-[520px] space-y-4 overflow-y-auto thin-scrollbar pr-1">
                       {(() => {
                         const filtered = discussionPosts.filter(post => {
                           if (discussionSearchQuery.trim() !== '') {
@@ -4286,7 +4286,7 @@ export const ProjectMatePage: React.FC = () => {
 
                         if (sorted.length === 0) {
                           return (
-                            <p className="text-xs text-slate-400 italic text-center py-10 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                            <p className="text-xs text-slate-400 italic text-center py-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
                               No discussion posts found. Click "New Post" to publish the first one!
                             </p>
                           );
@@ -4308,7 +4308,7 @@ export const ProjectMatePage: React.FC = () => {
                               return (
                                 <div
                                   key={post.id}
-                                  className={`p-5 border rounded-2xl shadow-sm space-y-3.5 relative hover:shadow-md transition-shadow animate-fade-in ${
+                                  className={`min-w-0 overflow-hidden p-5 border rounded-2xl shadow-sm space-y-3.5 relative hover:shadow-md transition-shadow animate-fade-in ${
                                     isAnnouncement 
                                       ? 'bg-rose-50/20 border-rose-250 border-l-4 border-l-rose-500' 
                                       : 'bg-white border-slate-200'
@@ -4352,8 +4352,8 @@ export const ProjectMatePage: React.FC = () => {
                                   </div>
 
                                   <div className="space-y-1.5 pt-1">
-                                    <h4 className="text-base font-black text-slate-850">{post.title}</h4>
-                                    <p className="text-xs text-slate-655 leading-relaxed whitespace-pre-wrap font-medium">{post.body}</p>
+                                    <h4 className="break-words text-base font-black text-slate-850">{post.title}</h4>
+                                    <p className="break-words text-xs text-slate-655 leading-relaxed whitespace-pre-wrap font-medium">{post.body}</p>
                                   </div>
 
                                   {post.tags && post.tags.length > 0 && (
@@ -4366,8 +4366,8 @@ export const ProjectMatePage: React.FC = () => {
                                     </div>
                                   )}
 
-                                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-4 text-xs font-semibold text-slate-500">
-                                    <div className="flex items-center gap-3">
+                                  <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4 text-xs font-semibold text-slate-500">
+                                    <div className="flex flex-wrap items-center gap-3">
                                       <button
                                         onClick={() => handleTogglePostHelpful(post.id)}
                                         className={`flex items-center gap-1 py-1.5 px-3 rounded-xl border transition-all font-bold ${
