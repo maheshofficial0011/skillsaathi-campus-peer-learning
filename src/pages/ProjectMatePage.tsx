@@ -1546,7 +1546,7 @@ export const ProjectMatePage: React.FC = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-7xl min-w-0 mx-auto space-y-6 overflow-x-hidden">
       
       {/* Dynamic Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-100 pb-5 gap-4">
@@ -1616,7 +1616,7 @@ export const ProjectMatePage: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex w-full min-w-0 max-w-full overflow-x-auto whitespace-nowrap thin-scrollbar border-b border-slate-200">
         <button
           onClick={() => setActiveTab('discover')}
           className={`px-4 py-3 text-sm font-bold border-b-2 transition-all ${
@@ -1668,10 +1668,10 @@ export const ProjectMatePage: React.FC = () => {
           <p className="text-sm text-slate-500 font-semibold">Syncing project board...</p>
         </div>
       ) : (
-        <div>
+        <div className="w-full min-w-0 max-w-full overflow-x-hidden">
           {/* TAB 1: DISCOVER PROJECTS */}
           {activeTab === 'discover' && (
-            <div className="space-y-6">
+            <div className="w-full max-w-full min-w-0 space-y-6 overflow-hidden">
               
               {/* Premium Filter Drawer/Box */}
               <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
@@ -2164,7 +2164,7 @@ export const ProjectMatePage: React.FC = () => {
             );
 
             return (
-              <div className="space-y-6">
+              <div className="w-full max-w-full min-w-0 space-y-6 overflow-hidden">
                 {/* SECTION 1: RECRUITING */}
                 {renderLifecycleSection(
                   '🔍 Recruiting Projects',
@@ -2550,9 +2550,9 @@ export const ProjectMatePage: React.FC = () => {
                     : 0;
 
                   return (
-                    <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-5">
+                    <div className="w-full max-w-full min-w-0 overflow-hidden p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-5">
                       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                        <div>
+                        <div className="min-w-0">
                           <span className="text-[10px] font-black uppercase text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-150">
                             Workspace
                           </span>
@@ -2610,25 +2610,25 @@ export const ProjectMatePage: React.FC = () => {
                       <p className="text-sm text-slate-600 leading-relaxed font-medium break-words">{selectedProject.description}</p>
                       
                       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl text-xs font-bold border border-slate-150">
-                        <div className="p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
+                        <div className="min-w-0 p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
                           <p className="text-slate-400 uppercase tracking-wider text-[10px] mb-0.5">Difficulty</p>
                           <p className="text-slate-800 text-sm font-black">{selectedProject.difficulty_level}</p>
                         </div>
-                        <div className="p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
+                        <div className="min-w-0 p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
                           <p className="text-slate-400 uppercase tracking-wider text-[10px] mb-0.5">Work Mode</p>
                           <p className="text-slate-800 text-sm font-black">{selectedProject.work_mode}</p>
                         </div>
-                        <div className="p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
+                        <div className="min-w-0 p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
                           <p className="text-slate-400 uppercase tracking-wider text-[10px] mb-0.5">Type</p>
                           <p className="text-slate-800 text-sm font-black truncate" title={formatProjectDisplayType(selectedProject.project_type)}>
                             {formatProjectDisplayType(selectedProject.project_type)}
                           </p>
                         </div>
-                        <div className="p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
+                        <div className="min-w-0 p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
                           <p className="text-slate-400 uppercase tracking-wider text-[10px] mb-0.5">Capacity</p>
                           <p className="text-slate-800 text-sm font-black">{teamMembers.length} / {selectedProject.max_team_size}</p>
                         </div>
-                        <div className="p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
+                        <div className="min-w-0 p-3 bg-white border border-slate-200/50 rounded-xl shadow-xs">
                           <p className="text-slate-400 uppercase tracking-wider text-[10px] mb-0.5">Open Roles</p>
                           <p className={`text-slate-800 text-sm font-black ${openRolesCount > 0 ? 'text-indigo-600' : 'text-slate-500'}`}>
                             {openRolesCount} {openRolesCount === 1 ? 'slot' : 'slots'}
@@ -2640,10 +2640,10 @@ export const ProjectMatePage: React.FC = () => {
                 })()}
 
                 {/* Subtab Navigation Bar */}
-                <div className="flex border-b border-slate-200 bg-white p-2 rounded-2xl shadow-sm gap-2">
+                <div className="flex w-full min-w-0 max-w-full overflow-x-auto whitespace-nowrap thin-scrollbar border-b border-slate-200 bg-white p-2 rounded-2xl shadow-sm gap-2">
                   <button
                     onClick={() => setWorkspaceSubTab('coordination')}
-                    className={`px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
+                    className={`shrink-0 px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
                       workspaceSubTab === 'coordination'
                         ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -2656,7 +2656,7 @@ export const ProjectMatePage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setWorkspaceSubTab('discussion')}
-                    className={`px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
+                    className={`shrink-0 px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
                       workspaceSubTab === 'discussion'
                         ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -2669,7 +2669,7 @@ export const ProjectMatePage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setWorkspaceSubTab('resources')}
-                    className={`px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
+                    className={`shrink-0 px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
                       workspaceSubTab === 'resources'
                         ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -2682,7 +2682,7 @@ export const ProjectMatePage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setWorkspaceSubTab('tasks')}
-                    className={`px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
+                    className={`shrink-0 px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
                       workspaceSubTab === 'tasks'
                         ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -2697,8 +2697,8 @@ export const ProjectMatePage: React.FC = () => {
 
                 {/* Subtab Content */}
                                 {workspaceSubTab === 'coordination' && (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 space-y-6">
+                  <div className="grid w-full max-w-full min-w-0 grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="min-w-0 lg:col-span-2 space-y-6">
 
                     {/* PHASE 6.3C: Completed Project Summary Banner */}
                     {(selectedProject.status === 'completed' || selectedProject.status === 'archived' || selectedProject.status === 'paused') && (
@@ -3547,7 +3547,7 @@ export const ProjectMatePage: React.FC = () => {
                 )}
 
                  {/* Active Roster List (Teammates Console) */}
-                <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+                <div className="w-full max-w-full min-w-0 overflow-hidden p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-3">
                     <h4 className="text-md font-black text-slate-800 flex items-center gap-1.5">
                       <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
@@ -3558,18 +3558,18 @@ export const ProjectMatePage: React.FC = () => {
                     </h4>
                     
                     {teamMembers.length > 3 && (
-                      <div className="flex gap-2 w-full sm:w-auto">
+                      <div className="flex flex-col sm:flex-row gap-2 w-full min-w-0 sm:w-auto">
                         <input
                           type="text"
                           placeholder="Search members..."
                           value={teammateSearch}
                           onChange={(e) => setTeammateSearch(e.target.value)}
-                          className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 bg-slate-50 flex-1 sm:w-32"
+                          className="w-full min-w-0 px-2.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 bg-slate-50 flex-1 sm:w-32"
                         />
                         <select
                           value={teammateRoleFilter}
                           onChange={(e) => setTeammateRoleFilter(e.target.value)}
-                          className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 bg-slate-50 flex-1 sm:w-32"
+                          className="w-full min-w-0 px-2.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 bg-slate-50 flex-1 sm:w-32"
                         >
                           <option value="">All Roles</option>
                           <option value="owner">Project Lead</option>
@@ -3581,7 +3581,7 @@ export const ProjectMatePage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className={`space-y-3.5 divide-y divide-slate-100 pr-1 ${teamMembers.length > 3 ? 'max-h-[280px] overflow-y-auto thin-scrollbar' : ''}`}>
+                  <div className={`w-full min-w-0 max-w-full space-y-3.5 divide-y divide-slate-100 pr-1 ${teamMembers.length > 3 ? 'max-h-[280px] overflow-y-auto thin-scrollbar' : ''}`}>
                     {(() => {
                       let filteredMembers = [...teamMembers];
                       
@@ -3632,17 +3632,17 @@ export const ProjectMatePage: React.FC = () => {
                         }).length;
 
                         return (
-                          <div key={member.id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${idx > 0 ? 'pt-3.5' : ''}`}>
-                            <div className="flex gap-3">
+                          <div key={member.id} className={`flex w-full min-w-0 max-w-full flex-col sm:flex-row sm:items-center justify-between gap-3 overflow-hidden text-xs ${idx > 0 ? 'pt-3.5' : ''}`}>
+                            <div className="flex min-w-0 gap-3 overflow-hidden">
                               {/* circular initials avatar */}
                               <div className="w-10 h-10 rounded-full bg-indigo-50/80 border border-indigo-150 text-indigo-700 font-black flex items-center justify-center text-sm shrink-0 shadow-sm">
                                 {initials}
                               </div>
-                              <div className="space-y-0.5">
-                                <h5 className="font-extrabold text-slate-800 text-sm leading-tight">
+                              <div className="min-w-0 space-y-0.5 overflow-hidden">
+                                <h5 className="font-extrabold text-slate-800 text-sm leading-tight break-words">
                                   {member.profile?.full_name}
                                 </h5>
-                                <span className="text-[10px] text-slate-500 block font-medium">
+                                <span className="text-[10px] text-slate-500 block font-medium break-words">
                                   {member.profile?.department} ({member.profile?.year_of_study})
                                 </span>
 
@@ -3711,11 +3711,11 @@ export const ProjectMatePage: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="flex sm:flex-col sm:items-end justify-between items-center gap-2 shrink-0 pt-2 sm:pt-0">
+                            <div className="flex flex-wrap sm:flex-col sm:items-end justify-between items-center gap-2 shrink-0 pt-2 sm:pt-0">
                               <span className="text-[9px] text-slate-400 font-medium">
                                 Joined {new Date(member.joined_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                               </span>
-                              <div className="flex gap-1.5">
+                              <div className="flex flex-wrap gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => setSelectedUserIdForProfile(member.user_id)}
@@ -3823,7 +3823,7 @@ export const ProjectMatePage: React.FC = () => {
 
                 {/* Contact Sharing Panel — public-safe links always shown; private contact gated by share_* flags */}
                 {(selectedProject.is_owner || selectedProject.is_member) && (
-                  <div className="p-5 bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-150 rounded-2xl shadow-sm space-y-3">
+                  <div className="w-full max-w-full min-w-0 overflow-hidden p-5 bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-150 rounded-2xl shadow-sm space-y-3">
                     <h4 className="text-xs font-black text-indigo-800 uppercase tracking-wider flex items-center gap-1.5">
                       <span>📬</span>
                       <span>Team Contact Sharing</span>
@@ -3831,7 +3831,7 @@ export const ProjectMatePage: React.FC = () => {
                     <p className="text-[10px] text-indigo-600 font-semibold leading-relaxed">
                       🔒 Private contacts (email/phone/WhatsApp) are only visible when a teammate explicitly enables sharing. Public links (GitHub, LinkedIn, Portfolio) are always shown.
                     </p>
-                    <div className="space-y-2 max-h-[260px] overflow-y-auto thin-scrollbar pr-1">
+                    <div className="w-full min-w-0 max-w-full space-y-2 max-h-[260px] overflow-y-auto thin-scrollbar pr-1">
                       {teamMembers.map(member => {
                         const p = member.profile;
                         const isOwner = member.user_id === selectedProject.created_by;
@@ -3860,7 +3860,7 @@ export const ProjectMatePage: React.FC = () => {
                         const hasAnything = publicLinks.length > 0 || privateContacts.length > 0;
 
                         return (
-                          <div key={member.id} className="p-3 bg-white border border-indigo-100 rounded-xl shadow-xs space-y-1.5">
+                          <div key={member.id} className="min-w-0 overflow-hidden p-3 bg-white border border-indigo-100 rounded-xl shadow-xs space-y-1.5">
                             <div className="flex items-center gap-1.5 border-b border-indigo-50 pb-1.5">
                               <span className="font-extrabold text-slate-800 text-xs">{p?.full_name}</span>
                               {isOwner && <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[8px] font-black uppercase rounded">Lead</span>}
@@ -3889,10 +3889,10 @@ export const ProjectMatePage: React.FC = () => {
                             {privateContacts.length > 0 && (
                               <div className="flex flex-col gap-1">
                                 {privateContacts.map((c, ci) => (
-                                  <div key={ci} className="flex items-center gap-1.5 text-[10px]">
+                                  <div key={ci} className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px]">
                                     <span>{c.icon}</span>
                                     <span className="font-bold text-slate-500">{c.label}:</span>
-                                    <span className="font-semibold text-slate-700 break-all">{c.value}</span>
+                                    <span className="min-w-0 font-semibold text-slate-700 break-all">{c.value}</span>
                                     {c.label === 'WhatsApp' && c.value.startsWith('https') && (
                                       <button
                                         type="button"

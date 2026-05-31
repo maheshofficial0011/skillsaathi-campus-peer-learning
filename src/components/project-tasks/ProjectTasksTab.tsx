@@ -520,10 +520,10 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
   const TaskCard = ({ task }: { task: ProjectTask }) => {
     const isOverdue = getIsOverdue(task);
     return (
-      <div className={`p-4 bg-white border rounded-2xl flex flex-col justify-between space-y-3.5 relative hover:shadow-md transition-all text-xs ${isOverdue ? 'border-red-200 shadow-sm shadow-red-50/20' : 'border-slate-200'}`}>
+      <div className={`w-full max-w-full min-w-0 overflow-hidden p-4 bg-white border rounded-2xl flex flex-col justify-between space-y-3.5 relative hover:shadow-md transition-all text-xs ${isOverdue ? 'border-red-200 shadow-sm shadow-red-50/20' : 'border-slate-200'}`}>
         <div className="space-y-1.5">
-          <div className="flex justify-between items-start gap-3">
-            <h4 className="font-extrabold text-slate-850 text-sm line-clamp-1 pr-6 break-words break-all" title={task.title}>{task.title}</h4>
+          <div className="flex min-w-0 justify-between items-start gap-3">
+            <h4 className="min-w-0 font-extrabold text-slate-850 text-sm line-clamp-1 pr-6 break-words break-all" title={task.title}>{task.title}</h4>
             <span className={`text-[9px] px-2 py-0.5 rounded uppercase font-black border shrink-0 ${getPriorityColor(task.priority)}`}>
               {task.priority}
             </span>
@@ -540,7 +540,7 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
           </div>
         </div>
 
-        <div className="pt-2 border-t border-slate-150 flex items-center justify-between mt-auto shrink-0">
+        <div className="pt-2 border-t border-slate-150 flex flex-wrap items-center justify-between gap-2 mt-auto shrink-0">
           {getStatusBadge(task.status, task)}
           <button 
             onClick={() => setSelectedTask(task)}
@@ -554,10 +554,10 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-full min-w-0 space-y-6 overflow-hidden">
       
       {/* Dashboard Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 animate-fade-in">
+      <div className="grid w-full min-w-0 grid-cols-2 lg:grid-cols-5 gap-4 animate-fade-in">
         <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-650 shrink-0 font-bold text-sm">📋</div>
           <div>
@@ -596,8 +596,8 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
       </div>
 
       {/* Consol Navigation bar */}
-      <div className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <div className="flex border-b border-slate-100 p-1 bg-slate-50/50 rounded-xl gap-1.5 overflow-x-auto thin-scrollbar w-full sm:w-auto">
+      <div className="w-full max-w-full min-w-0 overflow-hidden p-3 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="flex w-full min-w-0 max-w-full sm:w-auto overflow-x-auto whitespace-nowrap thin-scrollbar border-b border-slate-100 p-1 bg-slate-50/50 rounded-xl gap-1.5">
           <button
             onClick={() => setActiveSubView('board')}
             className={`px-3.5 py-2 text-xs font-black rounded-lg border transition-all whitespace-nowrap flex items-center gap-1.5 ${
@@ -649,8 +649,8 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
 
       {/* Sub Views */}
       {activeSubView === 'board' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="space-y-4">
+        <div className="grid w-full min-w-0 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="min-w-0 space-y-4">
             <div className="border-b border-slate-200 pb-2 flex justify-between items-center bg-slate-50/50 p-2 rounded-xl">
               <h3 className="font-black text-sm text-slate-800">To Do / In Progress</h3>
               <span className="px-2 py-0.5 bg-slate-200 text-slate-600 text-[10px] rounded-full font-bold">
@@ -668,7 +668,7 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
             </div>
           </div>
           
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div className="border-b border-slate-200 pb-2 flex justify-between items-center bg-amber-50/40 p-2 rounded-xl border border-amber-100">
               <h3 className="font-black text-sm text-amber-800">Review Requested</h3>
               <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] rounded-full font-bold border border-amber-200">
@@ -686,7 +686,7 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
             </div>
           </div>
           
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div className="border-b border-emerald-200 pb-2 flex justify-between items-center bg-emerald-50/30 p-2 rounded-xl border border-emerald-100">
               <h3 className="font-black text-sm text-emerald-800">Verified &amp; Completed</h3>
               <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] rounded-full font-bold border border-emerald-200">
@@ -736,7 +736,7 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
         );
 
         return (
-          <div className="space-y-6 animate-fade-in">
+          <div className="w-full min-w-0 space-y-6 animate-fade-in">
             <div className="bg-slate-50 border border-slate-200 p-5 rounded-3xl space-y-1.5">
               <h3 className="font-black text-base text-slate-800">📊 My Project Work Dashboard</h3>
               <p className="text-xs text-slate-500 leading-relaxed font-semibold">
@@ -751,7 +751,7 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
                 <p className="text-xs text-slate-400 mt-1 font-medium">The team lead will assign tasks to you here.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              <div className="grid w-full min-w-0 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {/* Overdue — always first if any */}
                 {myOverdue.length > 0 && (
                   <div className="sm:col-span-2 lg:col-span-3 p-4 bg-red-50/70 border border-red-200 rounded-2xl shadow-sm space-y-2">
@@ -778,7 +778,7 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
       })()}
 
       {activeSubView === 'assign' && project.is_owner && (
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm max-w-2xl animate-fade-in">
+        <div className="w-full max-w-2xl min-w-0 overflow-hidden bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-fade-in">
           <h3 className="text-lg font-black text-slate-800 mb-5">Assign a New Task Definition</h3>
           
           {/* Simple Preset Templates */}
@@ -1127,18 +1127,18 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
       {/* Task Details Drawer/Modal */}
       {selectedTask && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 w-full max-w-2xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] animate-scale-up">
+          <div className="bg-white rounded-3xl border border-slate-200 w-full max-w-2xl min-w-0 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] animate-scale-up">
             
             {/* Header */}
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <div>
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center gap-3 bg-slate-50">
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   {getStatusBadge(selectedTask.status, selectedTask)}
                   <span className={`text-[9px] px-2 py-0.5 rounded uppercase font-black border ${getPriorityColor(selectedTask.priority)}`}>
                     {selectedTask.priority} Priority
                   </span>
                 </div>
-                <h3 className="text-lg font-black text-slate-800 mt-2">{selectedTask.title}</h3>
+                <h3 className="text-lg font-black text-slate-800 mt-2 break-words">{selectedTask.title}</h3>
               </div>
               <button 
                 onClick={() => setSelectedTask(null)} 
@@ -1149,12 +1149,12 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
             </div>
             
             {/* Body */}
-            <div className="p-6 overflow-y-auto space-y-6 text-xs leading-relaxed">
+            <div className="min-w-0 p-6 overflow-y-auto overflow-x-hidden space-y-6 text-xs leading-relaxed">
               
               {/* Objective */}
               <div>
                 <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1 mb-2">Instructions &amp; Parameters</h4>
-                <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed font-semibold bg-slate-50 p-4 rounded-xl border border-slate-150">
+                <p className="text-xs text-slate-700 whitespace-pre-wrap break-words leading-relaxed font-semibold bg-slate-50 p-4 rounded-xl border border-slate-150">
                   {selectedTask.objective}
                 </p>
               </div>
@@ -1169,7 +1169,7 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     {selectedTaskAttachments.map(att => (
-                      <div key={att.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3 shadow-xs">
+                      <div key={att.id} className="min-w-0 overflow-hidden p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-xs">
                         <div className="min-w-0 flex-1">
                           <p className="font-extrabold text-slate-800 line-clamp-1 break-words break-all">{att.title || 'Supporting File'}</p>
                           <span className="text-[9px] text-indigo-500 font-bold bg-indigo-50 border border-indigo-100/50 px-1.5 py-0.5 rounded uppercase mt-1 inline-block">
@@ -1263,7 +1263,7 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
                             <div className="space-y-2">
                               <p className="text-[9px] font-bold text-slate-400 uppercase">Attached Deliverables</p>
                               {files.map(file => (
-                                <div key={file.id} className="flex justify-between items-center bg-white p-2 border border-slate-150 rounded-lg">
+                                <div key={file.id} className="flex min-w-0 flex-wrap justify-between items-center gap-2 overflow-hidden bg-white p-2 border border-slate-150 rounded-lg">
                                   <span className="font-bold text-slate-700 truncate max-w-[70%]" title={file.file_name}>{file.file_name || 'Deliverable'}</span>
                                   <div className="shrink-0 flex gap-2.5">
                                     {file.file_path ? (

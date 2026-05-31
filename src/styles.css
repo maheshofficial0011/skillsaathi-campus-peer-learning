@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 @layer components {
   .public-header-link {
     @apply px-3 py-2 text-xs font-bold text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900;
