@@ -1,4 +1,35 @@
-# Supabase Setup Guide for SkillSaathi
+# Supabase Setup Guide — SkillSaathi
+
+> **MVP Status:** Phase 6.6 — Final Polish & Demo-Ready  
+> Apply all SQL patches in the exact order listed below. Skipping any patch will break dependent features.
+
+---
+
+## ⚡ Quick Start Summary
+
+| Step | File / Action | Purpose |
+|---|---|---|
+| 1 | `schema.sql` | Base tables: profiles, help_requests, feedback |
+| 2 | `phase3-doubts-patch.sql` | Doubts module |
+| 3 | `phase3-*.sql` (4 patches) | Doubt upgrades: ratings, replies, likes/pins, accept-fix |
+| 4 | `phase4-senior-connect-patch.sql` | Senior Connect module |
+| 5 | `phase4-*.sql` (3 patches) | Senior Connect upgrades: reviews, privacy, contact |
+| 6 | `phase5-learning-circles-patch.sql` | Learning Circles module |
+| 7 | `phase5-*.sql` (5 patches) | Circle upgrades: join-requests, discussions, resources, exit/verify, workflow |
+| 8 | `phase5.6a-discussion-board-polish-patch.sql` | Discussion board polish |
+| 9 | `phase6-project-mate-finder-core-patch.sql` | Project Mate core module |
+| 10 | `phase6-project-mate-resource-files-patch.sql` | Shared resource files |
+| 11 | `phase6-project-mate-workspace-polish-patch.sql` | Workspace polish |
+| 12 | `phase6-project-resource-reactions-patch.sql` | Resource reactions |
+| 13 | `phase6-project-tasks-patch.sql` | Project Tasks module |
+| 14 | `phase6-project-team-members-rls-fix.sql` | Team members RLS fix |
+| 15 | `phase6-project-lifecycle-polish-patch.sql` | Project lifecycle polish |
+| — | Storage Buckets | See Step 15 below for bucket setup |
+
+> ⚠️ **Never skip patches.** Each patch may depend on tables or columns from a previous patch.  
+> All patches are safe to re-run — they use `IF NOT EXISTS` / `DROP … IF EXISTS` guards.
+
+---
 
 Follow these steps to set up your Supabase database and authentication backend.
 

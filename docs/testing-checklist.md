@@ -1,6 +1,139 @@
-# SkillSaathi Phase 3.5 - Manual Testing Checklist
+# SkillSaathi — Final MVP Manual Testing Checklist (Phase 6.6)
 
-Use this checklist to perform regression testing and ensure full readiness of all SkillSaathi modules before proceeding to Phase 4 (Senior Connect).
+> **Live App:** https://skillsaathi-campus-peer-learning.vercel.app/  
+> **Status:** MVP Complete ✅ — Phase 6.6 Final Polish  
+> Use this checklist before every production release or demo presentation.
+
+---
+
+## ⚡ Quick Smoke Test (Run First — 5 mins)
+
+Run these checks immediately after any deployment to confirm core functionality:
+
+| # | Check | Expected |
+|---|---|---|
+| 1 | Open the live URL | Landing page loads cleanly |
+| 2 | Click **Get Started** | Auth page opens |
+| 3 | Register a new account | Success toast + redirected to Dashboard |
+| 4 | Navigate to Anonymous Doubts | Page loads without errors |
+| 5 | Navigate to Learning Circles | Page loads without errors |
+| 6 | Navigate to Senior Connect | Page loads without errors |
+| 7 | Navigate to Find Teammates | Page loads without errors |
+| 8 | Navigate to My Profile | Profile page loads with completeness bar |
+| 9 | Log out | Redirected to landing or auth page |
+| 10 | Try accessing `/dashboard` logged out | Redirected to auth page |
+
+---
+
+## 🧪 Full MVP Regression Test Index
+
+| Section | Module | Phase |
+|---|---|---|
+| 1 | Authentication & Route Protection | Phase 1 |
+| 2 | Profile Page & Completeness Card | Phase 2 |
+| 3 | Peer Help Requests Board | Phase 2 |
+| 4 | Anonymous Doubts Module | Phase 3 |
+| 5 | Mobile Responsiveness Polish | Phase 3.5 |
+| 6 | Doubt Answer & Reply Edit/Delete | Phase 3 |
+| 7 | Reply Pinning | Phase 3 |
+| 8 | Self-Answer Safety | Phase 3 |
+| 9 | Senior Connect Module | Phase 4 |
+| 10 | Senior Connect Reputation & Safety | Phase 4.5 |
+| 11 | Review Display & Mentor Review Management | Phase 4.6 |
+| 12 | Final Pre-Phase-5 Stability | Phase 4.7 |
+| 13 | Learning Circles Module | Phase 5 |
+| 14 | Learning Circle Secure Resource Uploads | Phase 5.1 |
+| 15 | Learning Circle Join Requests | Phase 5.2 |
+| 16 | Learning Circle Workflow Rules | Phase 5.3 |
+| 17 | Learning Circle Exit & Resource Verification | Phase 5.4 |
+| 18 | Learning Circles Final Polish | Phase 5.5 |
+| 19 | Discussion Board & Presence System | Phase 5.6 |
+| 20 | Project Mate Finder Core | Phase 6.1 |
+| 21 | Project Workspace (Discussion & Resources) | Phase 6.2 |
+| 22 | Project Shared Resource Files & Video | Phase 6.3–6.4E |
+| 23 | Project Tasks (Assign, Submit, Verify) | Phase 6.4 |
+| 24 | Video MIME Bucket Support | Phase 6.4F |
+| 25 | Submit Button Visibility Fix | Phase 6.4G |
+| 26 | Final MVP Acceptance Checklist | Phase 6.6 |
+
+---
+
+## 🔐 Supabase Verification Checklist
+
+Run before first deployment or after any SQL patch:
+
+- [ ] All 28 SQL patches applied in order (see `supabase/README.md` Quick Start table)
+- [ ] `project-resources` bucket exists (private), accepts video MIME types up to 20MB
+- [ ] `project-task-files` bucket exists (private)
+- [ ] `learning-circle-resources` bucket exists (private)
+- [ ] Auth email provider enabled
+- [ ] Site URL and Redirect URLs set in Supabase Auth settings
+- [ ] RLS enabled on ALL tables (verify in Authentication → Policies)
+- [ ] `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` set in Vercel env
+
+---
+
+## ☁️ Vercel Deployment Test
+
+- [ ] Build passes: `npm run build` exits with code 0
+- [ ] TypeScript passes: `npx tsc -p tsconfig.app.json --noEmit` exits with 0 errors
+- [ ] `dist/` directory generated
+- [ ] Vercel deployment completes without errors
+- [ ] Live URL responds and loads the landing page
+- [ ] Auth redirect works correctly (login → dashboard)
+- [ ] No environment variables exposed in browser devtools
+
+---
+
+## 🤝 Project Mate Deep Test
+
+- [ ] Create a project post with 2+ role slots
+- [ ] Apply to a role from a second account
+- [ ] Owner approves the application
+- [ ] Both users can access the workspace
+- [ ] Upload a shared resource (PDF and video)
+- [ ] Add a discussion post and reply
+- [ ] Create a task and assign it to a team member
+- [ ] Member submits deliverables for the task
+- [ ] Lead verifies the submission
+- [ ] Verified task appears in member's Profile contribution history
+- [ ] Dynamic badge updates on Profile
+- [ ] Request a deadline extension; lead approves/rejects it
+- [ ] Leave project; member loses workspace access
+- [ ] Archive project; workspace shows archived state
+
+---
+
+## 🎨 UI/UX Polish Test
+
+- [ ] Landing page loads cleanly with hero, stats, and feature cards
+- [ ] CTA buttons (Get Started, Explore Dashboard) work
+- [ ] Auth page: password visibility toggle works in login and signup
+- [ ] Auth page: error messages readable in dark background
+- [ ] Auth page: loading state shows "Signing In..." / "Creating Account..."
+- [ ] Navigation sidebar: active page highlighted
+- [ ] Navigation sidebar: horizontal scroll works on mobile
+- [ ] All section headings are clear and properly sized
+- [ ] Cards have consistent padding and no text overflow
+- [ ] Empty states show helpful messages (not blank screens)
+- [ ] Buttons always visible in default state (not only on hover)
+- [ ] Submit Deliverables button: solid indigo-600 background without hover
+- [ ] Mobile viewport (375px): no horizontal overflow
+- [ ] Footer displays copyright text cleanly
+
+---
+
+## 🛡️ Security/Privacy Test
+
+- [ ] Non-member cannot access project workspace data
+- [ ] Contact details hidden until request accepted
+- [ ] File download uses signed URL (not raw storage path)
+- [ ] Raw UUIDs never shown in UI
+- [ ] Email addresses not exposed on public profiles
+- [ ] `service_role` key not present in frontend build
+- [ ] `.env.local` not committed to git
+- [ ] External links use `rel="noopener noreferrer"`
+- [ ] RLS blocks cross-user data access (test with two accounts)
 
 ---
 
