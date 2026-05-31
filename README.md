@@ -1,192 +1,402 @@
-# SkillSaathi Campus Peer Learning
+# SkillSaathi — Campus Peer Learning Platform
 
-A campus peer learning platform where students can ask anonymous doubts, join learning circles, connect with seniors, find project teammates, collaborate in workspaces, share resources, assign tasks, submit work, and track verified project contributions.
-
-## 🚀 MVP Status
-- **MVP Complete**
-- **Phase 6.5 Documentation & Deployment**
-- **Demo Ready**
-- **GitHub Ready**
-- **Supabase Ready**
-- **Vercel Ready**
+![MVP Complete](https://img.shields.io/badge/MVP-Complete-brightgreen)
+![Live on Vercel](https://img.shields.io/badge/Live-Vercel-black)
+![Supabase Ready](https://img.shields.io/badge/Supabase-Ready-3ECF8E)
+![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)
+![React](https://img.shields.io/badge/React-19-61DAFB)
+![Vite](https://img.shields.io/badge/Vite-Build-646CFF)
+![Phase 6.6 Final Polish](https://img.shields.io/badge/Phase-6.6%20Final%20Polish-indigo)
 
 ---
 
-## 📚 Core Modules
+## 🌐 Live Demo
 
-### Authentication & Navigation
-Secure authentication using Supabase Auth, protected routing, and email/password login.
-
-### Dashboard
-A central hub for tracking your peer learning journey, displaying active doubts, pending tasks, and recent peer activity.
-
-### Anonymous Doubts
-Post questions anonymously and receive answers from peers. Support for accepting the best answer, upvoting, and follow-up threads.
-
-### Learning Circles
-Join or create study groups based on interests or subjects. Includes discussion boards, secure resource sharing, and member management.
-
-### Senior Connect
-Request 1-on-1 guidance from verified senior mentors. Mentors can manage their availability and review requests.
-
-### Find Teammates / Project Mate
-Post project ideas, specify required roles, and recruit teammates. Students can apply for specific roles and track application status.
-
-### Project Workspace & Discussion
-A dedicated workspace for active project teams. Includes a discussion board for team communication and coordination.
-
-### Shared Resources
-A secure library for team members to upload, share, and preview project-related files, documents, and videos.
-
-### Project Tasks
-Lead-assigned tasks with deadlines. Members can submit deliverables, request deadline extensions, and have their work verified.
-
-### My Profile and Contribution History
-A public-safe profile showcasing a student's skills, verified project contributions, received mentor feedback, and dynamic badges.
+**[https://skillsaathi-campus-peer-learning.vercel.app/](https://skillsaathi-campus-peer-learning.vercel.app/)**
 
 ---
 
-## ✨ Main Features
-- Anonymous doubt posting
-- Peer help requests
-- Learning circles
-- Join request lifecycle
-- Senior guidance
-- Public-safe profiles
-- Project mate finder
-- Team role slots
-- Secure workspace
-- Team discussion
-- Resource upload and verification
-- PDF/image/video preview
-- Project task assignment
-- Member submissions
-- Deadline extensions
-- Lead verification
-- Verified contribution history
-- Dynamic profile badges
-- Internal scrolling for long lists
+## 📖 Project Overview
+
+**SkillSaathi** is a full-stack campus peer-learning platform where students can:
+
+- Ask **anonymous doubts** and receive peer answers
+- Join and manage **learning circles** (study groups)
+- Request guidance from **verified senior mentors**
+- Find **project teammates** with matching role requirements
+- Collaborate in **private project workspaces**
+- Share **resources** (docs, images, videos) with team members
+- Assign and complete **project tasks** with deadline tracking
+- Submit deliverables and receive **lead verification**
+- Track their **verified contribution history** on their profile
+
+SkillSaathi is designed to be demo-ready, production-safe, and easy to extend.
+
+---
+
+## 🚩 Problem Statement
+
+Students often struggle to:
+
+- Find reliable peer help for academic doubts without fear of judgement
+- Build focused study groups with like-minded peers
+- Connect with seniors who have relevant project and career experience
+- Form project teams with specific required skills and roles
+- Manage team work, track contributions, and meet deadlines together
+- Build a verifiable history of their contributions beyond grades alone
+
+---
+
+## ✅ Solution
+
+SkillSaathi solves all of the above with seven integrated modules:
+
+| Module | Description |
+|---|---|
+| **Anonymous Doubts** | Post doubts without revealing identity; peers answer, upvote, and pin best answers |
+| **Learning Circles** | Create/join structured study groups with join-request workflow and shared resources |
+| **Senior Connect** | Request 1-on-1 guidance sessions from verified senior mentors |
+| **Project Mate Finder** | Post project ideas, open role slots, and recruit teammates |
+| **Project Workspace** | Private team workspace with discussion board, shared resources, and file previews |
+| **Project Tasks** | Lead-assigned tasks with submissions, verifications, deadline extensions |
+| **Verified Contributions** | Profile shows verified tasks, badges, and contribution history |
+
+---
+
+## 🚀 Feature Modules
+
+### 🔐 Authentication
+- Email + password sign-up and sign-in using Supabase Auth
+- Profile auto-created on first login
+- Email confirmation flow supported
+- Secure protected routing
+
+### 📊 Dashboard
+- Central hub showing active peer help requests
+- Tabs: Recommended, My Requests, Accepted By Me, All
+- Sorting: Urgency, Deadline, Status, Best Match
+- Full request lifecycle: Accept → Mark Solved → Leave Feedback
+
+### ❓ Anonymous Doubts
+- Post academic doubts anonymously
+- Peer answers with upvotes, ratings, and follow-up replies
+- Accept best answer, pin answers, close or reopen doubts
+- Answer like/unlike, reply thread system
+
+### 🔵 Learning Circles
+- Create or apply to join study circles
+- Join-request workflow with admin approval/rejection
+- Discussion board with post/reply/like/delete
+- Shared resource file uploads (PDF, images, documents)
+- Member online presence indicator
+- Member exit with reason, resource verification system
+
+### 👤 Senior Connect
+- Seniors register availability, topics, and bio
+- Students send guidance requests with message
+- Accept/Reject/Complete lifecycle
+- Rate sessions with structured feedback
+
+### 🤝 Find Teammates / Project Mate
+
+**Core:**
+- Create project posts with required roles and team size
+- Role slots with custom labels, skills, and descriptions
+- Students apply to specific role slots with portfolios and cover notes
+- Project owner approves or rejects each application
+
+**Workspace (after team is formed):**
+- Private workspace visible only to team members
+- Discussion board for async team communication
+- Shared resource library (PDF, images, datasets, videos up to 20MB)
+- Video resource preview/download within workspace
+- Resource verification by project lead
+- Project task assignment with priority and deadlines
+- Member task submissions with file attachments
+- Team lead verification or rejection with feedback
+- Deadline extension requests and approval
+- Project lifecycle: Active → Complete / Archive
+
+**Profile Integration:**
+- Verified tasks appear in member's contribution history
+- Dynamic badges update based on verified work
+
+### 👨‍💼 My Profile
+- Profile completeness tracker
+- Dynamic achievement badges (Peer Helper, Doubt Solver, Project Champion, etc.)
+- Verified project work history
+- Senior mentor stats (if applicable)
+- Peer feedback received
+- Social links: GitHub, LinkedIn, Portfolio
+- Contact privacy settings (share only after accept)
+- Edit mode for all profile fields
+
+### 🛡️ Security and Privacy
+- Row Level Security enforced on all tables
+- Signed, time-limited URLs for all file downloads
+- Raw storage paths never exposed in the UI
+- Contact details revealed only to accepted connections
+- Non-members fully blocked from workspace data
 
 ---
 
 ## 🛠️ Tech Stack
-- **Frontend**: React, TypeScript, Vite
-- **Styling**: Tailwind CSS
-- **Backend & Auth**: Supabase Auth, Supabase Database, Supabase Storage
-- **Security**: PostgreSQL Row Level Security (RLS)
-- **Deployment**: Vercel
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, TypeScript, Vite |
+| Styling | Tailwind CSS v3 |
+| Auth | Supabase Auth (email/password) |
+| Database | Supabase PostgreSQL |
+| Storage | Supabase Storage Buckets |
+| Security | PostgreSQL Row Level Security (RLS) |
+| Deployment | Vercel (Vite preset) |
+
+---
+
+## 🏗️ Architecture Overview
+
+```
+Frontend (React + TypeScript)
+│
+├── src/pages/          ← Full-page route components
+│   ├── LandingPage.tsx
+│   ├── AuthPage.tsx
+│   ├── DashboardPage.tsx
+│   ├── DoubtsPage.tsx
+│   ├── LearningCirclesPage.tsx
+│   ├── SeniorConnectPage.tsx
+│   ├── ProjectMatePage.tsx
+│   └── ProfilePage.tsx
+│
+├── src/components/     ← Feature-scoped reusable UI
+│   ├── help/
+│   ├── profile/
+│   ├── project-tasks/
+│   └── ui/
+│
+├── src/lib/            ← Supabase client + API functions
+│   ├── supabase.ts
+│   ├── profiles.ts
+│   ├── doubts.ts
+│   ├── learningCircles.ts
+│   ├── seniorConnect.ts
+│   ├── projectMates.ts
+│   └── ...
+│
+├── src/types/          ← TypeScript interfaces and enums
+│
+└── src/layouts/        ← App shell: header, nav sidebar, footer
+
+Backend (Supabase)
+│
+├── supabase/schema.sql            ← Base schema
+├── supabase/phase*.sql            ← Incremental SQL patches
+├── Storage Buckets:
+│   ├── project-resources          ← Team shared files (PDF, images, video)
+│   └── project-task-files         ← Task submission attachments
+└── RLS Policies on all tables
+```
 
 ---
 
 ## 📂 Folder Structure
-- `src/pages`: Top-level route components for the application.
-- `src/components`: Reusable UI components organized by feature module.
-- `src/lib`: Utility functions and Supabase client configuration.
-- `src/types`: TypeScript interfaces and type definitions.
-- `supabase`: Contains all SQL migration patches and the `schema.sql` for setting up the backend.
-- `docs`: Documentation files, including the manual testing checklist.
+
+```
+skillsaathi-campus-peer-learning/
+├── public/
+├── src/
+│   ├── assets/
+│   ├── components/
+│   │   ├── help/
+│   │   ├── profile/
+│   │   ├── project-tasks/
+│   │   └── ui/
+│   ├── hooks/
+│   ├── layouts/
+│   │   └── MainLayout.tsx
+│   ├── lib/
+│   │   ├── supabase.ts
+│   │   ├── profiles.ts
+│   │   ├── doubts.ts
+│   │   ├── helpRequests.ts
+│   │   ├── learningCircles.ts
+│   │   ├── seniorConnect.ts
+│   │   ├── projectMates.ts
+│   │   └── ...
+│   ├── pages/
+│   │   ├── AuthPage.tsx
+│   │   ├── DashboardPage.tsx
+│   │   ├── DoubtsPage.tsx
+│   │   ├── LandingPage.tsx
+│   │   ├── LearningCirclesPage.tsx
+│   │   ├── ProfilePage.tsx
+│   │   ├── ProjectMatePage.tsx
+│   │   └── SeniorConnectPage.tsx
+│   ├── styles.css
+│   └── types/
+│       └── index.ts
+├── supabase/
+│   ├── README.md
+│   ├── schema.sql
+│   └── phase*.sql      ← All incremental SQL patches
+├── docs/
+│   └── testing-checklist.md
+├── .env.example
+├── index.html
+├── package.json
+├── tailwind.config.js
+├── tsconfig.app.json
+├── vercel.json
+└── vite.config.ts
+```
 
 ---
 
 ## 🔐 Environment Variables
 
-Create a `.env.local` file in the root directory for local development:
+Create a `.env.local` file in the project root for local development:
 
 ```env
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-> **Important**:
-> - Never commit real `.env` or `.env.local` files to version control.
-> - **Never** expose the Supabase `service_role` key in the frontend.
+> ⚠️ **Security Warning:**
+> - Never commit `.env.local` or any real keys to version control.
+> - **Never** expose the Supabase `service_role` key in the frontend — it must remain server-only.
+> - Use `.env.example` to document required variable names without values.
 
 ---
 
 ## 💻 Local Setup
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Run the development server:
-   ```bash
-   npm run dev
-   ```
-3. Type-check the project:
-   ```bash
-   npx tsc -p tsconfig.app.json --noEmit
-   ```
-4. Build for production:
-   ```bash
-   npm run build
-   ```
+**Prerequisites:** Node.js 18+, npm
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Create .env.local with your Supabase credentials (see above)
+
+# 3. Run development server
+npm run dev
+
+# 4. TypeScript type check (optional but recommended)
+npx tsc -p tsconfig.app.json --noEmit
+
+# 5. Production build (for deployment validation)
+npm run build
+```
 
 ---
 
 ## 🐘 Supabase Setup
 
-Detailed setup instructions are in `supabase/README.md`. 
-- **SQL Patches**: Must be applied in the exact order listed in the Supabase README to ensure all tables, RLS policies, and triggers are configured correctly.
-- **Storage Buckets**: 
-  - `project-resources`
-  - `project-task-files`
-- **Video Support**: The `project-resources` bucket must be configured to support up to **20MB** file sizes and the following MIME types: `video/mp4`, `video/webm`, `video/quicktime`.
+Full Supabase setup instructions are in [`supabase/README.md`](./supabase/README.md).
 
----
+**Summary:**
 
-## 🧪 Testing
+1. Create a new Supabase project
+2. Apply SQL patches in the exact order listed in `supabase/README.md`
+3. Create the following storage buckets:
+   - `project-resources` — for shared project resource files
+   - `project-task-files` — for task submission attachments
+4. Configure storage MIME types for video support:
+   - `video/mp4`, `video/webm`, `video/quicktime` on the `project-resources` bucket
+   - Max file size: 20MB for video, 10MB for other files
+5. Set Auth redirect URLs (local and Vercel)
 
-The comprehensive testing checklist is available in `docs/testing-checklist.md`.
-
-### Final MVP Test Summary:
-- [ ] Test 10A Git/Build
-- [ ] Test 10B Auth/Nav
-- [ ] Test 10C Anonymous Doubts
-- [ ] Test 10D Learning Circles
-- [ ] Test 10E Senior Connect
-- [ ] Test 10F Project Mate Lifecycle
-- [ ] Test 10G Workspace
-- [ ] Test 10H Resources/Video
-- [ ] Test 10I Project Tasks
-- [ ] Test 10J My Profile
-- [ ] Test 10K UI Polish
+See [`supabase/README.md`](./supabase/README.md) for full SQL patch order, bucket policies, and RLS troubleshooting.
 
 ---
 
 ## ☁️ Deployment (Vercel)
 
-1. Connect your GitHub repository to Vercel.
-2. Select the **Vite** Framework preset.
-3. Build command: `npm run build`
-4. Output directory: `dist`
-5. Add the following Environment Variables in the Vercel dashboard:
+1. Connect your GitHub repository to [Vercel](https://vercel.com)
+2. Select **Vite** as the Framework preset
+3. Set build command: `npm run build`
+4. Set output directory: `dist`
+5. Add environment variables in the Vercel dashboard:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-6. Click **Deploy**.
-7. **Important**: Add your new deployed Vercel URL to the Supabase Auth Redirect and Site URL settings.
+6. Click **Deploy**
+7. After deploy, add your Vercel URL to Supabase Auth settings:
+   - **Site URL**: `https://your-app.vercel.app`
+   - **Redirect URLs**: `https://your-app.vercel.app/**`
+
+**Live deployment:**
+[https://skillsaathi-campus-peer-learning.vercel.app/](https://skillsaathi-campus-peer-learning.vercel.app/)
+
+---
+
+## 🧪 Testing
+
+Full testing guide: [`docs/testing-checklist.md`](./docs/testing-checklist.md)
+
+### Final MVP Acceptance Summary
+
+| Test ID | Area | Status |
+|---|---|---|
+| 10A | Git / Build verification | ✅ |
+| 10B | Auth and navigation | ✅ |
+| 10C | Anonymous Doubts lifecycle | ✅ |
+| 10D | Learning Circles lifecycle | ✅ |
+| 10E | Senior Connect lifecycle | ✅ |
+| 10F | Project Mate lifecycle (create → recruit → approve) | ✅ |
+| 10G | Project Workspace (discussion, resources, video) | ✅ |
+| 10H | Shared Resources (upload, preview, download, delete) | ✅ |
+| 10I | Project Tasks (assign, submit, verify, deadline extension) | ✅ |
+| 10J | My Profile (edit, badges, contribution history) | ✅ |
+| 10K | UI / UX Polish (spacing, contrast, dark mode, mobile) | ✅ |
+
+---
+
+## 📸 Screenshots
+
+> _Screenshots captured from live demo._
+
+| Page | Description |
+|---|---|
+| **Home** | Feature overview and CTA buttons |
+| **Dashboard** | Active help requests, sorting, and tabs |
+| **Anonymous Doubts** | Post, answer, upvote, and accept doubts |
+| **Learning Circles** | Join/create circles, discussion board, resources |
+| **Senior Connect** | Request guidance, manage sessions |
+| **Project Mate Workspace** | Team workspace, resources, discussion |
+| **Project Tasks** | Task list, submissions, verification |
+| **My Profile** | Badges, contribution history, social links |
 
 ---
 
 ## 🛡️ Security Notes
-- **RLS Enabled**: All database access is strictly gated by Row Level Security policies.
-- **Private Data Protected**: User emails, phone numbers, and exact UUIDs are never exposed publicly unless explicitly shared in an accepted request.
-- **Raw Storage Paths Hidden**: Storage objects use secure, time-limited signed URLs for access.
-- **Private Contacts Gated**: Contact details are only revealed after a session/connection is accepted.
-- **Workspace Isolation**: Non-members are completely blocked from viewing private project workspace data.
+
+- **RLS Enabled:** All database tables are protected with PostgreSQL Row Level Security policies. Users can only access data they are permitted to view or modify.
+- **Signed URLs:** All storage file access uses time-limited signed URLs. Raw storage paths are never exposed in the frontend.
+- **Private Contact Gating:** Contact details (phone, WhatsApp, email) are only revealed to the other party after a help request or guidance session is explicitly accepted.
+- **Workspace Isolation:** Non-members are completely blocked from accessing private project workspace data — discussion, resources, tasks, and members.
+- **No Service Role Exposure:** The Supabase `service_role` key is never used or exposed in the frontend.
 
 ---
 
-## 🚧 Known Limitations & Future Improvements
-- Realtime notifications (Supabase Realtime subscriptions)
-- Advanced search and filtering
-- Mobile app (React Native/Expo)
-- AI recommendations for learning circles and projects
-- Analytics dashboard for engagement metrics
-- Calendar integration for senior connect sessions
-- Advanced public contribution portfolio export
+## 🔭 Future Improvements
+
+- **Realtime Notifications:** Supabase Realtime subscriptions for task updates and new messages
+- **AI Recommendations:** Suggest relevant circles, projects, and mentors using profile data
+- **Calendar Integration:** Schedule and track senior connect sessions and task deadlines
+- **Analytics Dashboard:** Engagement metrics, contribution trends, top helpers
+- **Mobile App:** React Native / Expo companion app
+- **Public Contribution Portfolio:** Shareable public link for verified project work history
 
 ---
 
-## 📄 License & Authors
-Created by Mahesh.
+## 👥 Credits
+
+**Project:** SkillSaathi Campus Peer Learning  
+**Developer:** Mahesh  
+**Phase:** 6.6 — Final Polish & Demo-Ready  
+**Status:** MVP Complete ✅
+
+---
+
+*Built with React, TypeScript, Vite, Supabase, and Tailwind CSS. Deployed on Vercel.*

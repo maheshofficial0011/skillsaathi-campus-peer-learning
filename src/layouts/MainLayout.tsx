@@ -41,7 +41,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           </div>
           
           <div className="flex items-center gap-3 text-xs font-semibold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
-            <span>Phase 6.4E: Project Collaboration Polish</span>
+            <span>Phase 6.6: Final Polish &amp; Demo-Ready</span>
           </div>
         </div>
       </header>
@@ -57,6 +57,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                 return (
                   <button
                     key={item.id}
+                    id={`nav-btn-${item.id}`}
+                    aria-label={`Navigate to ${item.label}`}
+                    aria-current={isActive ? 'page' : undefined}
                     onClick={() => onNavigate(item.id)}
                     className={`px-3.5 py-2 text-xs lg:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap text-center lg:text-left shrink-0 w-auto lg:w-full ${
                       isActive
@@ -83,6 +86,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
               {onLogout && (
                 <button
                   onClick={onLogout}
+                  aria-label="Sign out of SkillSaathi"
                   className="w-full px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50/50 rounded-lg border border-transparent hover:border-red-100 transition-colors text-center lg:text-left"
                 >
                   Logout
@@ -100,7 +104,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
           {/* Footer cleanly integrated at bottom of scrollable workspace */}
           <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400 mt-auto shrink-0 rounded-xl">
-            <p>© 2026 SkillSaathi Campus Platform. All rights reserved. (Phase 6.4E Enabled)</p>
+            <p>© 2026 SkillSaathi Campus Platform. All rights reserved. (Phase 6.6 Enabled)</p>
           </footer>
         </main>
       </div>
