@@ -594,3 +594,37 @@ Verify that the `project-resources` private storage bucket now accepts `.mp4`, `
 
 
 
+
+---
+
+## ?? Step 21: Final MVP Deployment Checklist & Reminders
+
+### 1. Apply SQL Patches in Order
+Ensure all 28 SQL patches listed in the "Complete Supabase Table Registry" section above have been executed in exact order. All 28 patches are required for the final MVP to function fully.
+
+### 2. Storage Buckets Configuration
+Ensure the following storage buckets exist and are private:
+* learning-circle-resources
+* project-resources
+* project-task-files
+
+**For `project-resources` and `project-task-files`**, ensure they support up to 20MB file sizes and the following MIME types:
+* PDFs (pplication/pdf)
+* Images (image/png, image/jpeg, image/webp)
+* Docs (pplication/msword, pplication/vnd.openxmlformats-officedocument.*)
+* Video (ideo/mp4, ideo/webm, ideo/quicktime)
+
+### 3. RLS Security Warning
+* **Do NOT disable RLS (Row Level Security)** on any table. The application relies entirely on RLS for tenant isolation and data privacy.
+* **Do NOT use the service role key** in the frontend or commit it anywhere. Use only the non key in VITE_SUPABASE_ANON_KEY.
+
+### 4. Auth Redirect URL Configuration
+Before taking the app live, go to **Authentication -> URL Configuration** in your Supabase dashboard and add:
+* **Site URL**: https://your-deployed-vercel-url.vercel.app (your production URL)
+* **Redirect URLs**:
+  * https://your-deployed-vercel-url.vercel.app
+  * https://your-deployed-vercel-url.vercel.app/*
+  * http://localhost:5173
+  * http://localhost:5173/*
+Do NOT remove the localhost URLs to ensure local development continues working.
+

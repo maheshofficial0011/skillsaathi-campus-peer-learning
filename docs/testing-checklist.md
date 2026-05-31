@@ -1600,3 +1600,23 @@ select * from public.project_team_members limit 5;
 - [ ] Verify that the Cancel button or secondary action buttons have clear contrast (e.g. slate-100 background with slate-600 text, or red-50 background with red-600 text).
 - [ ] Verify that there are no buttons suffering from "invisible" background issues due to invalid tailwind classes.
 
+
+---
+
+## 35. Final MVP Acceptance Checklist
+
+- [ ] Git clean
+- [ ] TypeScript pass
+- [ ] Build pass
+- [ ] Auth/navigation pass
+- [ ] Anonymous Doubts pass
+- [ ] Learning Circles pass
+- [ ] Senior Connect pass
+- [ ] Project Mate lifecycle pass
+- [ ] Workspace pass
+- [ ] Resources/video pass
+- [ ] Project tasks pass
+- [ ] My Profile pass
+- [ ] UI/mobile/dark mode pass
+- [ ] Vercel deployment pass
+
