@@ -27,9 +27,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   ];
 
   return (
-    <div className="min-h-screen lg:h-screen bg-slate-50 text-slate-800 flex flex-col font-sans lg:overflow-hidden">
+    <div className="app-shell min-h-screen lg:h-screen bg-slate-50 text-slate-800 flex flex-col font-sans lg:overflow-hidden">
       {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shrink-0">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200 shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => onNavigate('landing')}>
             <span className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-black text-white text-lg tracking-wider">
@@ -41,7 +41,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
           </div>
           
           <div className="flex items-center gap-3 text-xs font-semibold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
-            <span>Phase 6.6: Final Polish &amp; Demo-Ready</span>
+            <span className="hidden sm:inline">Phase 6.8: Final MVP Showcase</span>
+            <span className="sm:hidden">Phase 6.8</span>
           </div>
         </div>
       </header>
@@ -98,13 +99,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
         {/* Dynamic Page Workspace */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 lg:h-full lg:overflow-y-auto flex flex-col gap-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm shrink-0">
+          <div className="workspace-panel bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm shrink-0">
             {children}
           </div>
 
           {/* Footer cleanly integrated at bottom of scrollable workspace */}
           <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400 mt-auto shrink-0 rounded-xl">
-            <p>© 2026 SkillSaathi Campus Platform. All rights reserved. (Phase 6.6 Enabled)</p>
+            <p>© 2026 SkillSaathi Campus Platform · Phase 6.8 Final MVP Showcase</p>
           </footer>
         </main>
       </div>

@@ -1,4 +1,4 @@
-# SkillSaathi Campus Peer Learning — Project Overview
+# SkillSaathi Campus Peer Learning — Phase 6.8 Final MVP Showcase
 
 **Live app:** https://skillsaathi-campus-peer-learning.vercel.app/  
 **GitHub Pages showcase:** https://maheshofficial0011.github.io/skillsaathi-campus-peer-learning/
@@ -87,6 +87,19 @@ Project Mate is the most complete collaboration workflow in the MVP:
 10. The owner verifies work or requests changes.
 11. Members can request deadline extensions.
 12. Verified tasks appear in project work history and profile contribution sections.
+
+## Demo Flow
+
+Use this evaluator-friendly walkthrough for the final MVP showcase:
+
+1. Open the live app.
+2. Login or create a campus account.
+3. Explore the dashboard command center.
+4. Try Anonymous Doubts, Learning Circles, and Senior Connect.
+5. Open a Project Mate workspace.
+6. Upload or preview a shared resource/video.
+7. Assign, submit, and verify a project task.
+8. View profile contribution history and dynamic badges.
 
 ## Security and Privacy
 
@@ -191,4 +204,4 @@ https://maheshofficial0011.github.io/skillsaathi-campus-peer-learning/
 
 ## MVP Status
 
-SkillSaathi is now **MVP Complete, Vercel-deployed, Supabase-ready, GitHub-ready, and demo-ready**.
+SkillSaathi is now **Phase 6.8 Final MVP Showcase ready: MVP Complete, Vercel-deployed, Supabase-ready, GitHub Pages-ready, and demo-ready**.

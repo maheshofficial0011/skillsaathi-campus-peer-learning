@@ -120,8 +120,8 @@ export const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[60vh] px-4 py-8">
-      <div className="w-full max-w-lg p-8 space-y-6 bg-white rounded-2xl border border-slate-200 shadow-md">
+    <div className="flex items-center justify-center min-h-[70vh] px-0 sm:px-4 py-6 sm:py-10">
+      <div className="w-full max-w-lg p-5 sm:p-8 space-y-6 bg-white rounded-3xl border border-indigo-100 shadow-xl shadow-indigo-100/60">
 
         {/* Header Section */}
         <div className="text-center space-y-2">
@@ -131,14 +131,15 @@ export const AuthPage: React.FC = () => {
             </span>
           </div>
           <h2 className="text-3xl font-bold tracking-tight text-slate-900">
-            {mode === 'login' ? 'Sign in to SkillSaathi' : 'Create Campus Account'}
+            Welcome to SkillSaathi
           </h2>
           <p className="text-sm text-slate-500">
             {mode === 'login'
-              ? 'Connect with your campus community today'
-              : 'Share your skills and study together'
+              ? 'Join your campus peer-learning network.'
+              : 'Create your profile and join your campus peer-learning network.'
             }
           </p>
+          <p className="mx-auto max-w-sm text-xs leading-5 text-slate-500">Ask doubts, find study circles, connect with seniors, and build project teams.</p>
         </div>
 
         {/* Status Alerts */}
