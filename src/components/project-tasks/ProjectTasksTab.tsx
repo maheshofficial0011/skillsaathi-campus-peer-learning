@@ -181,6 +181,9 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
         if (isDangerousFile(assignAttachFile)) {
           throw new Error('Unsupported or hazardous executable formats are blocked for security.');
         }
+        if (assignAttachFile.size > 20 * 1024 * 1024) {
+          throw new Error('Supporting files cannot exceed the 20 MB size limit.');
+        }
         setUploadProgress(true);
         const uploadRes = await uploadProjectTaskFile(project.id, assignAttachFile);
         attachmentObj = {
@@ -254,8 +257,18 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
   const handleSubmitWorkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTask) return;
+    
     if (submissionNote.trim().length < 10) {
       toast.error('Submission notes must be at least 10 characters.');
+      return;
+    }
+
+    if (submissionAttachMode === 'link' && (!submissionUrl || !submissionUrl.trim())) {
+      toast.error('Please paste a secure HTTPS link to your work.');
+      return;
+    }
+    if (submissionAttachMode === 'file' && !submissionFile) {
+      toast.error('Please select a file asset to submit.');
       return;
     }
 
@@ -275,6 +288,9 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
       } else if (submissionAttachMode === 'file' && submissionFile) {
         if (isDangerousFile(submissionFile)) {
           throw new Error('Unsupported or hazardous executable formats are blocked for security.');
+        }
+        if (submissionFile.size > 20 * 1024 * 1024) {
+          throw new Error('Submission deliverables cannot exceed the 20 MB size limit.');
         }
         const uploadRes = await uploadProjectTaskFile(project.id, submissionFile);
         fileObj = {
@@ -764,6 +780,36 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
       {activeSubView === 'assign' && project.is_owner && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm max-w-2xl animate-fade-in">
           <h3 className="text-lg font-black text-slate-800 mb-5">Assign a New Task Definition</h3>
+          
+          {/* Simple Preset Templates */}
+          <div className="mb-5 p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">💡 Task Presets / Quick Assign</label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { title: 'Frontend UI Task', objective: 'Implement the responsive user interface, styled components, alignment polish, interactive state transitions, and responsive stacking according to mockups.', priority: 'medium' },
+                { title: 'Backend API Task', objective: 'Develop secure database endpoints, helper libraries, validation logic, RLS rules, and error handling for data transactions.', priority: 'high' },
+                { title: 'Design & UI/UX Task', objective: 'Create harmonized color systems, Outfit typography, high-fidelity mockups, visual assets, and detailed flow diagram wireframes.', priority: 'low' },
+                { title: 'Research/Documentation Task', objective: 'Investigate technical architecture feasibility, compile competitor analysis report, and construct clear markdown documentation files.', priority: 'low' },
+                { title: 'Testing/QA Task', objective: 'Verify functionality across mobile layouts, check edge cases, run typescript checks, and document all test coverage results.', priority: 'medium' },
+                { title: 'Presentation/Demo Task', objective: 'Prepare a 5-minute video walkthrough, outline slide deck presentation, and polish the final application deployment flow.', priority: 'urgent' }
+              ].map((tmpl, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setNewTaskTitle(tmpl.title);
+                    setNewTaskObjective(tmpl.objective);
+                    setNewTaskPriority(tmpl.priority as any);
+                    toast.info(`Prefilled: "${tmpl.title}"`);
+                  }}
+                  className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-[9px] font-bold text-slate-700 transition-all shadow-sm flex items-center gap-1 shrink-0"
+                >
+                  ✨ {tmpl.title.split(' ')[0]} {tmpl.title.includes('&') ? '& UI/UX' : tmpl.title.split(' ')[1]}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <form onSubmit={handleAssignTaskSubmit} className="space-y-4 text-xs">
             <div>
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Task Title *</label>
@@ -1321,6 +1367,56 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
                 )}
               </div>
 
+              {/* Task Status Alert Banners */}
+              <div className="space-y-3">
+                {selectedTask.status === 'verified' && (
+                  <div className="p-4 bg-emerald-50/70 border border-emerald-250 rounded-2xl flex items-start gap-3 text-emerald-800 font-semibold leading-relaxed animate-fade-in shadow-xs">
+                    <span className="text-lg shrink-0">🏆</span>
+                    <div className="space-y-1">
+                      <p className="font-extrabold text-xs text-emerald-950 uppercase tracking-wide">Task Verified & Completed</p>
+                      <p className="text-[10px] text-emerald-700 font-medium leading-relaxed">
+                        This task has been successfully completed, reviewed, and verified by the Project Lead. 
+                        The contribution has been logged to the assignee's profile work history. No further work is required.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {selectedTask.status === 'cancelled' && (
+                  <div className="p-4 bg-slate-100 border border-slate-250 rounded-2xl flex items-start gap-3 text-slate-700 font-semibold leading-relaxed animate-fade-in shadow-xs">
+                    <span className="text-lg shrink-0">🚫</span>
+                    <div className="space-y-1">
+                      <p className="font-extrabold text-xs text-slate-900 uppercase tracking-wide">Task Assignment Cancelled</p>
+                      <p className="text-[10px] text-slate-550 font-medium leading-relaxed">
+                        This task assignment has been officially cancelled by the Project Lead. No further submissions or reviews can be processed.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {selectedTask.status === 'submitted' && (
+                  <div className="p-4 bg-purple-50/70 border border-purple-250 rounded-2xl flex items-start gap-3 text-purple-800 font-semibold leading-relaxed animate-fade-in shadow-xs">
+                    <span className="text-lg shrink-0">⏳</span>
+                    <div className="space-y-1">
+                      <p className="font-extrabold text-xs text-purple-950 uppercase tracking-wide">Work Pending Lead Review</p>
+                      <p className="text-[10px] text-purple-700 font-medium leading-relaxed">
+                        Your work has been submitted and is currently pending verification from the Project Lead. 
+                        If you need to make changes, you can withdraw your submission below.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {selectedTask.status === 'rejected' && (
+                  <div className="p-4 bg-rose-50/70 border border-rose-250 rounded-2xl flex items-start gap-3 text-rose-800 font-semibold leading-relaxed animate-fade-in shadow-xs">
+                    <span className="text-lg shrink-0">⚠️</span>
+                    <div className="space-y-1">
+                      <p className="font-extrabold text-xs text-rose-950 uppercase tracking-wide">Revisions Requested</p>
+                      <p className="text-[10px] text-rose-700 font-medium leading-relaxed">
+                        The Project Lead has requested revisions. Please read the review feedback below, make the necessary improvements to your work, and submit the new deliverables.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Action Panels depending on roles */}
               {selectedTask.assigned_to === currentUser.id && (
                 <div className="space-y-4">
@@ -1613,14 +1709,22 @@ export function ProjectTasksTab({ tasks, project, currentUser, teamMembers, refr
                     );
                   } else if (previewFileType === 'video') {
                     return (
-                      <div className="max-h-[60vh] overflow-auto flex items-center justify-center bg-black rounded-2xl p-2 w-full max-w-3xl">
+                      <div className="max-h-[60vh] overflow-auto flex flex-col items-center justify-center bg-black/5 rounded-2xl p-4 w-full">
                         <video 
                           controls 
+                          autoPlay={false}
                           src={previewFileUrl} 
-                          className="max-w-full max-h-[50vh] rounded-xl shadow-md bg-black"
+                          className="max-w-full max-h-[48vh] rounded-xl shadow-md border border-slate-700 bg-black"
+                          onError={() => {
+                            toast.error('Preview link expired. Reopen preview to refresh.');
+                          }}
                         >
                           Your browser does not support the video tag.
                         </video>
+                        <div className="text-center mt-2.5 space-y-0.5 shrink-0">
+                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-wider">🎥 Secure Task Video Preview</p>
+                          <p className="text-[9px] text-slate-400">Signed URL expires in 5 mins. If playback fails, please reopen the preview lightbox to refresh.</p>
+                        </div>
                       </div>
                     );
                   } else {

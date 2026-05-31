@@ -112,6 +112,19 @@ export const ProjectMatePage: React.FC = () => {
   const { user } = useAuth();
   const toast = useToast();
 
+  const isResourceVideo = (res: any) => {
+    if (!res) return false;
+    if (res.resource_type === 'video') return true;
+    const mime = res.file_mime_type?.toLowerCase() || '';
+    const name = res.file_name?.toLowerCase() || '';
+    const url = res.url?.toLowerCase() || '';
+    const isMimeVideo = mime.startsWith('video/');
+    const isExtVideo = name.endsWith('.mp4') || name.endsWith('.webm') || name.endsWith('.mov') ||
+                       url.endsWith('.mp4') || url.endsWith('.webm') || url.endsWith('.mov') ||
+                       url.includes('youtube.com') || url.includes('youtu.be') || url.includes('vimeo.com');
+    return isMimeVideo || isExtVideo;
+  };
+
   // Tab State
   const [activeTab, setActiveTab] = useState<'discover' | 'my_projects' | 'my_applications' | 'workspace'>('discover');
 
@@ -1023,7 +1036,10 @@ export const ProjectMatePage: React.FC = () => {
     'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'video/mp4',
+    'video/webm',
+    'video/quicktime'
   ];
 
   // --- RESOURCE BOARD ACTIONS ---
@@ -1043,14 +1059,17 @@ export const ProjectMatePage: React.FC = () => {
       return;
     }
 
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      setFileError('Unsupported file type. Only PDFs, text files, images, datasets, and standard office documents are allowed.');
+    const isVideoFile = lowerName.endsWith('.mp4') || lowerName.endsWith('.webm') || lowerName.endsWith('.mov') || file.type.startsWith('video/');
+
+    if (!ALLOWED_MIME_TYPES.includes(file.type) && !isVideoFile) {
+      setFileError('Unsupported file type. Only PDFs, text files, images, videos, datasets, and standard office documents are allowed.');
       setSelectedFile(null);
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setFileError('File size exceeds the 10 MB limit.');
+    const sizeLimit = isVideoFile ? 20 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > sizeLimit) {
+      setFileError(`File size exceeds the limit (${isVideoFile ? '20 MB for videos' : '10 MB for standard files'}).`);
       setSelectedFile(null);
       return;
     }
@@ -1071,6 +1090,8 @@ export const ProjectMatePage: React.FC = () => {
       typeSug = 'notes';
     } else if (file.type.includes('presentation') || file.type.includes('powerpoint')) {
       typeSug = 'presentation';
+    } else if (isVideoFile) {
+      typeSug = 'video';
     }
     
     setResourceType(typeSug);
@@ -1125,7 +1146,7 @@ export const ProjectMatePage: React.FC = () => {
           project_id: selectedProjectId,
           title: newResourceTitle,
           description: newResourceDesc || undefined,
-          resource_type: resourceType as any,
+          resource_type: (resourceType === 'video' ? 'other' : resourceType) as any,
           file_path: fileData.file_path,
           file_name: fileData.file_name,
           file_mime_type: fileData.file_mime_type,
@@ -3588,6 +3609,15 @@ export const ProjectMatePage: React.FC = () => {
                           ? member.profile.full_name.split(' ').filter(n => n.length > 0).map(n => n[0]).slice(0, 2).join('').toUpperCase()
                           : 'SS';
                         
+                        // Calculate teammate task counts dynamically from projectTasks
+                        const memberTasks = projectTasks.filter(t => t.assigned_to === member.user_id);
+                        const assignedTasksCount = memberTasks.filter(t => t.status === 'assigned').length;
+                        const verifiedTasksCount = memberTasks.filter(t => t.status === 'verified').length;
+                        const pendingTasksCount = memberTasks.filter(t => ['in_progress', 'submitted', 'extension_requested', 'extended'].includes(t.status)).length;
+                        const overdueTasksCount = memberTasks.filter(t => {
+                          return t.status !== 'verified' && t.status !== 'cancelled' && new Date(t.due_at) < new Date();
+                        }).length;
+
                         return (
                           <div key={member.id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${idx > 0 ? 'pt-3.5' : ''}`}>
                             <div className="flex gap-3">
@@ -3602,6 +3632,20 @@ export const ProjectMatePage: React.FC = () => {
                                 <span className="text-[10px] text-slate-500 block font-medium">
                                   {member.profile?.department} ({member.profile?.year_of_study})
                                 </span>
+
+                                <div className="flex flex-wrap gap-2 text-[9px] text-slate-400 font-bold mt-1 shrink-0">
+                                  <span>Assigned: <strong className="text-slate-600">{assignedTasksCount}</strong></span>
+                                  <span className="text-slate-300">·</span>
+                                  <span>Verified: <strong className="text-emerald-600">{verifiedTasksCount}</strong></span>
+                                  <span className="text-slate-300">·</span>
+                                  <span>Pending: <strong className="text-indigo-650">{pendingTasksCount}</strong></span>
+                                  {overdueTasksCount > 0 && (
+                                    <>
+                                      <span className="text-slate-300">·</span>
+                                      <span className="text-rose-600 font-extrabold">⚠️ Overdue: {overdueTasksCount}</span>
+                                    </>
+                                  )}
+                                </div>
                                 
                                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
                                   {isOwner && (
@@ -4712,7 +4756,7 @@ export const ProjectMatePage: React.FC = () => {
                         {verificationQueue.length === 0 ? (
                           <p className="text-xs text-amber-700 italic text-center py-4 font-medium">No materials currently pending review.</p>
                         ) : (
-                          <div className="space-y-3 max-h-[400px] overflow-y-auto thin-scrollbar pr-1">
+                          <div className={`space-y-3 pr-1 ${verificationQueue.length > 3 ? 'max-h-[300px] overflow-y-auto thin-scrollbar' : ''}`}>
                             {verificationQueue.map(res => {
                               const isExe = res.url?.toLowerCase().endsWith('.exe') || res.file_name?.toLowerCase().endsWith('.exe');
                               return (
@@ -4727,7 +4771,7 @@ export const ProjectMatePage: React.FC = () => {
                                       <h5 className="font-extrabold text-slate-850 text-sm flex items-center gap-1.5">
                                         <span>{res.title}</span>
                                         <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-black uppercase">
-                                          {res.resource_type}
+                                          {isResourceVideo(res) ? 'video' : res.resource_type}
                                         </span>
                                       </h5>
                                       <span className="text-[10px] text-slate-400">
@@ -4737,12 +4781,12 @@ export const ProjectMatePage: React.FC = () => {
                                     
                                     {res.file_path ? (
                                       <div className="flex gap-2">
-                                        {(res.resource_type === 'pdf' || res.resource_type === 'image' || res.resource_type === 'video') && (
+                                        {(res.resource_type === 'pdf' || res.resource_type === 'image' || isResourceVideo(res)) && (
                                           <button
                                             onClick={() => handlePreviewResource(res)}
                                             className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-1"
                                           >
-                                            {res.resource_type === 'video' ? '▶ Play Video' : '👁️ Preview Securely'}
+                                            {isResourceVideo(res) ? '▶ Play Video' : '👁️ Preview Securely'}
                                           </button>
                                         )}
                                         <button
@@ -4830,7 +4874,8 @@ export const ProjectMatePage: React.FC = () => {
                           );
                         }
 
-                        const getTypeIcon = (type: string) => {
+                        const getTypeIcon = (type: string, res?: any) => {
+                          if (res && isResourceVideo(res)) return '🎥 Video';
                           switch (type) {
                             case 'pdf': return '💾 PDF';
                             case 'notes': return '📝 Notes';
@@ -4846,7 +4891,7 @@ export const ProjectMatePage: React.FC = () => {
 
                         return (
                           <>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto thin-scrollbar pr-1">
+                            <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 pr-1 ${verifiedList.length > 4 ? 'max-h-[420px] overflow-y-auto thin-scrollbar' : ''}`}>
                               {sliced.map(res => {
                                 const isExe = res.url?.toLowerCase().endsWith('.exe') || res.file_name?.toLowerCase().endsWith('.exe');
                                 const isLeadUpload = res.uploaded_by === selectedProject.created_by || res.owner_recommended;
@@ -4857,7 +4902,7 @@ export const ProjectMatePage: React.FC = () => {
                                       <div className="space-y-1.5 flex-1">
                                         <div className="flex flex-wrap items-center gap-1.5">
                                           <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-black uppercase border border-indigo-150">
-                                            {getTypeIcon(res.resource_type)}
+                                            {getTypeIcon(res.resource_type, res)}
                                           </span>
                                           {res.is_pinned && (
                                             <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-250 text-[9px] font-black uppercase rounded">
@@ -4897,12 +4942,12 @@ export const ProjectMatePage: React.FC = () => {
                                       <div className="flex flex-wrap gap-2 items-center">
                                         {res.file_path ? (
                                           <>
-                                            {(res.resource_type === 'pdf' || res.resource_type === 'image' || res.resource_type === 'video') && (
+                                            {(res.resource_type === 'pdf' || res.resource_type === 'image' || isResourceVideo(res)) && (
                                               <button
                                                 onClick={() => handlePreviewResource(res)}
                                                 className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm transition-all"
                                               >
-                                                <span>{res.resource_type === 'video' ? '▶ Play Video' : '👁️ Preview Securely'}</span>
+                                                <span>{isResourceVideo(res) ? '▶ Play Video' : '👁️ Preview Securely'}</span>
                                               </button>
                                             )}
                                             <button
@@ -5007,7 +5052,7 @@ export const ProjectMatePage: React.FC = () => {
                         }
 
                         return (
-                          <div className="space-y-3 max-h-[400px] overflow-y-auto thin-scrollbar pr-1">
+                          <div className={`space-y-3 pr-1 ${mySubmitted.length > 4 ? 'max-h-[300px] overflow-y-auto thin-scrollbar' : ''}`}>
                             {mySubmitted.map(res => {
                               const statusBadge =
                                 res.verification_status === 'verified' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -5022,7 +5067,7 @@ export const ProjectMatePage: React.FC = () => {
                                       <h5 className="font-extrabold text-slate-850 flex items-center gap-1.5">
                                         <span className="truncate max-w-[160px]" title={res.title}>{res.title}</span>
                                         <span className="px-1.5 py-0.2 bg-slate-250 text-slate-505 rounded text-[8px] font-black uppercase shrink-0">
-                                          {res.resource_type}
+                                          {isResourceVideo(res) ? 'video' : res.resource_type}
                                         </span>
                                       </h5>
                                       {res.file_path ? (
@@ -6217,16 +6262,24 @@ export const ProjectMatePage: React.FC = () => {
                         />
                       </div>
                     );
-                  } else if (type === 'video') {
+                  } else if (type === 'video' || isResourceVideo(previewResource)) {
                     return (
-                      <div className="max-h-[60vh] overflow-auto flex items-center justify-center bg-black/5 rounded-2xl p-4">
+                      <div className="max-h-[60vh] overflow-auto flex flex-col items-center justify-center bg-black/5 rounded-2xl p-4 w-full">
                         <video
                           controls
+                          autoPlay={false}
                           src={previewUrl}
-                          className="max-w-full max-h-[55vh] rounded-xl shadow-md border border-slate-700 bg-black"
+                          className="max-w-full max-h-[48vh] rounded-xl shadow-md border border-slate-700 bg-black"
+                          onError={() => {
+                            toast.error('Preview link expired. Reopen preview to refresh.');
+                          }}
                         >
                           Your browser does not support the video tag.
                         </video>
+                        <div className="text-center mt-2.5 space-y-0.5 shrink-0">
+                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-wider">🎥 Project Mate Video Demo</p>
+                          <p className="text-[9px] text-slate-400">Signed URL expires in 5 mins. If playback fails, please reopen the preview lightbox to refresh.</p>
+                        </div>
                       </div>
                     );
                   } else {

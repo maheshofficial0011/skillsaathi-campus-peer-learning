@@ -29,6 +29,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
   const [doubtStats, setDoubtStats] = useState<DoubtContributionStats | null>(null);
   const [circlesJoined, setCirclesJoined] = useState<number>(0);
 
+  // Project Mate profile work states
+  const [activeProjects, setActiveProjects] = useState<any[]>([]);
+  const [verifiedTasks, setVerifiedTasks] = useState<any[]>([]);
+  const [pendingTasks, setPendingTasks] = useState<any[]>([]);
+  const [pastProjects, setPastProjects] = useState<any[]>([]);
+  const [kpiCounts, setKpiCounts] = useState({
+    activeTeams: 0,
+    verifiedTasks: 0,
+    pendingTasks: 0,
+    overdueTasks: 0,
+    pastTeams: 0
+  });
+
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -191,6 +204,107 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
           .select('*', { count: 'exact', head: true })
           .eq('user_id', userId);
         setCirclesJoined(circleCount ?? 0);
+
+        // --- Phase 6.4B: Project Mate Profile Integration ---
+        // 1. Fetch active teams
+        const { data: actTeams } = await supabase
+          .from('project_team_members')
+          .select(`
+            role_name,
+            joined_at,
+            project:project_posts (
+              id,
+              title,
+              status,
+              max_team_size,
+              current_team_size,
+              created_by
+            )
+          `)
+          .eq('user_id', userId)
+          .is('left_at', null);
+
+        const filteredActTeams = (actTeams || []).filter((t: any) => t.project !== null);
+        setActiveProjects(filteredActTeams);
+
+        // 2. Fetch verified tasks
+        const { data: verTasks } = await supabase
+          .from('project_tasks')
+          .select(`
+            id,
+            title,
+            priority,
+            due_at,
+            status,
+            verified_at,
+            feedback,
+            project:project_posts (
+              title
+            )
+          `)
+          .eq('assigned_to', userId)
+          .eq('status', 'verified')
+          .order('verified_at', { ascending: false });
+
+        setVerifiedTasks(verTasks || []);
+
+        // 3. Fetch pending assigned tasks
+        const { data: pendTasks } = await supabase
+          .from('project_tasks')
+          .select(`
+            id,
+            title,
+            priority,
+            due_at,
+            status,
+            project:project_posts (
+              id,
+              title
+            )
+          `)
+          .eq('assigned_to', userId)
+          .in('status', ['assigned', 'in_progress', 'needs_revision', 'submitted'])
+          .order('due_at', { ascending: true });
+
+        setPendingTasks(pendTasks || []);
+
+        // 4. Fetch past teams
+        const { data: pstTeams } = await supabase
+          .from('project_team_members')
+          .select(`
+            role_name,
+            left_at,
+            leave_reason,
+            project:project_posts (
+              title
+            )
+          `)
+          .eq('user_id', userId)
+          .not('left_at', 'is', null)
+          .order('left_at', { ascending: false });
+
+        const filteredPstTeams = (pstTeams || []).filter((t: any) => t.project !== null);
+        setPastProjects(filteredPstTeams);
+
+        // 5. Calculate KPI counts
+        const activeCount = filteredActTeams.length;
+        const verifiedCount = verTasks?.length || 0;
+        const pendingCount = pendTasks?.length || 0;
+        
+        // Count overdue tasks safely
+        const overdueCount = (pendTasks || []).filter((t: any) => {
+          return t.status !== 'verified' && t.status !== 'cancelled' && new Date(t.due_at) < new Date();
+        }).length;
+
+        const pastCount = filteredPstTeams.length;
+
+        setKpiCounts({
+          activeTeams: activeCount,
+          verifiedTasks: verifiedCount,
+          pendingTasks: pendingCount,
+          overdueTasks: overdueCount,
+          pastTeams: pastCount
+        });
 
         if (data.is_senior_mentor) {
           const ms = await getSeniorMentorStats(userId);
@@ -1357,6 +1471,225 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ userId, userEmail }) =
             </div>
           )}
           {/* ================================================ */}
+
+          {/* ======== PROJECT WORK & TEAM CONTRIBUTIONS ======== */}
+          <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-6 animate-fade-in">
+            <div className="border-b border-slate-100 pb-3 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  💼 Project Work &amp; Team Contributions
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Your collaboration and verified task contributions from Find Teammates</p>
+              </div>
+              <span className="text-xs text-indigo-650 bg-indigo-50 px-2.5 py-0.5 rounded-full font-bold border border-indigo-100 shrink-0">
+                Verified Work History
+              </span>
+            </div>
+
+            {/* KPI Badges */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-center">
+                <p className="text-xl font-black text-indigo-700">{kpiCounts.activeTeams}</p>
+                <p className="text-[10px] font-bold text-indigo-500 mt-0.5">Active Teams</p>
+              </div>
+              <div className="p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl text-center">
+                <p className="text-xl font-black text-emerald-700">{kpiCounts.verifiedTasks}</p>
+                <p className="text-[10px] font-bold text-emerald-500 mt-0.5">Verified Tasks</p>
+              </div>
+              <div className="p-3 bg-violet-50/50 border border-violet-100 rounded-xl text-center">
+                <p className="text-xl font-black text-violet-700">{kpiCounts.pendingTasks}</p>
+                <p className="text-[10px] font-bold text-violet-500 mt-0.5">Pending Tasks</p>
+              </div>
+              <div className={`p-3 rounded-xl text-center border ${kpiCounts.overdueTasks > 0 ? 'bg-red-50 border-red-150' : 'bg-slate-50 border-slate-100'}`}>
+                <p className={`text-xl font-black ${kpiCounts.overdueTasks > 0 ? 'text-red-650 animate-pulse' : 'text-slate-400'}`}>{kpiCounts.overdueTasks}</p>
+                <p className={`text-[10px] font-bold ${kpiCounts.overdueTasks > 0 ? 'text-red-500' : 'text-slate-400'} mt-0.5`}>Overdue Tasks</p>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-150 rounded-xl text-center">
+                <p className="text-xl font-black text-slate-650">{kpiCounts.pastTeams}</p>
+                <p className="text-[10px] font-bold text-slate-450 mt-0.5">Past Teams</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+              
+              {/* 1. Active Teams */}
+              <div className="space-y-3.5">
+                <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  🟢 Active Projects ({activeProjects.length})
+                </h4>
+                {activeProjects.length === 0 ? (
+                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 italic text-[11px]">
+                    Not currently active in any teammate projects.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-[300px] overflow-y-auto thin-scrollbar pr-1">
+                    {activeProjects.map((t, idx) => (
+                      <div key={idx} className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs space-y-2 flex flex-col justify-between">
+                        <div className="flex justify-between items-start gap-3">
+                          <div>
+                            <span className="text-[9px] font-black uppercase text-slate-400">Team Workspace</span>
+                            <h5 className="font-extrabold text-slate-800 text-xs leading-tight pr-4">{t.project?.title}</h5>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-150 rounded text-[9px] font-black uppercase">
+                              {t.role_name || 'Teammate'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                window.location.href = `/project-mates?workspace=${t.project?.id}`;
+                              }}
+                              className="text-[9px] font-black text-indigo-650 hover:underline uppercase tracking-wide mt-1"
+                            >
+                              🚀 Open Workspace
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-450 border-t border-slate-100 pt-2 shrink-0">
+                          <span>Team Size: <strong>{t.project?.current_team_size || 1}/{t.project?.max_team_size || 4}</strong></span>
+                          <span>Joined: {new Date(t.joined_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Pending Tasks */}
+              <div className="space-y-3.5">
+                <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  ⏳ Pending Assigned Tasks ({pendingTasks.length})
+                </h4>
+                {pendingTasks.length === 0 ? (
+                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 italic text-[11px]">
+                    No outstanding tasks assigned at this moment.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-[300px] overflow-y-auto thin-scrollbar pr-1">
+                    {pendingTasks.map((t, idx) => {
+                      const isOverdue = new Date(t.due_at) < new Date();
+                      return (
+                        <div key={idx} className={`p-3.5 border rounded-xl shadow-xs space-y-2 flex flex-col justify-between ${isOverdue ? 'bg-red-50/20 border-red-150' : 'bg-white border-slate-200'}`}>
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="space-y-1">
+                              <span className="text-[9px] font-bold text-slate-400">{t.project?.title}</span>
+                              <h5 className="font-extrabold text-slate-800 text-xs leading-tight pr-4">{t.title}</h5>
+                            </div>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <span className={`px-2 py-0.5 border rounded text-[9px] font-black uppercase shrink-0 ${
+                                t.status === 'in_progress' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                t.status === 'submitted' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                t.status === 'needs_revision' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                'bg-slate-50 text-slate-600 border-slate-200'
+                              }`}>
+                                {t.status === 'needs_revision' ? 'needs revision' : t.status === 'in_progress' ? 'in progress' : t.status}
+                              </span>
+                              {activeProjects.some(ap => ap.project?.id === t.project?.id) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    window.location.href = `/project-mates?workspace=${t.project?.id}`;
+                                  }}
+                                  className="text-[8px] font-black text-indigo-650 hover:underline uppercase tracking-wide mt-1"
+                                >
+                                  🚀 Open Workspace
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] border-t border-slate-100 pt-2 shrink-0">
+                            <span className="text-slate-450 font-bold">Priority: <span className="uppercase">{t.priority}</span></span>
+                            <span className={`font-semibold ${isOverdue ? 'text-red-650' : 'text-slate-450'}`}>
+                              {isOverdue ? '⚠️ Overdue: ' : 'Due: '}
+                              {new Date(t.due_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+              
+              {/* 3. Verified Task Contributions */}
+              <div className="space-y-3.5">
+                <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  🏆 Verified Contributions ({verifiedTasks.length})
+                </h4>
+                {verifiedTasks.length === 0 ? (
+                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 italic text-[11px]">
+                    No verified contributions listed yet. Complete tasks to build history.
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[350px] overflow-y-auto thin-scrollbar pr-1">
+                    {verifiedTasks.map((t, idx) => (
+                      <div key={idx} className="p-3.5 bg-emerald-50/20 border border-emerald-150 rounded-xl space-y-2">
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="space-y-0.5">
+                            <span className="text-[9px] font-bold text-slate-400">{t.project?.title}</span>
+                            <h5 className="font-extrabold text-slate-800 text-xs leading-tight">{t.title}</h5>
+                          </div>
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px] font-black uppercase shrink-0">
+                            verified
+                          </span>
+                        </div>
+                        {t.feedback && (
+                          <div className="p-2.5 bg-emerald-50/50 border border-emerald-100 rounded-lg text-[10px] text-emerald-800 leading-relaxed font-semibold">
+                            <span className="font-extrabold block uppercase tracking-wide text-[8px] text-emerald-600 mb-0.5">Lead Reviewer Feedback:</span>
+                            <p className="italic font-normal">"{t.feedback}"</p>
+                          </div>
+                        )}
+                        <div className="text-[9px] text-slate-400 text-right">
+                          Verified on {t.verified_at ? new Date(t.verified_at).toLocaleDateString() : 'N/A'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Past Projects History */}
+              <div className="space-y-3.5">
+                <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  ⌛ Past Project History ({pastProjects.length})
+                </h4>
+                {pastProjects.length === 0 ? (
+                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 italic text-[11px]">
+                    No past project participations recorded.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-[350px] overflow-y-auto thin-scrollbar pr-1">
+                    {pastProjects.map((t, idx) => (
+                      <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="space-y-0.5">
+                            <span className="text-[9px] font-bold text-slate-400">Past Team</span>
+                            <h5 className="font-extrabold text-slate-800 text-xs leading-tight pr-6">{t.project?.title}</h5>
+                          </div>
+                          <span className="px-2 py-0.5 bg-slate-200 text-slate-655 border border-slate-300 rounded text-[9px] font-black uppercase shrink-0">
+                            {t.role_name || 'Teammate'}
+                          </span>
+                        </div>
+                        {t.leave_reason && (
+                          <p className="text-[10px] text-slate-500 leading-relaxed font-semibold">
+                            <span className="font-bold">Leave/Exit Reason:</span> "{t.leave_reason}"
+                          </p>
+                        )}
+                        <div className="text-[9px] text-slate-400 text-right">
+                          Left on {t.left_at ? new Date(t.left_at).toLocaleDateString() : 'N/A'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
 
           {/* Reviewer Public Profile Modal */}
           {viewReviewerProfileId && (
