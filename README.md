@@ -1,14 +1,34 @@
 # SkillSaathi — Campus Peer Learning Platform
 
-[![MVP Complete](https://img.shields.io/badge/MVP-Complete-22c55e)](#)
-[![Live on Vercel](https://img.shields.io/badge/Live-Vercel-000000)](https://skillsaathi-campus-peer-learning.vercel.app/)
-[![React](https://img.shields.io/badge/React-TypeScript-61dafb)](#)
-[![Supabase](https://img.shields.io/badge/Supabase-Ready-3ecf8e)](#)
-[![Phase](https://img.shields.io/badge/Phase-6.7%20Final%20Showcase-818cf8)](#)
+[![Final MVP Complete](https://img.shields.io/badge/Final%20MVP-Complete-22c55e)](#)
+[![Vercel Deployed](https://img.shields.io/badge/Live-Vercel%20Deployed-000000)](https://skillsaathi-campus-peer-learning.vercel.app/)
+[![Supabase Backend](https://img.shields.io/badge/Backend-Supabase-3ecf8e)](#)
+[![React + TypeScript + Vite](https://img.shields.io/badge/React%20%2B%20TS%20%2B%20Vite-Ready-61dafb)](#)
+[![GitHub Pages Showcase](https://img.shields.io/badge/Showcase-GitHub%20Pages-818cf8)](https://maheshofficial0011.github.io/skillsaathi-campus-peer-learning/)
 
 SkillSaathi Campus Peer Learning is a campus peer-learning and project collaboration platform where students can ask anonymous doubts, join learning circles, connect with seniors, find project teammates, collaborate inside secure workspaces, share resources, assign tasks, submit work, and track verified project contributions.
 
-## Project Showcase & One-Click Demo
+## 🚀 Reviewer Quick Start & Demo Flow
+
+To review and experience the full capabilities of the platform, we recommend the following visual and interactive walkthrough:
+
+1. **Access Core Links**:
+   * **Live Deployed App:** [skillsaathi-campus-peer-learning.vercel.app](https://skillsaathi-campus-peer-learning.vercel.app/)
+   * **Visual Presentation Showcase:** [maheshofficial0011.github.io/skillsaathi-campus-peer-learning](https://maheshofficial0011.github.io/skillsaathi-campus-peer-learning/)
+   * **GitHub Code Repository:** [maheshofficial0011/skillsaathi-campus-peer-learning](https://github.com/maheshofficial0011/skillsaathi-campus-peer-learning)
+
+2. **Step-by-Step Interactive Demo Walkthrough**:
+   * **Step 1:** Open the **Live App** and **Register** a new college account or log in.
+   * **Step 2:** Navigate to **My Profile**, fill out your headline, student skills, and availability targets to complete your profile structure.
+   * **Step 3:** Explore the central **Dashboard** to view matching doubt requests based automatically on your profile skills.
+   * **Step 4:** Navigate to **Anonymous Doubts**, ask a doubt anonymously (or publicly), answer a peer's active question, and accept an answer as the asker to mark it solved.
+   * **Step 5:** Navigate to **Learning Circles**, create a study cohort or request to join an active circle, manage teammate approvals, hold discussion posts (announcements automatically float to the top), and share secure verified resources.
+   * **Step 6:** Navigate to **Senior Connect**, discover senior mentors, request session bookings, and submit anonymous mentor reviews to build tutor reputations safely.
+   * **Step 7:** Navigate to **Find Teammates / Project Mate**, create a project recruitment card with defined role slots, apply for open roles as a classmate, approve teammates, and unlock a gated secure workspace.
+   * **Step 8:** Inside your **Project Workspace**, inspect teammate rosters, participate in threaded conversations, assign project tasks with due dates, submit attachments, request extensions, and review/verify tasks as a project lead.
+   * **Step 9:** Return to **My Profile** to verify that completed and verified tasks automatically update your verified contribution history and active badges!
+
+## Project Showcase & One-Click Demo Documents
 
 - **Live App:** https://skillsaathi-campus-peer-learning.vercel.app/
 - **GitHub Pages Showcase:** https://maheshofficial0011.github.io/skillsaathi-campus-peer-learning/
@@ -19,12 +39,12 @@ SkillSaathi Campus Peer Learning is a campus peer-learning and project collabora
 
 ## MVP Status
 
-- **MVP Complete**
+- **Final MVP Complete**
+- **Vercel Deployed**
+- **Supabase Backend**
+- **React + TypeScript + Vite**
+- **GitHub Pages Showcase**
 - **Demo Ready**
-- **GitHub Ready**
-- **Supabase Ready**
-- **Vercel Ready**
-- **GitHub Pages Showcase Ready**
 
 ## Problem Statement
 
@@ -213,14 +233,15 @@ https://maheshofficial0011.github.io/skillsaathi-campus-peer-learning/
 
 Screenshots are available in the GitHub Pages showcase at [`docs/index.html`](docs/index.html) and in [`docs/assets/`](docs/assets/).
 
-## Future Improvements
+## Known Limitations & Future Scope
 
-- Realtime notifications
-- AI teammate/resource recommendations
-- Calendar integration
-- Analytics dashboard
-- Mobile app
-- Advanced public contribution portfolio
+This project is a high-fidelity MVP demonstration build showing fully integrated campus coordination lifecycles. For production deployment scaling, the following would represent our future development roadmap:
+
+* **Realtime Notifications**: Instantly notify students of doubt replies, cohort invites, and task assignments in real-time (currently checked via lightweight heartbeat polling).
+* **AI Recommendation Engines**: Leverage student skills and course objectives to automatically recommend matching teammates and verified library resources.
+* **Production Gating & Backups**: Scaling for large university deployments would involve automated database backups, log auditing, email verification domains, and advanced senior moderator dashboards.
+* **Advanced Analytics**: Cohort analytics dashboards for department heads to measure student participation levels and academic peer support scores.
+* **Interactive Calendars**: Calendar integrations for learning circle sync times and project task due dates.
 
 ## Credits
 

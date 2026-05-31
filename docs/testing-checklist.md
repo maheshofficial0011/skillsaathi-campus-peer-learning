@@ -263,3 +263,20 @@ Documented gaps and future enhancements for post-MVP release:
 - [ ] Multi-File Uploads: Shared resources are limited to single-file submissions; zip folders can be utilized as a manual workaround.
 - [ ] Video Formats: Interactive video previews are constrained to `.mp4`, `.webm`, and `.mov` under 20MB. Other formats download as raw documents.
 - [ ] Calendar Scheduling: Mentor bookings and task timelines utilize manual text inputs; direct Google Calendar integration is planned for future phases.
+
+---
+
+## 19. Reviewer Acceptance Checklist
+
+Verify these core presentation parameters prior to final evaluation:
+
+- [ ] Live app loads successfully
+- [ ] README is clear and readable
+- [ ] GitHub Pages showcase loads cleanly
+- [ ] Screenshot gallery displays correctly
+- [ ] Authentication works as expected
+- [ ] Core modules open without errors
+- [ ] Learning Circle discussion sorting works (announcements pinned to top)
+- [ ] Long lists use internal scroll where needed
+- [ ] Supabase guide is readable and correct
+- [ ] No obvious horizontal layout overflow
